@@ -51,8 +51,8 @@ Follow these steps to set up the system locally:
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/your-username/class-scheduling-system.git
-cd class-scheduling-system
+git clone https://github.com/johndexter268/my-app.git
+cd my-app
 ```
 
 ### 2. Install dependencies
@@ -70,7 +70,7 @@ npm run dev
 ### 4. Run Electron with React + Vite
 
 ```bash
-npm run electron:dev
+npm run dev
 ```
 
 *(Make sure you’ve set up scripts for `electron:dev` in `package.json`.)*
