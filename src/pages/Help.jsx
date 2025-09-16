@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { FiBook, FiInfo, FiZoomIn, FiZoomOut, FiMaximize, FiX, FiSave, FiFileText, FiPrinter, FiPlus } from "react-icons/fi";
+import { FiBook, FiInfo, FiZoomIn, FiZoomOut, FiMaximize, FiX, FiSave, FiFileText, FiPrinter, FiPlus, FiDownload } from "react-icons/fi";
 import { FaRegKeyboard } from "react-icons/fa";
+
 export default function Help() {
   const [activeTab, setActiveTab] = useState("User Guide");
 
@@ -75,19 +76,68 @@ export default function Help() {
         ))}
       </div>
 
-      <div className="bg-white rounded-lg p-6 shadow-sm border">
+      <div className="bg-white rounded-lg shadow-sm border">
         {activeTab === "User Guide" && (
-          <div className="text-center py-12">
-            <FiBook className="mx-auto mb-4 text-6xl text-gray-400" />
-            <h2 className="text-xl font-semibold text-gray-600 mb-2">User Guide Coming Soon</h2>
-            <p className="text-gray-500">
-              The comprehensive user guide is still being developed. Please check back later for detailed instructions on how to use the system.
-            </p>
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <FiBook className="text-2xl text-teal-600" />
+                <h2 className="text-2xl font-bold text-gray-800">User Manual</h2>
+              </div>
+              <a 
+                href="/imgs/User_Manual.pdf" 
+                download 
+                className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors"
+                title="Download User Manual"
+              >
+                <FiDownload className="w-4 h-4" />
+                Download PDF
+              </a>
+            </div>
+            
+            <div className="border border-gray-200 rounded-lg overflow-hidden">
+              <iframe
+                src="/imgs/User_Manual.pdf#view=FitH&toolbar=1&navpanes=1"
+                className="w-full h-[800px]"
+                title="User Manual PDF"
+                frameBorder="0"
+              >
+                <div className="p-8 text-center bg-gray-50">
+                  <FiFileText className="mx-auto mb-4 text-6xl text-gray-400" />
+                  <p className="text-gray-600 mb-4">
+                    Your browser doesn't support PDF viewing. Please download the file to view it.
+                  </p>
+                  <a 
+                    href="/imgs/User_Manual.pdf" 
+                    download 
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors"
+                  >
+                    <FiDownload className="w-4 h-4" />
+                    Download User Manual
+                  </a>
+                </div>
+              </iframe>
+            </div>
+            
+            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-start gap-2">
+                <FiInfo className="text-blue-600 mt-1" />
+                <div>
+                  <p className="text-blue-800 font-medium mb-1">PDF Viewing Tips:</p>
+                  <ul className="text-blue-700 text-sm space-y-1">
+                    <li>• Use the PDF controls at the bottom to navigate pages</li>
+                    <li>• You can zoom in/out using the PDF viewer controls</li>
+                    <li>• Click the download button to save a copy locally</li>
+                    <li>• If the PDF doesn't load, try refreshing the page or downloading it directly</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
         {activeTab === "Shortcut Keys and Commands" && (
-          <div>
+          <div className="p-6">
             <div className="flex items-center gap-3 mb-6">
               <FaRegKeyboard className="text-2xl text-teal-600" />
               <h2 className="text-2xl font-bold text-gray-800">Shortcut Keys and Commands</h2>
@@ -137,7 +187,7 @@ export default function Help() {
         )}
 
         {activeTab === "About" && (
-          <div>
+          <div className="p-6">
             <div className="flex items-center gap-3 mb-6">
               <FiInfo className="text-2xl text-teal-600" />
               <h2 className="text-2xl font-bold text-gray-800">About</h2>
