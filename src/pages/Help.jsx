@@ -1,3 +1,187 @@
+import { useState } from "react";
+import { FiBook, FiInfo, FiZoomIn, FiZoomOut, FiMaximize, FiX, FiSave, FiFileText, FiPrinter, FiPlus } from "react-icons/fi";
+import { FaRegKeyboard } from "react-icons/fa";
 export default function Help() {
-  return <h1 className="text-2xl p-4">Help Page</h1>;
+  const [activeTab, setActiveTab] = useState("User Guide");
+
+  const tabs = ["User Guide", "Shortcut Keys and Commands", "About"];
+
+  const shortcuts = [
+    {
+      category: "Main Actions Shortcuts",
+      icon: <FiFileText className="text-teal-600" />,
+      description: "These commands let you quickly perform essential file operations:",
+      items: [
+        { key: "Ctrl+N", action: "Create a New file", icon: <FiPlus /> },
+        { key: "Ctrl+S", action: "Save the current file", icon: <FiSave /> },
+        { key: "Ctrl+Shift+S", action: "Save As a new file name or location", icon: <FiSave /> },
+        { key: "Ctrl+E", action: "Export the current file", icon: <FiFileText /> },
+        { key: "Ctrl+P", action: "Print the current document", icon: <FiPrinter /> },
+        { key: "Ctrl+H", action: "Open the Help page", icon: <FiInfo /> },
+        { key: "Ctrl+W", action: "Close the current file", icon: <FiX /> }
+      ]
+    },
+    {
+      category: "View Tools Shortcuts",
+      icon: <FiZoomIn className="text-teal-600" />,
+      description: "Use these when working with view tools (zooming and full screen):",
+      items: [
+        { key: "Ctrl++ or Ctrl+=", action: "Zoom In", icon: <FiZoomIn /> },
+        { key: "Ctrl+-", action: "Zoom Out", icon: <FiZoomOut /> },
+        { key: "Ctrl+F or F11", action: "Toggle Full Screen mode", icon: <FiMaximize /> }
+      ]
+    },
+    {
+      category: "General Shortcuts",
+      icon: <FaRegKeyboard className="text-teal-600" />,
+      description: "",
+      items: [
+        { key: "Escape", action: "Close any open modal, dialog, or pop-up window", icon: <FiX /> }
+      ]
+    }
+  ];
+
+  const developers = [
+    {
+      name: "Umali, Allan Joseph R.",
+      program: "BS Information Technology",
+      image: "https://via.placeholder.com/150x150/6B7280/FFFFFF?text=AJU"
+    },
+    {
+      name: "Mendoza, Angelo R.",
+      program: "BS Information Technology", 
+      image: "https://via.placeholder.com/150x150/6B7280/FFFFFF?text=ARM"
+    },
+    {
+      name: "Rementilla, Tai Lee D.",
+      program: "BS Information Technology",
+      image: "https://via.placeholder.com/150x150/6B7280/FFFFFF?text=TLR"
+    }
+  ];
+
+  return (
+    <div className="p-4">
+      <div className="flex gap-2 mb-4 overflow-x-auto">
+        {tabs.map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-4 py-2 rounded-md font-medium transition-colors whitespace-nowrap ${
+              activeTab === tab ? "bg-teal-100 text-teal-600 border-t-2 border-teal-600" : "text-gray-600 hover:bg-gray-100"
+            }`}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
+
+      <div className="bg-white rounded-lg p-6 shadow-sm border">
+        {activeTab === "User Guide" && (
+          <div className="text-center py-12">
+            <FiBook className="mx-auto mb-4 text-6xl text-gray-400" />
+            <h2 className="text-xl font-semibold text-gray-600 mb-2">User Guide Coming Soon</h2>
+            <p className="text-gray-500">
+              The comprehensive user guide is still being developed. Please check back later for detailed instructions on how to use the system.
+            </p>
+          </div>
+        )}
+
+        {activeTab === "Shortcut Keys and Commands" && (
+          <div>
+            <div className="flex items-center gap-3 mb-6">
+              <FaRegKeyboard className="text-2xl text-teal-600" />
+              <h2 className="text-2xl font-bold text-gray-800">Shortcut Keys and Commands</h2>
+            </div>
+            <p className="text-gray-600 mb-8">
+              To make your workflow faster and more efficient, here's a list of supported shortcut keys and commands you can use within the application.
+            </p>
+
+            <div className="space-y-8">
+              {shortcuts.map((section, index) => (
+                <div key={index} className="border-l-4 border-teal-500 pl-6">
+                  <div className="flex items-center gap-3 mb-3">
+                    {section.icon}
+                    <h3 className="text-xl font-semibold text-gray-800">{section.category}</h3>
+                  </div>
+                  {section.description && (
+                    <p className="text-gray-600 mb-4">{section.description}</p>
+                  )}
+                  <div className="grid gap-3">
+                    {section.items.map((item, itemIndex) => (
+                      <div key={itemIndex} className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
+                        <div className="text-teal-600">{item.icon}</div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3">
+                            <kbd className="px-3 py-1 bg-gray-200 border border-gray-300 rounded text-sm font-mono font-semibold">
+                              {item.key}
+                            </kbd>
+                            <span className="text-gray-700">{item.action}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-8 p-4 bg-teal-50 border border-teal-200 rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-teal-600 font-bold">💡 Tip:</span>
+              </div>
+              <p className="text-teal-800">
+                Practice using these shortcuts regularly to improve your efficiency and navigate the application seamlessly.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "About" && (
+          <div>
+            <div className="flex items-center gap-3 mb-6">
+              <FiInfo className="text-2xl text-teal-600" />
+              <h2 className="text-2xl font-bold text-gray-800">About</h2>
+            </div>
+            
+            <div className="prose max-w-none text-gray-700 leading-relaxed space-y-4 mb-8">
+              <p>
+                The <strong>Class Scheduling System for Golden Gate Colleges</strong> is a capstone project designed to address the challenges of managing class schedules within the institution. Scheduling plays a crucial role in organizing academic activities, ensuring efficient use of resources, and avoiding conflicts between faculty, students, and classrooms. Traditionally, this process at Golden Gate Colleges (GGC) has been handled manually using tools such as Microsoft Word and Excel. While effective to some extent, this approach is time-consuming, prone to errors, and often results in delays in posting final schedules.
+              </p>
+              
+              <p>
+                Golden Gate Colleges, established in November 1946, is the first private higher education institution in Batangas. Over the years, GGC has continued to provide quality education through its various departments, including Teacher Education, Accountancy and Business Administration, Nursing, and Engineering and Technology. Despite its growth and modernization, the college continues to face challenges with its manual scheduling system, especially in the <strong>Engineering and Technology Department</strong> where scheduling conflicts, overlapping class times, and classroom shortages frequently occur.
+              </p>
+              
+              <p>
+                The proposed Class Scheduling System aims to streamline this process by providing an automated solution tailored to the needs of the college. By integrating technology, the system reduces administrative workload, minimizes scheduling conflicts, and ensures timely release of class schedules. This not only improves efficiency for administrators but also provides faculty and students with a more reliable and accessible schedule, enhancing the overall academic experience.
+              </p>
+              
+              <p>
+                This project demonstrates the potential of automation in addressing long-standing challenges, paving the way for a more organized, accurate, and user-friendly scheduling process for Golden Gate Colleges.
+              </p>
+            </div>
+
+            <div className="border-t pt-8">
+              <h3 className="text-xl font-semibold text-gray-800 mb-6 text-center">Development Team</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {developers.map((developer, index) => (
+                  <div key={index} className="bg-gradient-to-br from-teal-50 to-blue-50 rounded-lg p-6 text-center border border-teal-100 shadow-sm">
+                    <div className="w-24 h-24 mx-auto mb-4 rounded-full overflow-hidden bg-gray-200">
+                      <img 
+                        src={developer.image} 
+                        alt={developer.name}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <h4 className="font-semibold text-gray-800 mb-2">{developer.name}</h4>
+                    <p className="text-teal-600 font-medium">{developer.program}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
