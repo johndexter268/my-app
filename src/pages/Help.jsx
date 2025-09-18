@@ -97,7 +97,7 @@ export default function Help() {
             
             <div className="border border-gray-200 rounded-lg overflow-hidden">
               <iframe
-                src="/imgs/User_Manual.pdf#view=FitH&toolbar=1&navpanes=1"
+                src="/imgs/User_Manual.pdf#view=FitH&toolbar=1&navpanes=0"
                 className="w-full h-[800px]"
                 title="User Manual PDF"
                 frameBorder="0"
@@ -125,7 +125,7 @@ export default function Help() {
                 <div>
                   <p className="text-blue-800 font-medium mb-1">PDF Viewing Tips:</p>
                   <ul className="text-blue-700 text-sm space-y-1">
-                    <li>• Use the PDF controls at the bottom to navigate pages</li>
+                    <li>• Use the PDF controls to navigate pages</li>
                     <li>• You can zoom in/out using the PDF viewer controls</li>
                     <li>• Click the download button to save a copy locally</li>
                     <li>• If the PDF doesn't load, try refreshing the page or downloading it directly</li>

@@ -14,12 +14,16 @@ export default function Toolbar() {
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [showViewTools, setShowViewTools] = useState(false);
   const [fileToCloseId, setFileToCloseId] = useState(null);
+  const [isExporting, setIsExporting] = useState(false); // New state for export loading
+  const [isPrinting, setIsPrinting] = useState(false); // New state for print loading
+  const MAX_OPEN_FILES = 5;
   const [formData, setFormData] = useState({
     name: "",
     academic_year: "",
     semester: "",
   });
   const [exportData, setExportData] = useState({
+    fileId: "",
     type: "program",
     id: "",
     format: "pdf",
@@ -125,9 +129,9 @@ export default function Toolbar() {
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [
-    showViewTools, 
-    location.pathname, 
-    activeFileId, 
+    showViewTools,
+    location.pathname,
+    activeFileId,
     navigate,
     // Include handler dependencies
     showNewModal,
@@ -145,7 +149,10 @@ export default function Toolbar() {
     setShowExportModal(false);
     setShowPrintModal(false);
     setFormData({ name: "", academic_year: "", semester: "" });
+    setExportData({ fileId: "", type: "program", id: "", format: "pdf" });
     setFileToCloseId(null);
+    setIsExporting(false); // Reset export loading state
+    setIsPrinting(false); // Reset print loading state
   };
 
   useEffect(() => {
@@ -173,7 +180,12 @@ export default function Toolbar() {
 
     const handleFileSelected = async (event) => {
       const file = event.detail;
-      if (!file || !file.id) return;
+
+      if (openFiles.length >= MAX_OPEN_FILES && !openFiles.some(f => f.id === file.id)) {
+        alert(`You can only open up to ${MAX_OPEN_FILES} schedule files at a time. Please close one before opening another.`);
+        return;
+      }
+
       setLoadingFiles((prev) => new Set([...prev, file.id]));
       try {
         await window.api.setCurrentFile(file);
@@ -309,20 +321,29 @@ export default function Toolbar() {
   };
 
   const handleExport = () => {
-    if (!activeFileId) {
-      alert("No file selected to export.");
-      return;
-    }
-    setExportData({ type: "program", id: "", format: "pdf" });
+    if (isExporting) return; // Prevent multiple export requests
+    const defaultFileId = activeFileId || (openFiles.length > 0 ? openFiles[0].id : "");
+    const defaultType = "program";
+    const defaultId = programs.length > 0 ? programs[0].id.toString() : "all";
+    setExportData({
+      fileId: defaultFileId.toString(),
+      type: defaultType,
+      id: defaultId,
+      format: "pdf",
+    });
     setShowExportModal(true);
   };
 
   const handlePrint = () => {
-    if (!activeFileId) {
-      alert("No file selected to print.");
-      return;
-    }
-    setExportData({ type: "program", id: "", format: "pdf" });
+    if (isPrinting) return; // Prevent multiple print requests
+    const defaultFileId = activeFileId || (openFiles.length > 0 ? openFiles[0].id : "");
+    const defaultType = "program";
+    const defaultId = programs.length > 0 ? programs[0].id.toString() : "all";
+    setExportData({
+      fileId: defaultFileId.toString(),
+      type: defaultType,
+      id: defaultId,
+    });
     setShowPrintModal(true);
   };
 
@@ -418,55 +439,67 @@ export default function Toolbar() {
   };
 
   const submitExport = async () => {
-    if (!activeFileId) {
-      alert("No file selected to export.");
+    if (isExporting) return; // Prevent multiple export requests
+    const fileIdToUse = exportData.fileId;
+    if (!fileIdToUse) {
+      alert("Please select a file to export.");
       return;
     }
     if (!exportData.type || !exportData.id) {
       alert("Please select an export type and ID.");
       return;
     }
+    setIsExporting(true);
     try {
       const result = await window.api.exportFile({
-        fileId: activeFileId,
+        fileId: fileIdToUse,
         type: exportData.type,
-        id: parseInt(exportData.id),
+        id: exportData.id === "all" ? "all" : parseInt(exportData.id),
         format: exportData.format,
       });
       if (result.success) {
         alert(result.message);
         setShowExportModal(false);
+        setExportData({ fileId: "", type: "program", id: "", format: "pdf" });
       } else {
         alert(result.message);
       }
     } catch (error) {
-      alert("Error exporting file: " + error.message);
+      alert("Error exporting file: " + (error.message || "Unknown error"));
+    } finally {
+      setIsExporting(false);
     }
   };
 
   const submitPrint = async () => {
-    if (!activeFileId) {
-      alert("No file selected to print.");
+    if (isPrinting) return; // Prevent multiple print requests
+    const fileIdToUse = exportData.fileId;
+    if (!fileIdToUse) {
+      alert("Please select a file to print.");
       return;
     }
     if (!exportData.type || !exportData.id) {
       alert("Please select a print type and ID.");
       return;
     }
+    setIsPrinting(true);
     try {
       const result = await window.api.printFile({
-        fileId: activeFileId,
+        fileId: fileIdToUse,
         type: exportData.type,
-        id: parseInt(exportData.id),
+        id: exportData.id === "all" ? "all" : parseInt(exportData.id),
       });
       if (result.success) {
         alert(result.message);
         setShowPrintModal(false);
+        setExportData({ fileId: "", type: "program", id: "", format: "pdf" });
       } else {
         alert(result.message);
       }
     } catch (error) {
-      alert("Error printing file: " + error.message);
+      alert("Error printing file: " + (error.message || "Unknown error"));
+    } finally {
+      setIsPrinting(false);
     }
   };
 
@@ -521,6 +554,7 @@ export default function Toolbar() {
           window.dispatchEvent(new CustomEvent('fileSelected', { detail: file }));
         }
       }
+      window.dispatchEvent(new CustomEvent('viewFullSchedule', { detail: { fullScheduleActive: false } }));
     }
     window.dispatchEvent(new CustomEvent('viewByCourse', { detail: { programId } }));
   };
@@ -535,6 +569,7 @@ export default function Toolbar() {
           window.dispatchEvent(new CustomEvent('fileSelected', { detail: file }));
         }
       }
+      window.dispatchEvent(new CustomEvent('viewFullSchedule', { detail: { fullScheduleActive: false } }));
     }
     window.dispatchEvent(new CustomEvent('viewByYearLevel', { detail: { yearLevel } }));
   };
@@ -543,13 +578,13 @@ export default function Toolbar() {
     window.dispatchEvent(new CustomEvent('viewFullScreen'));
   };
 
-  // Updated buttons array with keyboard shortcuts in tooltips
+  // Updated buttons array with keyboard shortcuts in tooltips and loading state
   const buttons = [
     { name: "New", icon: <FiPlus />, onClick: handleNew, shortcut: "Ctrl+N" },
     { name: "Save", icon: <FiSave />, onClick: handleSave, disabled: !activeFileId, shortcut: "Ctrl+S" },
     { name: "Save As", icon: <FiSave />, onClick: handleSaveAs, disabled: !activeFileId, shortcut: "Ctrl+Shift+S" },
-    { name: "Export", icon: <FiDownload />, onClick: handleExport, disabled: !activeFileId, shortcut: "Ctrl+E" },
-    { name: "Print", icon: <FiPrinter />, onClick: handlePrint, disabled: !activeFileId, shortcut: "Ctrl+P" },
+    { name: "Export", icon: isExporting ? <FaSpinner className="animate-spin text-base" /> : <FiDownload />, onClick: handleExport, disabled: !activeFileId || isExporting, shortcut: "Ctrl+E" },
+    { name: "Print", icon: isPrinting ? <FaSpinner className="animate-spin text-base" /> : <FiPrinter />, onClick: handlePrint, disabled: !activeFileId || isPrinting, shortcut: "Ctrl+P" },
   ];
 
   return (
@@ -570,11 +605,10 @@ export default function Toolbar() {
                   key={idx}
                   onClick={btn.onClick}
                   disabled={btn.disabled}
-                  className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 ${
-                    btn.disabled
-                      ? 'text-gray-400 cursor-not-allowed'
-                      : 'text-gray-700 hover:text-gray-900 hover:bg-white/80'
-                  }`}
+                  className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 ${btn.disabled
+                    ? 'text-gray-400 cursor-not-allowed'
+                    : 'text-gray-700 hover:text-gray-900 hover:bg-white/80'
+                    }`}
                   style={{
                     border: "1px solid transparent",
                   }}
@@ -597,23 +631,26 @@ export default function Toolbar() {
                 </button>
               ))}
             </div>
-            
+
             {/* Help button positioned in the right corner */}
             <div className="flex items-center">
               <button
-                onClick={() => navigate("/help")}
+                onClick={() => {
+                  navigate("/help");
+                  window.location.reload();
+                }}
                 className="flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 text-gray-700 hover:text-gray-900 hover:bg-white/80"
                 style={{
                   border: "1px solid transparent",
                 }}
                 title="Help (Ctrl+H)"
                 onMouseEnter={(e) => {
-                  e.target.style.borderColor = "#d1d5db";
-                  e.target.style.backgroundColor = "#ffffff";
+                  e.currentTarget.style.borderColor = "#d1d5db";
+                  e.currentTarget.style.backgroundColor = "#ffffff";
                 }}
                 onMouseLeave={(e) => {
-                  e.target.style.borderColor = "transparent";
-                  e.target.style.backgroundColor = "transparent";
+                  e.currentTarget.style.borderColor = "transparent";
+                  e.currentTarget.style.backgroundColor = "transparent";
                 }}
               >
                 <span className="text-base"><FiHelpCircle /></span>
@@ -662,13 +699,12 @@ export default function Toolbar() {
               </button>
               <button
                 onClick={handleFullSchedule}
-                className={`p-2 rounded-lg transition-colors duration-200 ${
-                  fullScheduleActive ? 'bg-teal-500 text-white' : 'text-gray-700 hover:text-gray-900 hover:bg-white/80'
-                }`}
+                className={`p-2 rounded-lg transition-colors duration-200 ${fullScheduleActive ? 'bg-teal-500 text-gray-700' : 'text-gray-700 hover:text-gray-900'
+                  }`}
                 style={{
-                  border: "1px solid transparent",
+                  border: "1px solid",
                 }}
-                title="Full Schedule"
+                title="All Schedules"
                 onMouseEnter={(e) => {
                   if (!fullScheduleActive) {
                     e.target.style.borderColor = "#d1d5db";
@@ -732,11 +768,10 @@ export default function Toolbar() {
               {openFiles.map((file) => (
                 <div
                   key={file.id}
-                  className={`flex items-center px-3 py-2 rounded-t-lg text-sm cursor-pointer transition-colors duration-200 border-b-2 relative ${
-                    file.id === activeFileId
-                      ? 'bg-white text-zinc-600 border-teal-500 shadow-sm'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border-transparent hover:border-gray-300'
-                  }`}
+                  className={`flex items-center px-3 py-2 rounded-t-lg text-sm cursor-pointer transition-colors duration-200 border-b-2 relative ${file.id === activeFileId
+                    ? 'bg-white text-zinc-600 border-teal-500 shadow-sm'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border-transparent hover:border-gray-300'
+                    }`}
                   onClick={() => handleTabClick(file.id)}
                   style={{
                     maxWidth: '250px',
@@ -878,16 +913,38 @@ export default function Toolbar() {
       {showExportModal && (
         <Modal
           title="Export Schedule"
-          onClose={() => setShowExportModal(false)}
+          onClose={() => {
+            setShowExportModal(false);
+            setExportData({ fileId: "", type: "program", id: "", format: "pdf" });
+            setIsExporting(false);
+          }}
           onSave={submitExport}
-          saveText="Export"
+          saveText={isExporting ? "Exporting..." : "Export"}
+          saveDisabled={isExporting}
         >
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Select File</label>
+            <select
+              value={exportData.fileId || ""}
+              onChange={(e) => handleExportChange("fileId", e.target.value)}
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              disabled={isExporting}
+            >
+              <option value="">Select Schedule File</option>
+              {openFiles.map((file) => (
+                <option key={file.id} value={file.id}>
+                  {file.name} ({file.semester} {file.academic_year})
+                </option>
+              ))}
+            </select>
+          </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Export Type</label>
             <select
               value={exportData.type}
               onChange={(e) => handleExportChange("type", e.target.value)}
               className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              disabled={isExporting}
             >
               <option value="program">Program</option>
               <option value="teacher">Teacher</option>
@@ -901,11 +958,15 @@ export default function Toolbar() {
               value={exportData.id}
               onChange={(e) => handleExportChange("id", e.target.value)}
               className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              disabled={isExporting}
             >
-              <option value="">Select {exportData.type === "program" ? "Program" : "Teacher"}</option>
+              <option value="">
+                Select {exportData.type === "program" ? "Program" : "Teacher"}
+              </option>
+              {exportData.type === "program" && <option value="all">All Programs</option>}
               {(exportData.type === "program" ? programs : teachers).map((item) => (
                 <option key={item.id} value={item.id}>
-                  {exportData.type === "program" ? item.name : item.name}
+                  {exportData.type === "program" ? item.name : item.fullName}
                 </option>
               ))}
             </select>
@@ -916,9 +977,10 @@ export default function Toolbar() {
               value={exportData.format}
               onChange={(e) => handleExportChange("format", e.target.value)}
               className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              disabled={isExporting}
             >
               <option value="pdf">PDF</option>
-              <option value="csv">CSV</option>
+              {/* <option value="json">JSON</option> */}
             </select>
           </div>
         </Modal>
@@ -927,16 +989,38 @@ export default function Toolbar() {
       {showPrintModal && (
         <Modal
           title="Print Schedule"
-          onClose={() => setShowPrintModal(false)}
+          onClose={() => {
+            setShowPrintModal(false);
+            setExportData({ fileId: "", type: "program", id: "", format: "pdf" });
+            setIsPrinting(false);
+          }}
           onSave={submitPrint}
-          saveText="Print"
+          saveText={isPrinting ? "Printing..." : "Print"}
+          saveDisabled={isPrinting}
         >
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Select File</label>
+            <select
+              value={exportData.fileId || ""}
+              onChange={(e) => handleExportChange("fileId", e.target.value)}
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              disabled={isPrinting}
+            >
+              <option value="">Select Schedule File</option>
+              {openFiles.map((file) => (
+                <option key={file.id} value={file.id}>
+                  {file.name} ({file.semester} {file.academic_year})
+                </option>
+              ))}
+            </select>
+          </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Print Type</label>
             <select
               value={exportData.type}
               onChange={(e) => handleExportChange("type", e.target.value)}
               className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              disabled={isPrinting}
             >
               <option value="program">Program</option>
               <option value="teacher">Teacher</option>
@@ -950,11 +1034,15 @@ export default function Toolbar() {
               value={exportData.id}
               onChange={(e) => handleExportChange("id", e.target.value)}
               className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              disabled={isPrinting}
             >
-              <option value="">Select {exportData.type === "program" ? "Program" : "Teacher"}</option>
+              <option value="">
+                Select {exportData.type === "program" ? "Program" : "Teacher"}
+              </option>
+              {exportData.type === "program" && <option value="all">All Programs</option>}
               {(exportData.type === "program" ? programs : teachers).map((item) => (
                 <option key={item.id} value={item.id}>
-                  {exportData.type === "program" ? item.name : item.name}
+                  {exportData.type === "program" ? item.name : item.fullName}
                 </option>
               ))}
             </select>

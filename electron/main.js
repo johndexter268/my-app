@@ -1,5 +1,6 @@
 const { app, BrowserWindow, ipcMain, dialog } = require("electron");
 const path = require("path");
+const { pathToFileURL } = require("url");
 const fs = require("fs");
 const isDev = require("electron-is-dev");
 const sqlite3 = require("sqlite3").verbose();
@@ -11,6 +12,29 @@ let db;
 // Store multiple open files with their IDs
 const openFiles = new Map(); // Map<fileId, fileData>
 
+// Utility functions for time formatting
+function parseClockToMinutes(clock) {
+  if (!clock) return null;
+  const m = clock.trim().match(/^(\d{1,2}):?(\d{2})?\s*([AaPp][Mm])$/);
+  if (!m) return null;
+  let hh = parseInt(m[1], 10);
+  const mm = parseInt(m[2] || "00", 10);
+  const ampm = m[3].toUpperCase();
+  if (hh === 12) hh = 0;
+  if (ampm === 'PM') hh += 12;
+  return hh * 60 + mm;
+}
+
+function minutesToClock(mins) {
+  mins = ((mins % (24 * 60)) + (24 * 60)) % (24 * 60);
+  let hh = Math.floor(mins / 60);
+  const mm = mins % 60;
+  const ampm = hh >= 12 ? 'PM' : 'AM';
+  if (hh === 0) hh = 12;
+  else if (hh > 12) hh -= 12;
+  return `${hh}:${mm.toString().padStart(2, '0')} ${ampm}`;
+}
+
 // ---------------- DATABASE ----------------
 function initializeDatabase() {
   db = new sqlite3.Database(path.join(app.getPath("userData"), "app.db"), (err) => {
@@ -19,14 +43,12 @@ function initializeDatabase() {
   });
 
   db.serialize(() => {
-    // Create users table
     db.run(`CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username TEXT,
       password TEXT
     )`);
 
-    // Create schedule_files table with updatedAt
     db.run(`CREATE TABLE IF NOT EXISTS schedule_files (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -36,7 +58,6 @@ function initializeDatabase() {
       updatedAt TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
 
-    // Create teachers table
     db.run(`CREATE TABLE IF NOT EXISTS teachers (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       fullName TEXT NOT NULL,
@@ -44,14 +65,12 @@ function initializeDatabase() {
       color TEXT NOT NULL
     )`);
 
-    // Create programs table
     db.run(`CREATE TABLE IF NOT EXISTS programs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       years INTEGER NOT NULL
     )`);
 
-    // Create subjects table
     db.run(`CREATE TABLE IF NOT EXISTS subjects (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -63,14 +82,12 @@ function initializeDatabase() {
       FOREIGN KEY (programId) REFERENCES programs(id)
     )`);
 
-    // Create rooms table
     db.run(`CREATE TABLE IF NOT EXISTS rooms (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       capacity INTEGER NOT NULL
     )`);
 
-    // Create classes table
     db.run(`CREATE TABLE IF NOT EXISTS classes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -80,7 +97,6 @@ function initializeDatabase() {
       FOREIGN KEY (programId) REFERENCES programs(id)
     )`);
 
-    // Create subject_assignments table
     db.run(`CREATE TABLE IF NOT EXISTS subject_assignments (
       id TEXT PRIMARY KEY,
       scheduleFileId INTEGER,
@@ -91,7 +107,6 @@ function initializeDatabase() {
       FOREIGN KEY(teacherId) REFERENCES teachers(id)
     )`);
 
-    // Create time_assignments table with teacherId
     db.run(`CREATE TABLE IF NOT EXISTS time_assignments (
       id TEXT PRIMARY KEY,
       scheduleFileId INTEGER,
@@ -107,7 +122,6 @@ function initializeDatabase() {
       FOREIGN KEY(classId) REFERENCES classes(id)
     )`);
 
-    // Create room_assignments table with teacherId
     db.run(`CREATE TABLE IF NOT EXISTS room_assignments (
       id TEXT PRIMARY KEY,
       scheduleFileId INTEGER,
@@ -122,7 +136,6 @@ function initializeDatabase() {
       FOREIGN KEY(roomId) REFERENCES rooms(id)
     )`);
 
-    // Create default admin user
     db.get(`SELECT * FROM users WHERE username=?`, ["admin"], (err, row) => {
       if (!row) {
         db.run(`INSERT INTO users (username, password) VALUES (?, ?)`, ["admin", "password"]);
@@ -130,7 +143,6 @@ function initializeDatabase() {
       }
     });
 
-    // Migration for adding teacherId if not present (for existing databases)
     db.run(`ALTER TABLE time_assignments ADD COLUMN teacherId INTEGER REFERENCES teachers(id)`, (err) => {
       if (err && !err.message.includes('duplicate column name')) {
         console.error("Error adding teacherId to time_assignments:", err.message);
@@ -390,354 +402,1016 @@ ipcMain.handle("get-programs", () => {
   });
 });
 
-ipcMain.handle("print-file", async (event, args = {}) => {
-  const { fileId, type, id } = args;
-  console.log("Print requested - fileId:", fileId, "openFiles keys:", Array.from(openFiles.keys()));
-  if (!fileId || !openFiles.has(fileId)) {
-    console.log("Print failed: No valid file selected. openFiles:", openFiles);
-    return { success: false, message: "No valid file selected to print." };
-  }
-  try {
-    const file = await new Promise((resolve, reject) => {
-      db.get(`SELECT * FROM schedule_files WHERE id=?`, [fileId], (err, row) => {
-        if (err) reject(err.message);
-        else resolve(row);
-      });
-    });
-    const [timeAssignments, subjects, teachers, classes, rooms, programs, roomAssignments] = await Promise.all([
-      new Promise((res) => db.all(`SELECT * FROM time_assignments WHERE scheduleFileId=?`, [fileId], (e, r) => res(e ? [] : r))),
-      new Promise((res) => db.all(`SELECT * FROM subjects`, (e, r) => res(e ? [] : r))),
-      new Promise((res) => db.all(`SELECT * FROM teachers`, (e, r) => res(e ? [] : r))),
-      new Promise((res) => db.all(`SELECT * FROM classes`, (e, r) => res(e ? [] : r))),
-      new Promise((res) => db.all(`SELECT * FROM rooms`, (e, r) => res(e ? [] : r))),
-      new Promise((res) => db.all(`SELECT * FROM programs`, (e, r) => res(e ? [] : r))),
-      new Promise((res) => db.all(`SELECT * FROM room_assignments WHERE scheduleFileId=?`, [fileId], (e, r) => res(e ? [] : r))),
-    ]);
+// Complete IPC handlers for export and print functionality
 
-    let htmlContent = `
-      <html>
-        <head>
-          <style>
-            @page { size: landscape; margin: 1cm; }
-            body { font-family: Arial, sans-serif; font-size: 10px; }
-            h1 { text-align: center; font-size: 14px; margin: 10px 0; }
-            h2 { font-size: 12px; margin: 15px 0 10px; }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; page-break-inside: auto; }
-            th, td { border: 1px solid #ddd; padding: 4px; text-align: left; vertical-align: top; }
-            th { background-color: #f2f2f2; font-weight: bold; font-size: 10px; }
-            .time-slot { font-size: 9px; padding: 2px; margin: 2px; border-radius: 3px; white-space: normal; word-wrap: break-word; }
-            .time-col { width: 80px; }
-            .day-col { width: calc((100% - 80px) / 6); }
-            .page-break { page-break-before: always; }
-          </style>
-        </head>
-        <body>
-          <h1>Schedule: ${file.name} (${file.semester} ${file.academic_year})</h1>
-    `;
-
-    const times = [
-      '7:00 AM-8:00 AM', '8:00 AM-9:00 AM', '9:00 AM-10:00 AM', '10:00 AM-11:00 AM', '11:00 AM-12:00 PM',
-      '12:00 PM-1:00 PM', '1:00 PM-2:00 PM', '2:00 PM-3:00 PM', '3:00 PM-4:00 PM', '4:00 PM-5:00 PM',
-      '5:00 PM-6:00 PM', '6:00 PM-7:00 PM'
-    ];
-    const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-    if (type === 'teacher') {
-      const teacher = teachers.find(t => t.id === id);
-      if (!teacher) {
-        return { success: false, message: "Teacher not found." };
-      }
-      htmlContent += `<h2>Schedule for ${teacher.fullName}</h2>`;
-      htmlContent += `
-        <table>
-          <thead>
-            <tr>
-              <th class="time-col">Time</th>
-              ${days.map(day => `<th class="day-col">${day}</th>`).join('')}
-            </tr>
-          </thead>
-          <tbody>
-      `;
-      times.forEach(time => {
-        htmlContent += `<tr><td class="time-col">${time}</td>`;
-        days.forEach(day => {
-          const timeAss = timeAssignments.filter(a => a.teacherId === id && a.day === day && a.timeSlot === time);
-          htmlContent += `<td>`;
-          timeAss.forEach(a => {
-            const subject = subjects.find(s => s.id === a.subjectId)?.name || "Unknown";
-            const cls = classes.find(c => c.id === a.classId)?.name || "Unassigned";
-            const roomAss = roomAssignments.find(ra => ra.scheduleFileId === a.scheduleFileId && ra.subjectId === a.subjectId && ra.classId === a.classId);
-            const room = roomAss ? (rooms.find(r => r.id === roomAss.roomId)?.name || "Unassigned") : "Unassigned";
-            htmlContent += `<div class="time-slot" style="background-color: ${teacher.color};">${subject}<br>${cls}<br>${room}</div>`;
-          });
-          htmlContent += `</td>`;
-        });
-        htmlContent += `</tr>`;
-      });
-      htmlContent += `</tbody></table>`;
-    } else if (type === 'program') {
-      const program = programs.find(p => p.id === id);
-      if (!program) {
-        return { success: false, message: "Program not found." };
-      }
-      const classesByYear = {};
-      classes.filter(cls => cls.programId === id).forEach(cls => {
-        if (!classesByYear[cls.yearLevel]) {
-          classesByYear[cls.yearLevel] = [];
-        }
-        classesByYear[cls.yearLevel].push(cls);
-      });
-
-      for (const yearLevel in classesByYear) {
-        const classIds = classesByYear[yearLevel].map(cls => cls.id);
-        htmlContent += `
-          <div class="page-break"></div>
-          <h2>${program.name} - ${yearLevel}</h2>
-          <table>
-            <thead>
-              <tr>
-                <th class="time-col">Time</th>
-                ${days.map(day => `<th class="day-col">${day}</th>`).join('')}
-              </tr>
-            </thead>
-            <tbody>
-        `;
-        times.forEach(time => {
-          htmlContent += `<tr><td class="time-col">${time}</td>`;
-          days.forEach(day => {
-            const timeAss = timeAssignments.filter(a => classIds.includes(a.classId) && a.day === day && a.timeSlot === time);
-            htmlContent += `<td>`;
-            timeAss.forEach(a => {
-              const subject = subjects.find(s => s.id === a.subjectId)?.name || "Unknown";
-              const teacher = teachers.find(t => t.id === a.teacherId)?.fullName || "Unassigned";
-              const roomAss = roomAssignments.find(ra => ra.scheduleFileId === a.scheduleFileId && ra.subjectId === a.subjectId && ra.classId === a.classId);
-              const room = roomAss ? (rooms.find(r => r.id === roomAss.roomId)?.name || "Unassigned") : "Unassigned";
-              const teacherColor = teachers.find(t => t.id === a.teacherId)?.color || "#ffffff";
-              htmlContent += `<div class="time-slot" style="background-color: ${teacherColor};">${subject}<br>${teacher}<br>${room}</div>`;
-            });
-            htmlContent += `</td>`;
-          });
-          htmlContent += `</tr>`;
-        });
-        htmlContent += `</tbody></table>`;
-      }
-    } else {
-      return { success: false, message: "Invalid export type. Use 'teacher' or 'program'." };
-    }
-
-    htmlContent += `</body></html>`;
-
-    const tempFilePath = path.join(app.getPath("temp"), `schedule_${fileId}.html`);
-    fs.writeFileSync(tempFilePath, htmlContent);
-
-    const printWindow = new BrowserWindow({ show: false });
-    printWindow.loadFile(tempFilePath);
-    printWindow.webContents.on("did-finish-load", () => {
-      printWindow.webContents.printToPDF({ landscape: true }).then(data => {
-        const pdfPath = path.join(app.getPath("temp"), `schedule_${fileId}.pdf`);
-        fs.writeFileSync(pdfPath, data);
-        printWindow.close();
-        fs.unlinkSync(tempFilePath);
-        mainWindow.webContents.send("print-complete", { pdfPath });
-      }).catch(error => {
-        printWindow.close();
-        fs.unlinkSync(tempFilePath);
-        throw new Error("PDF generation failed: " + error.message);
-      });
-    });
-    return { success: true, message: "Generating PDF for print." };
-  } catch (error) {
-    console.error("Print error:", error.message);
-    return { success: false, message: "Print failed: " + error.message };
-  }
-});
-
+// Replace the existing export-file handler in your main.js
 ipcMain.handle("export-file", async (event, args = {}) => {
-  const { fileId, type, id, format = 'pdf' } = args;
-  console.log("Export requested - fileId:", fileId, "openFiles keys:", Array.from(openFiles.keys()));
-  if (!fileId || !openFiles.has(fileId)) {
-    console.log("Export failed: No valid file selected. openFiles:", openFiles);
-    return { success: false, message: "No valid file selected to export." };
-  }
-  try {
-    const defaultPath = format === 'pdf' ? `schedule_${fileId}.pdf` : `schedule_${fileId}.json`;
-    const filters = format === 'pdf' ? [{ name: "PDF Files", extensions: ["pdf"] }] : [{ name: "JSON Files", extensions: ["json"] }];
-    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, { defaultPath, filters });
-    if (canceled || !filePath) {
-      return { success: false, message: "Export cancelled." };
-    }
+  const { fileId: rawFileId, type, id, format = 'pdf' } = args;
+  console.log("Export requested - args:", args);
 
-    const file = await new Promise((resolve, reject) => {
-      db.get(`SELECT * FROM schedule_files WHERE id=?`, [fileId], (err, row) => {
-        if (err) reject(err.message);
-        else resolve(row);
-      });
+  const fileId = typeof rawFileId === 'string' ? parseInt(rawFileId) : rawFileId;
+  if (!fileId) {
+    console.error("Export failed: No fileId provided");
+    return { success: false, message: "No file selected to export." };
+  }
+
+  const file = await new Promise((res, rej) => {
+    db.get(`SELECT * FROM schedule_files WHERE id=? AND status='active'`, [fileId], (err, row) => {
+      if (err) {
+        console.error("Error fetching file:", err.message);
+        return rej(err.message);
+      }
+      res(row || null);
     });
-    const [timeAssignments, subjects, teachers, classes, rooms, programs, roomAssignments] = await Promise.all([
-      new Promise((res) => db.all(`SELECT * FROM time_assignments WHERE scheduleFileId=?`, [fileId], (e, r) => res(e ? [] : r))),
-      new Promise((res) => db.all(`SELECT * FROM subjects`, (e, r) => res(e ? [] : r))),
-      new Promise((res) => db.all(`SELECT * FROM teachers`, (e, r) => res(e ? [] : r))),
-      new Promise((res) => db.all(`SELECT * FROM classes`, (e, r) => res(e ? [] : r))),
-      new Promise((res) => db.all(`SELECT * FROM rooms`, (e, r) => res(e ? [] : r))),
-      new Promise((res) => db.all(`SELECT * FROM programs`, (e, r) => res(e ? [] : r))),
-      new Promise((res) => db.all(`SELECT * FROM room_assignments WHERE scheduleFileId=?`, [fileId], (e, r) => res(e ? [] : r))),
+  });
+  if (!file) {
+    console.error("Export failed: File not found for fileId:", fileId);
+    return { success: false, message: "Selected file not found." };
+  }
+
+  try {
+    const [
+      timeAssignments,
+      subjectAssignments,
+      roomAssignments,
+      subjects,
+      teachers,
+      classes,
+      rooms,
+      programs
+    ] = await Promise.all([
+      new Promise((res, rej) => db.all(`SELECT * FROM time_assignments WHERE scheduleFileId=?`, [fileId], (e, r) => e ? rej(e.message) : res(r))),
+      new Promise((res, rej) => db.all(`SELECT * FROM subject_assignments WHERE scheduleFileId=?`, [fileId], (e, r) => e ? rej(e.message) : res(r))),
+      new Promise((res, rej) => db.all(`SELECT * FROM room_assignments WHERE scheduleFileId=?`, [fileId], (e, r) => e ? rej(e.message) : res(r))),
+      new Promise((res, rej) => db.all(`SELECT * FROM subjects`, (e, r) => e ? rej(e.message) : res(r))),
+      new Promise((res, rej) => db.all(`SELECT * FROM teachers`, (e, r) => e ? rej(e.message) : res(r))),
+      new Promise((res, rej) => db.all(`SELECT * FROM classes`, (e, r) => e ? rej(e.message) : res(r))),
+      new Promise((res, rej) => db.all(`SELECT * FROM rooms`, (e, r) => e ? rej(e.message) : res(r))),
+      new Promise((res, rej) => db.all(`SELECT * FROM programs`, (e, r) => e ? rej(e.message) : res(r))),
     ]);
 
     if (format === 'json') {
-      const subjectAssignments = await new Promise((res) => db.all(`SELECT * FROM subject_assignments WHERE scheduleFileId=?`, [fileId], (e, r) => res(e ? [] : r)));
       const exportData = {
-        file: { ...file, updatedAt: file.updatedAt || new Date().toISOString() },
-        assignments: [
-          ...subjectAssignments.map(a => ({...a, type: 'subject'})),
-          ...timeAssignments.map(a => ({...a, type: 'time'})),
-          ...roomAssignments.map(a => ({...a, type: 'room'}))
-        ],
-        teachers,
+        file,
+        timeAssignments,
+        subjectAssignments,
+        roomAssignments,
         subjects,
-        rooms,
+        teachers,
         classes,
-        programs,
+        rooms,
+        programs
       };
-      fs.writeFileSync(filePath, JSON.stringify(exportData, null, 2));
-      return { success: true, message: "File exported as JSON!" };
+      const defaultPath = `schedule_${fileId}.json`;
+      const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+        defaultPath,
+        filters: [{ name: "JSON Files", extensions: ["json"] }]
+      });
+      if (canceled || !filePath) {
+        console.log("Export cancelled by user");
+        return { success: false, message: "Export cancelled." };
+      }
+      try {
+        fs.writeFileSync(filePath, JSON.stringify(exportData, null, 2), 'utf-8');
+        console.log("JSON file saved successfully:", filePath);
+        return { success: true, message: "File exported as JSON!" };
+      } catch (writeErr) {
+        console.error("Error writing JSON file:", writeErr.message);
+        return { success: false, message: "Failed to save JSON file: " + writeErr.message };
+      }
     }
 
-    // PDF Export
-    let htmlContent = `
-      <html>
-        <head>
-          <style>
-            @page { size: landscape; margin: 1cm; }
-            body { font-family: Arial, sans-serif; font-size: 10px; }
-            h1 { text-align: center; font-size: 14px; margin: 10px 0; }
-            h2 { font-size: 12px; margin: 15px 0 10px; }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; page-break-inside: auto; }
-            th, td { border: 1px solid #ddd; padding: 4px; text-align: left; vertical-align: top; }
-            th { background-color: #f2f2f2; font-weight: bold; font-size: 10px; }
-            .time-slot { font-size: 9px; padding: 2px; margin: 2px; border-radius: 3px; white-space: normal; word-wrap: break-word; }
-            .time-col { width: 80px; }
-            .day-col { width: calc((100% - 80px) / 6); }
-            .page-break { page-break-before: always; }
-          </style>
-        </head>
-        <body>
-          <h1>Schedule: ${file.name} (${file.semester} ${file.academic_year})</h1>
-    `;
-
-    const times = [
+    const dayOrder = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const timeSlots = [
       '7:00 AM-8:00 AM', '8:00 AM-9:00 AM', '9:00 AM-10:00 AM', '10:00 AM-11:00 AM', '11:00 AM-12:00 PM',
       '12:00 PM-1:00 PM', '1:00 PM-2:00 PM', '2:00 PM-3:00 PM', '3:00 PM-4:00 PM', '4:00 PM-5:00 PM',
       '5:00 PM-6:00 PM', '6:00 PM-7:00 PM'
     ];
-    const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+    const subjectMap = Object.fromEntries(subjects.map(s => [s.id, s]));
+    const teacherMap = Object.fromEntries(teachers.map(t => [t.id, t]));
+    const classMap = Object.fromEntries(classes.map(c => [c.id, c]));
+    const roomMap = Object.fromEntries(rooms.map(r => [r.id, r]));
+    const programMap = Object.fromEntries(programs.map(p => [p.id, p]));
+
+    let html = `<!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Schedule Export</title>
+        <style>
+          @page { size: landscape; margin: 10mm; }
+          * { box-sizing: border-box; }
+          body { 
+            font-family: Arial, sans-serif; 
+            font-size: 9px; 
+            margin: 0; 
+            padding: 10px;
+            background: white;
+            color: #000;
+          }
+          h1 { 
+            text-align: center; 
+            font-size: 12px; 
+            margin: 6px 0; 
+            color: #000;
+          }
+          .institution { 
+            text-align: center; 
+            font-weight: bold; 
+            margin-bottom: 6px; 
+            font-size: 10px; 
+            color: #000;
+          }
+          .year-level-title {
+            text-align: center; 
+            font-weight: bold; 
+            font-size: 11px; 
+            margin: 15px 0 10px 0;
+            color: #000;
+          }
+          .first-page {
+            page-break-before: avoid;
+          }
+          .new-page {
+            page-break-before: always;
+          }
+          table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-bottom: 15px; 
+            background: white;
+          }
+          th, td { 
+            border: 1px solid #000; 
+            padding: 4px; 
+            vertical-align: top; 
+            word-break: break-word; 
+            background: white;
+            color: #000;
+            font-size: 8px;
+          }
+          th { 
+            background: #f0f0f0 !important; 
+            font-size: 9px; 
+            font-weight: bold;
+            text-align: center;
+          }
+          .time-col { 
+            width: 80px; 
+            font-size: 8px;
+            background: #000 !important;
+            color: white !important;
+            text-align: center;
+            font-weight: bold;
+          }
+          .day-col {
+            width: 50px;
+            font-size: 8px;
+            font-weight: bold;
+            text-align: center;
+          }
+          .slot-cell { 
+            -webkit-print-color-adjust: exact !important;
+            color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            padding: 3px; 
+            font-size: 8px; 
+            white-space: normal; 
+            word-wrap: break-word; 
+            overflow-wrap: break-word;
+            line-height: 1.2;
+            min-width: 120px;
+          }
+          .subject-name { 
+            font-weight: bold; 
+            display: block; 
+            word-break: break-word; 
+            white-space: normal; 
+            color: #000;
+            margin-bottom: 2px;
+          }
+          .teacher-name { 
+            display: block; 
+            font-size: 7px; 
+            font-style: italic; 
+            color: #000;
+            word-break: break-word;
+            white-space: normal;
+          }
+          .room-name {
+            display: block; 
+            font-size: 7px; 
+            color: #000;
+            margin-top: 1px;
+          }
+          .sign-section { 
+            width: 100%; 
+            margin-top: 25px; 
+            display: flex; 
+            justify-content: space-between;
+            page-break-inside: avoid;
+          }
+          .sign-block { 
+            width: 45%; 
+            text-align: left; 
+            font-size: 9px; 
+            color: #000;
+          }
+          .sign-line { 
+            margin-top: 30px; 
+            border-top: 1px solid #000; 
+            width: 200px; 
+          }
+        </style>
+      </head>
+      <body>
+    `;
+
+    const calculateTimeSlotSpan = (assignment) => {
+      const startTime = assignment.timeSlot.split('-')[0].trim();
+      const startIndex = timeSlots.findIndex(slot => slot.startsWith(startTime));
+      if (startIndex === -1) return { startIndex: -1, span: 1 };
+
+      const durationHours = Math.ceil(assignment.duration / 60);
+      const span = Math.max(1, durationHours);
+
+      return { startIndex, span };
+    };
 
     if (type === 'teacher') {
-      const teacher = teachers.find(t => t.id === id);
+      const teacherId = parseInt(id);
+      const teacher = teacherMap[teacherId];
       if (!teacher) {
+        console.error("Export failed: Teacher not found for id:", teacherId);
         return { success: false, message: "Teacher not found." };
       }
-      htmlContent += `<h2>Schedule for ${teacher.fullName}</h2>`;
-      htmlContent += `
-        <table>
-          <thead>
-            <tr>
-              <th class="time-col">Time</th>
-              ${days.map(day => `<th class="day-col">${day}</th>`).join('')}
-            </tr>
-          </thead>
-          <tbody>
-      `;
-      times.forEach(time => {
-        htmlContent += `<tr><td class="time-col">${time}</td>`;
-        days.forEach(day => {
-          const timeAss = timeAssignments.filter(a => a.teacherId === id && a.day === day && a.timeSlot === time);
-          htmlContent += `<td>`;
-          timeAss.forEach(a => {
-            const subject = subjects.find(s => s.id === a.subjectId)?.name || "Unknown";
-            const cls = classes.find(c => c.id === a.classId)?.name || "Unassigned";
-            const roomAss = roomAssignments.find(ra => ra.scheduleFileId === a.scheduleFileId && ra.subjectId === a.subjectId && ra.classId === a.classId);
-            const room = roomAss ? (rooms.find(r => r.id === roomAss.roomId)?.name || "Unassigned") : "Unassigned";
-            htmlContent += `<div class="time-slot" style="background-color: ${teacher.color};">${subject}<br>${cls}<br>${room}</div>`;
-          });
-          htmlContent += `</td>`;
-        });
-        htmlContent += `</tr>`;
-      });
-      htmlContent += `</tbody></table>`;
-    } else if (type === 'program') {
-      const program = programs.find(p => p.id === id);
-      if (!program) {
-        return { success: false, message: "Program not found." };
-      }
-      const classesByYear = {};
-      classes.filter(cls => cls.programId === id).forEach(cls => {
-        if (!classesByYear[cls.yearLevel]) {
-          classesByYear[cls.yearLevel] = [];
-        }
-        classesByYear[cls.yearLevel].push(cls);
+
+      // Filter assignments for this specific teacher
+      const teacherTimeAssignments = timeAssignments.filter(a => parseInt(a.teacherId) === teacherId);
+
+      html += `
+        <div class="institution">COLLEGE OF ENGINEERING AND TECHNOLOGY</div>
+        <h1>Teacher Schedule</h1>
+        <div style="text-align: center; font-size: 11px; margin-bottom: 15px;">${teacher.honorifics ? teacher.honorifics + ' ' : ''}${teacher.fullName}</div>`;
+
+      // Create schedule grid for teacher
+      const teacherGrid = {};
+      dayOrder.forEach(day => {
+        teacherGrid[day] = new Array(timeSlots.length).fill(null);
       });
 
-      for (const yearLevel in classesByYear) {
-        const classIds = classesByYear[yearLevel].map(cls => cls.id);
-        htmlContent += `
-          <div class="page-break"></div>
-          <h2>${program.name} - ${yearLevel}</h2>
-          <table>
+      teacherTimeAssignments.forEach(assignment => {
+        const { startIndex, span } = calculateTimeSlotSpan(assignment);
+        if (startIndex !== -1) {
+          for (let i = 0; i < span; i++) {
+            const slotIndex = startIndex + i;
+            if (slotIndex < timeSlots.length) {
+              teacherGrid[assignment.day][slotIndex] = {
+                assignment,
+                isStart: i === 0,
+                span: i === 0 ? span : 0
+              };
+            }
+          }
+        }
+      });
+
+      html += `<table>
+        <thead>
+          <tr>
+            <th class="time-col">Time</th>`;
+
+      dayOrder.forEach(day => {
+        html += `<th>${day}</th>`;
+      });
+
+      html += `</tr>
+        </thead>
+        <tbody>`;
+
+      timeSlots.forEach((timeSlot, timeIndex) => {
+        html += `<tr>`;
+        html += `<td class="time-col">${timeSlot}</td>`;
+
+        dayOrder.forEach(day => {
+          const cell = teacherGrid[day][timeIndex];
+
+          if (!cell) {
+            // Empty slot
+            html += `<td class="slot-cell"></td>`;
+          } else if (cell.span > 0) {
+            // Start of assignment - remove background color for better print readability
+            const assignment = cell.assignment;
+            const subject = subjectMap[assignment.subjectId];
+            const className = classMap[assignment.classId]?.name || 'Unknown';
+            const roomAssignment = roomAssignments.find(ra =>
+              ra.scheduleFileId === assignment.scheduleFileId &&
+              ra.subjectId === assignment.subjectId &&
+              ra.teacherId === assignment.teacherId &&
+              ra.classId === assignment.classId
+            );
+            const roomName = roomAssignment ? (roomMap[roomAssignment.roomId]?.name || 'N/A') : 'N/A';
+
+            const teacherColor = teacher.color || '#f9f9f9';
+            html += `<td class="slot-cell" rowspan="${cell.span}" style="background-color: ${teacherColor}; border: 2px solid #333;">`;
+            html += `<span class="subject-name">${subject?.name || 'Unknown'}</span>`;
+            html += `<span class="teacher-name">Class: ${className}</span>`;
+            html += `<span class="room-name">Room: ${roomName}</span>`;
+            html += `</td>`;
+          }
+          // Skip cells that are part of a span (cell.span === 0)
+        });
+
+        html += `</tr>`;
+      });
+
+      html += `</tbody></table>`;
+
+      // Add signatures for teacher schedule
+      html += `
+        <div class="sign-section">
+          <div class="sign-block">
+            Prepared by:
+            <div class="sign-line"></div>
+            <div style="margin-top: 5px;">ENGR. REYNALDO C. DIMAYACYAC<br>Dean, College of Engineering Technology</div>
+          </div>
+          <div class="sign-block" style="text-align: right;">
+            Approved by:
+            <div class="sign-line" style="margin-left: auto;"></div>
+            <div style="margin-top: 5px;">DR. CRISTITA B. TAN<br>VPAA</div>
+          </div>
+        </div>`;
+
+    } else if (type === 'program') {
+      const programsToExport = (id === 'all') ? programs : programs.filter(p => p.id === parseInt(id));
+      if (!programsToExport || programsToExport.length === 0) {
+        console.error("Export failed: Program not found for id:", id);
+        return { success: false, message: "Program not found." };
+      }
+
+      // Add header only once at the beginning
+      html += `
+        <div class="institution">COLLEGE OF ENGINEERING AND TECHNOLOGY</div>
+        <h1>Program Schedule</h1>`;
+
+      let isFirstYearLevel = true;
+
+      for (const program of programsToExport) {
+        // Filter classes for this specific program
+        const programClasses = classes.filter(c => c.programId === program.id);
+        const classIds = programClasses.map(c => c.id);
+
+        // Filter time assignments for this program's classes
+        const programTimeAssignments = timeAssignments.filter(a => classIds.includes(a.classId));
+
+        // Group by year level
+        const yearLevels = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
+
+        for (const yearLevel of yearLevels) {
+          const yearClasses = programClasses.filter(c => c.yearLevel === yearLevel);
+          const yearClassIds = yearClasses.map(c => c.id);
+          const yearAssignments = programTimeAssignments.filter(a => yearClassIds.includes(a.classId));
+
+          if (yearAssignments.length === 0) continue; // Skip if no assignments for this year
+
+          // Apply page break class conditionally
+          const pageBreakClass = isFirstYearLevel ? 'first-page' : 'new-page';
+          html += `<div class="year-level-title ${pageBreakClass}">${yearLevel} - ${program.name}</div>`;
+          isFirstYearLevel = false;
+
+          // Create schedule grid for each day
+          const scheduleGrid = {};
+          dayOrder.forEach(day => {
+            scheduleGrid[day] = new Array(timeSlots.length).fill(null);
+          });
+
+          yearAssignments.forEach(assignment => {
+            const { startIndex, span } = calculateTimeSlotSpan(assignment);
+            if (startIndex !== -1) {
+              for (let i = 0; i < span; i++) {
+                const slotIndex = startIndex + i;
+                if (slotIndex < timeSlots.length) {
+                  scheduleGrid[assignment.day][slotIndex] = {
+                    assignment,
+                    isStart: i === 0,
+                    span: i === 0 ? span : 0
+                  };
+                }
+              }
+            }
+          });
+
+          html += `<table>
             <thead>
               <tr>
-                <th class="time-col">Time</th>
-                ${days.map(day => `<th class="day-col">${day}</th>`).join('')}
-              </tr>
-            </thead>
-            <tbody>
-        `;
-        times.forEach(time => {
-          htmlContent += `<tr><td class="time-col">${time}</td>`;
-          days.forEach(day => {
-            const timeAss = timeAssignments.filter(a => classIds.includes(a.classId) && a.day === day && a.timeSlot === time);
-            htmlContent += `<td>`;
-            timeAss.forEach(a => {
-              const subject = subjects.find(s => s.id === a.subjectId)?.name || "Unknown";
-              const teacher = teachers.find(t => t.id === a.teacherId)?.fullName || "Unassigned";
-              const roomAss = roomAssignments.find(ra => ra.scheduleFileId === a.scheduleFileId && ra.subjectId === a.subjectId && ra.classId === a.classId);
-              const room = roomAss ? (rooms.find(r => r.id === roomAss.roomId)?.name || "Unassigned") : "Unassigned";
-              const teacherColor = teachers.find(t => t.id === a.teacherId)?.color || "#ffffff";
-              htmlContent += `<div class="time-slot" style="background-color: ${teacherColor};">${subject}<br>${teacher}<br>${room}</div>`;
-            });
-            htmlContent += `</td>`;
+                <th class="time-col">Time</th>`;
+
+          dayOrder.forEach(day => {
+            html += `<th>${day}</th>`;
           });
-          htmlContent += `</tr>`;
-        });
-        htmlContent += `</tbody></table>`;
+
+          html += `</tr>
+            </thead>
+            <tbody>`;
+
+          timeSlots.forEach((timeSlot, timeIndex) => {
+            html += `<tr>`;
+            html += `<td class="time-col">${timeSlot}</td>`;
+
+            dayOrder.forEach(day => {
+              const dayAssignments = yearAssignments.filter(a => a.day === day);
+              const cell = scheduleGrid[day][timeIndex];
+
+              if (!cell) {
+                // Empty slot
+                html += `<td class="slot-cell"></td>`;
+              } else if (cell.span > 0) {
+                // Start of assignment - remove background color for better print readability
+                const assignment = cell.assignment;
+                const subject = subjectMap[assignment.subjectId];
+                const teacher = teacherMap[assignment.teacherId];
+                const className = classMap[assignment.classId]?.name || 'Unknown';
+                const roomAssignment = roomAssignments.find(ra =>
+                  ra.scheduleFileId === assignment.scheduleFileId &&
+                  ra.subjectId === assignment.subjectId &&
+                  ra.teacherId === assignment.teacherId &&
+                  ra.classId === assignment.classId
+                );
+                const roomName = roomAssignment ? (roomMap[roomAssignment.roomId]?.name || 'N/A') : 'N/A';
+
+                const teacherColor = teacher.color || '#f9f9f9';
+                html += `<td class="slot-cell" rowspan="${cell.span}" style="background-color: ${teacherColor}; border: 2px solid #333;">`;
+                html += `<span class="subject-name">${subject?.name || 'Unknown'}</span>`;
+                html += `<span class="teacher-name">${teacher?.honorifics ? teacher.honorifics + ' ' : ''}${teacher?.fullName || 'Unknown'}</span>`;
+                html += `<span class="room-name">Class: ${className}</span>`;
+                html += `<span class="room-name">Room: ${roomName}</span>`;
+                html += `</td>`;
+              }
+              // Skip cells that are part of a span (cell.span === 0)
+            });
+
+            html += `</tr>`;
+          });
+
+          html += `</tbody></table>`;
+
+          // Add signatures for each year level
+          html += `
+            <div class="sign-section">
+              <div class="sign-block">
+                Prepared by:
+                <div class="sign-line"></div>
+                <div style="margin-top: 5px;">ENGR. REYNALDO C. DIMAYACYAC<br>Dean, College of Engineering Technology</div>
+              </div>
+              <div class="sign-block" style="text-align: right;">
+                Approved by:
+                <div class="sign-line" style="margin-left: auto;"></div>
+                <div style="margin-top: 5px;">DR. CRISTITA B. TAN<br>VPAA</div>
+              </div>
+            </div>`;
+        }
       }
     } else {
+      console.error("Export failed: Invalid export type:", type);
       return { success: false, message: "Invalid export type. Use 'teacher' or 'program'." };
     }
 
-    htmlContent += `</body></html>`;
+    html += `</body></html>`;
 
-    const tempFilePath = path.join(app.getPath("temp"), `export_${fileId}.html`);
-    fs.writeFileSync(tempFilePath, htmlContent);
+    const defaultFilename = `schedule_${file.name || fileId}.pdf`;
+    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+      defaultPath: defaultFilename,
+      filters: [{ name: "PDF Files", extensions: ["pdf"] }]
+    });
+    if (canceled || !filePath) {
+      console.log("Export cancelled by user");
+      return { success: false, message: "Export cancelled." };
+    }
 
-    const exportWindow = new BrowserWindow({ show: false });
-    exportWindow.loadFile(tempFilePath);
-    return new Promise((resolve, reject) => {
-      exportWindow.webContents.on("did-finish-load", () => {
-        exportWindow.webContents.printToPDF({ landscape: true }).then(data => {
-          fs.writeFileSync(filePath, data);
-          exportWindow.close();
-          fs.unlinkSync(tempFilePath);
-          resolve({ success: true, message: "File exported as PDF!" });
-        }).catch(error => {
-          exportWindow.close();
-          fs.unlinkSync(tempFilePath);
-          reject(new Error("PDF generation failed: " + error.message));
+    // Create export window with proper configuration
+    const exportWindow = new BrowserWindow({
+      show: false,
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        webSecurity: false
+      }
+    });
+
+    try {
+      // Load HTML directly
+      const dataUri = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
+      await exportWindow.loadURL(dataUri);
+      console.log("Export window loaded HTML content");
+
+      // Wait for content to render
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      console.log("Generating PDF...");
+      const data = await exportWindow.webContents.printToPDF({
+        landscape: true,
+        marginsType: 1,
+        pageSize: 'A4',
+        printBackground: true
+      });
+
+      console.log("PDF generated successfully, writing to:", filePath);
+      fs.writeFileSync(filePath, data);
+      console.log("PDF file saved successfully:", filePath);
+
+      exportWindow.close();
+      return { success: true, message: "File exported as PDF!" };
+
+    } catch (err) {
+      console.error("Error in PDF generation:", err.message);
+      exportWindow.close();
+      return { success: false, message: "PDF generation failed: " + err.message };
+    }
+
+  } catch (err) {
+    console.error("Export error:", err.message || err);
+    return { success: false, message: "Export failed: " + (err.message || err) };
+  }
+});
+
+ipcMain.handle("print-file", async (event, args = {}) => {
+  const { fileId: rawFileId, type, id } = args;
+  const fileId = typeof rawFileId === 'string' ? parseInt(rawFileId) : rawFileId;
+  console.log("Print requested - args:", args, "resolved fileId:", fileId);
+
+  if (!fileId) {
+    console.error("Print failed: No fileId provided");
+    return { success: false, message: "No file selected to print." };
+  }
+
+  const file = await new Promise((res) => db.get(`SELECT * FROM schedule_files WHERE id=? AND status='active'`, [fileId], (err, row) => {
+    if (err) {
+      console.error("Error fetching file:", err.message);
+      return res(null);
+    }
+    res(row || null);
+  }));
+  if (!file) {
+    console.error("Print failed: File not found for fileId:", fileId);
+    return { success: false, message: "Selected file not found." };
+  }
+
+  try {
+    const [
+      timeAssignments,
+      roomAssignments,
+      subjects,
+      teachers,
+      classes,
+      rooms,
+      programs
+    ] = await Promise.all([
+      new Promise((res, rej) => db.all(`SELECT * FROM time_assignments WHERE scheduleFileId=?`, [fileId], (e, r) => e ? rej(e.message) : res(r))),
+      new Promise((res, rej) => db.all(`SELECT * FROM room_assignments WHERE scheduleFileId=?`, [fileId], (e, r) => e ? rej(e.message) : res(r))),
+      new Promise((res, rej) => db.all(`SELECT * FROM subjects`, (e, r) => e ? rej(e.message) : res(r))),
+      new Promise((res, rej) => db.all(`SELECT * FROM teachers`, (e, r) => e ? rej(e.message) : res(r))),
+      new Promise((res, rej) => db.all(`SELECT * FROM classes`, (e, r) => e ? rej(e.message) : res(r))),
+      new Promise((res, rej) => db.all(`SELECT * FROM rooms`, (e, r) => e ? rej(e.message) : res(r))),
+      new Promise((res, rej) => db.all(`SELECT * FROM programs`, (e, r) => e ? rej(e.message) : res(r))),
+    ]);
+
+    const dayOrder = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const timeSlots = [
+      '7:00 AM-8:00 AM', '8:00 AM-9:00 AM', '9:00 AM-10:00 AM', '10:00 AM-11:00 AM', '11:00 AM-12:00 PM',
+      '12:00 PM-1:00 PM', '1:00 PM-2:00 PM', '2:00 PM-3:00 PM', '3:00 PM-4:00 PM', '4:00 PM-5:00 PM',
+      '5:00 PM-6:00 PM', '6:00 PM-7:00 PM'
+    ];
+
+    const subjectMap = Object.fromEntries(subjects.map(s => [s.id, s]));
+    const teacherMap = Object.fromEntries(teachers.map(t => [t.id, t]));
+    const classMap = Object.fromEntries(classes.map(c => [c.id, c]));
+    const roomMap = Object.fromEntries(rooms.map(r => [r.id, r]));
+
+    const calculateTimeSlotSpan = (assignment) => {
+      const startTime = assignment.timeSlot.split('-')[0].trim();
+      const startIndex = timeSlots.findIndex(slot => slot.startsWith(startTime));
+      if (startIndex === -1) return { startIndex: -1, span: 1 };
+
+      const durationHours = Math.ceil(assignment.duration / 60);
+      const span = Math.max(1, durationHours);
+
+      return { startIndex, span };
+    };
+
+    let html = `<!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Schedule Print</title>
+        <style>
+          @page { size: landscape; margin: 10mm; }
+          * { box-sizing: border-box; }
+          body {
+            font-family: Arial, sans-serif;
+            font-size: 9px;
+            margin: 0;
+            padding: 10px;
+            background: white;
+            color: #000;
+          }
+          .institution {
+            text-align: center;
+            font-weight: bold;
+            margin-bottom: 6px;
+            font-size: 10px;
+            color: #000;
+          }
+          h1 {
+            text-align: center;
+            font-size: 12px;
+            margin: 6px 0 15px 0;
+            color: #000;
+          }
+          .teacher-name-header {
+            text-align: center;
+            font-size: 11px;
+            margin-bottom: 15px;
+            color: #000;
+          }
+          .year-level-title {
+            text-align: center;
+            font-weight: bold;
+            font-size: 11px;
+            margin: 15px 0 10px 0;
+            color: #000;
+            page-break-before: always;
+          }
+          .year-level-title.first-page {
+            page-break-before: avoid;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+            background: white;
+          }
+          th, td {
+            border: 1px solid #000;
+            padding: 4px;
+            vertical-align: top;
+            word-break: break-word;
+            background: white;
+            color: #000;
+            font-size: 8px;
+          }
+          th {
+            background: #f0f0f0 !important;
+            font-size: 9px;
+            font-weight: bold;
+            text-align: center;
+          }
+          .time-col {
+            width: 80px;
+            font-size: 8px;
+            background: #000 !important;
+            color: white !important;
+            text-align: center;
+            font-weight: bold;
+          }
+          .day-col {
+            width: 50px;
+            font-size: 8px;
+            font-weight: bold;
+            text-align: center;
+          }
+          .slot-cell {
+           -webkit-print-color-adjust: exact !important;
+            color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            padding: 3px;
+            font-size: 8px;
+            white-space: normal;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            line-height: 1.2;
+            min-width: 120px;
+          }
+          .subject-name {
+            font-weight: bold;
+            display: block;
+            word-break: break-word;
+            white-space: normal;
+            color: #000;
+            margin-bottom: 2px;
+          }
+          .teacher-name {
+            display: block;
+            font-size: 7px;
+            font-style: italic;
+            color: #000;
+            word-break: break-word;
+            white-space: normal;
+          }
+          .room-name {
+            display: block;
+            font-size: 7px;
+            color: #000;
+            margin-top: 1px;
+          }
+          .sign-section {
+            width: 100%;
+            margin-top: 25px;
+            display: flex;
+            justify-content: space-between;
+            page-break-inside: avoid;
+          }
+          .sign-block {
+            width: 45%;
+            text-align: left;
+            font-size: 9px;
+            color: #000;
+          }
+          .sign-line {
+            margin-top: 30px;
+            border-top: 1px solid #000;
+            width: 200px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="institution">COLLEGE OF ENGINEERING AND TECHNOLOGY</div>
+    `;
+
+    if (type === 'teacher') {
+      const teacherId = parseInt(id);
+      const teacher = teacherMap[teacherId];
+      if (!teacher) {
+        console.error("Print failed: Teacher not found for id:", teacherId);
+        return { success: false, message: "Teacher not found." };
+      }
+
+      // Filter assignments for this specific teacher
+      const teacherTimeAssignments = timeAssignments.filter(a => parseInt(a.teacherId) === teacherId);
+
+      html += `<h1>Teacher Schedule</h1>`;
+      html += `<div class="teacher-name-header">${teacher.honorifics ? teacher.honorifics + ' ' : ''}${teacher.fullName}</div>`;
+
+      // Create schedule grid for teacher
+      const teacherGrid = {};
+      dayOrder.forEach(day => {
+        teacherGrid[day] = new Array(timeSlots.length).fill(null);
+      });
+
+      teacherTimeAssignments.forEach(assignment => {
+        const { startIndex, span } = calculateTimeSlotSpan(assignment);
+        if (startIndex !== -1) {
+          for (let i = 0; i < span; i++) {
+            const slotIndex = startIndex + i;
+            if (slotIndex < timeSlots.length) {
+              teacherGrid[assignment.day][slotIndex] = {
+                assignment,
+                isStart: i === 0,
+                span: i === 0 ? span : 0
+              };
+            }
+          }
+        }
+      });
+
+      html += `<table>
+        <thead>
+          <tr>
+            <th class="time-col">Time</th>`;
+
+      dayOrder.forEach(day => {
+        html += `<th>${day}</th>`;
+      });
+
+      html += `</tr>
+        </thead>
+        <tbody>`;
+
+      timeSlots.forEach((timeSlot, timeIndex) => {
+        html += `<tr>`;
+        html += `<td class="time-col">${timeSlot}</td>`;
+
+        dayOrder.forEach(day => {
+          const cell = teacherGrid[day][timeIndex];
+
+          if (!cell) {
+            // Empty slot
+            html += `<td class="slot-cell"></td>`;
+          } else if (cell.span > 0) {
+            // Start of assignment
+            const assignment = cell.assignment;
+            const subject = subjectMap[assignment.subjectId];
+            const className = classMap[assignment.classId]?.name || 'Unknown';
+            const roomAssignment = roomAssignments.find(ra =>
+              ra.scheduleFileId === assignment.scheduleFileId &&
+              ra.subjectId === assignment.subjectId &&
+              ra.teacherId === assignment.teacherId &&
+              ra.classId === assignment.classId
+            );
+            const roomName = roomAssignment ? (roomMap[roomAssignment.roomId]?.name || 'N/A') : 'N/A';
+
+            const teacherColor = teacher.color || '#f9f9f9';
+            html += `<td class="slot-cell" rowspan="${cell.span}" style="background-color: ${teacherColor}; border: 2px solid #333;">`;
+            html += `<span class="subject-name">${subject?.name || 'Unknown'}</span>`;
+            html += `<span class="teacher-name">Class: ${className}</span>`;
+            html += `<span class="room-name">Room: ${roomName}</span>`;
+            html += `</td>`;
+          }
+          // Skip cells that are part of a span (cell.span === 0)
+        });
+
+        html += `</tr>`;
+      });
+
+      html += `</tbody></table>`;
+
+      // Add signatures for teacher schedule
+      html += `
+        <div class="sign-section">
+          <div class="sign-block">
+            Prepared by:
+            <div class="sign-line"></div>
+            <div style="margin-top: 5px;">ENGR. REYNALDO C. DIMAYACYAC<br>Dean, College of Engineering Technology</div>
+          </div>
+          <div class="sign-block" style="text-align: right;">
+            Approved by:
+            <div class="sign-line" style="margin-left: auto;"></div>
+            <div style="margin-top: 5px;">DR. CRISTITA B. TAN<br>VPAA</div>
+          </div>
+        </div>`;
+
+    } else if (type === 'program') {
+      const programsToExport = (id === 'all') ? programs : programs.filter(p => p.id === parseInt(id));
+      if (!programsToExport || programsToExport.length === 0) {
+        console.error("Print failed: Program not found for id:", id);
+        return { success: false, message: "Program not found." };
+      }
+
+      html += `<h1>Program Schedule</h1>`;
+
+      let isFirstYearLevel = true;
+
+      for (const program of programsToExport) {
+        const programClasses = classes.filter(c => c.programId === program.id);
+        const classIds = programClasses.map(c => c.id);
+        const programTimeAssignments = timeAssignments.filter(a => classIds.includes(a.classId));
+
+        const yearLevels = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
+
+        for (const yearLevel of yearLevels) {
+          const yearClasses = programClasses.filter(c => c.yearLevel === yearLevel);
+          const yearClassIds = yearClasses.map(c => c.id);
+          const yearAssignments = programTimeAssignments.filter(a => yearClassIds.includes(a.classId));
+
+          if (yearAssignments.length === 0) continue;
+
+          html += `<div class="year-level-title ${isFirstYearLevel ? 'first-page' : ''}">${yearLevel} - ${program.name}</div>`;
+          isFirstYearLevel = false;
+
+          // Create schedule grid
+          const scheduleGrid = {};
+          dayOrder.forEach(day => {
+            scheduleGrid[day] = new Array(timeSlots.length).fill(null);
+          });
+
+          yearAssignments.forEach(assignment => {
+            const { startIndex, span } = calculateTimeSlotSpan(assignment);
+            if (startIndex !== -1) {
+              for (let i = 0; i < span; i++) {
+                const slotIndex = startIndex + i;
+                if (slotIndex < timeSlots.length) {
+                  scheduleGrid[assignment.day][slotIndex] = {
+                    assignment,
+                    isStart: i === 0,
+                    span: i === 0 ? span : 0
+                  };
+                }
+              }
+            }
+          });
+
+          html += `<table>
+            <thead>
+              <tr>
+                <th class="time-col">Time</th>`;
+
+          dayOrder.forEach(day => {
+            html += `<th>${day}</th>`;
+          });
+
+          html += `</tr>
+            </thead>
+            <tbody>`;
+
+          timeSlots.forEach((timeSlot, timeIndex) => {
+            html += `<tr>`;
+            html += `<td class="time-col">${timeSlot}</td>`;
+
+            dayOrder.forEach(day => {
+              const cell = scheduleGrid[day][timeIndex];
+
+              if (!cell) {
+                // Empty slot
+                html += `<td class="slot-cell"></td>`;
+              } else if (cell.span > 0) {
+                // Start of assignment
+                const assignment = cell.assignment;
+                const subject = subjectMap[assignment.subjectId];
+                const teacher = teacherMap[assignment.teacherId];
+                const className = classMap[assignment.classId]?.name || 'Unknown';
+                const roomAssignment = roomAssignments.find(ra =>
+                  ra.scheduleFileId === assignment.scheduleFileId &&
+                  ra.subjectId === assignment.subjectId &&
+                  ra.teacherId === assignment.teacherId &&
+                  ra.classId === assignment.classId
+                );
+                const roomName = roomAssignment ? (roomMap[roomAssignment.roomId]?.name || 'N/A') : 'N/A';
+
+                const teacherColor = teacher.color || '#f9f9f9';
+                html += `<td class="slot-cell" rowspan="${cell.span}" style="background-color: ${teacherColor}; border: 2px solid #333;">`;
+                html += `<span class="subject-name">${subject?.name || 'Unknown'}</span>`;
+                html += `<span class="teacher-name">${teacher?.honorifics ? teacher.honorifics + ' ' : ''}${teacher?.fullName || 'Unknown'}</span>`;
+                // html += `<span class="room-name">Class: ${className}</span>`;
+                html += `<span class="room-name">Room: ${roomName}</span>`;
+                html += `</td>`;
+              }
+              // Skip cells that are part of a span (cell.span === 0)
+            });
+
+            html += `</tr>`;
+          });
+
+          html += `</tbody></table>`;
+
+          // Add signatures for each year level
+          html += `
+            <div class="sign-section">
+              <div class="sign-block">
+                Prepared by:
+                <div class="sign-line"></div>
+                <div style="margin-top: 5px;">ENGR. REYNALDO C. DIMAYACYAC<br>Dean, College of Engineering Technology</div>
+              </div>
+              <div class="sign-block" style="text-align: right;">
+                Approved by:
+                <div class="sign-line" style="margin-left: auto;"></div>
+                <div style="margin-top: 5px;">DR. CRISTITA B. TAN<br>VPAA</div>
+              </div>
+            </div>`;
+        }
+      }
+    } else {
+      console.error("Print failed: Invalid print type:", type);
+      return { success: false, message: "Invalid print type. Use 'teacher' or 'program'." };
+    }
+
+    html += `</body></html>`;
+
+    // Create print window with proper configuration
+    const printWindow = new BrowserWindow({
+      show: false,
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        webSecurity: false
+      }
+    });
+
+    try {
+      // Load HTML directly
+      const dataUri = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
+      await printWindow.loadURL(dataUri);
+      console.log("Print window loaded HTML content");
+
+      // Wait for content to render
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      console.log("Sending to printer...");
+
+      return await new Promise((resolve, reject) => {
+        printWindow.webContents.print({
+          landscape: true,
+          marginsType: 1,
+          pageSize: 'A4'
+        }, (success, failureReason) => {
+          console.log("Print operation result:", success ? "Success" : `Failed: ${failureReason}`);
+          printWindow.close();
+          if (success) {
+            resolve({ success: true, message: "File sent to printer!" });
+          } else {
+            reject({ success: false, message: "Print failed: " + (failureReason || "Unknown error") });
+          }
         });
       });
-    });
-  } catch (error) {
-    console.error("Export error:", error.message);
-    return { success: false, message: "Export failed: " + error.message };
+
+    } catch (err) {
+      console.error("Error in print operation:", err.message);
+      printWindow.close();
+      return { success: false, message: "Print failed: " + err.message };
+    }
+
+  } catch (err) {
+    console.error("Print error:", err.message || err);
+    return { success: false, message: "Print failed: " + (err.message || err) };
   }
 });
 

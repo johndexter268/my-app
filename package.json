@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "main": "electron/main.js",
   "scripts": {
-    "dev": "concurrently \"vite\" \"cross-env ELECTRON_START_URL=http://localhost:5173 electron . --trace-warnings ...\"",
+    "dev": "concurrently \"vite\" \"cross-env ELECTRON_START_URL=http://localhost:5173 electron . --enable-logging\"",
     "build": "vite build && electron-builder",
     "start": "electron ."
   },

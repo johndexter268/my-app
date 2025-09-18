@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast, { Toaster } from "react-hot-toast";
@@ -23,19 +24,41 @@ export default function Login() {
         }
     }
 
+    const getRandomBgColor = (index) => {
+        const shouldHaveColor = Math.random() < 0.3;
+        if (!shouldHaveColor) return '';
+        
+        const colors = [
+            'bg-blue-500/50',
+            'bg-green-500/50', 
+            'bg-purple-500/50',
+            'bg-red-500/50',
+            'bg-yellow-500/50',
+            'bg-pink-500/50',
+            'bg-indigo-500/50',
+            'bg-orange-500/50',
+            'bg-teal-500/50'
+        ];
+        
+        return colors[Math.floor(Math.random() * colors.length)];
+    };
+
     return (
         <div className="relative flex items-center justify-center h-screen bg-darknavy text-white overflow-hidden">
             {/* Calendar Grid Background */}
             <div className="absolute inset-0 opacity-10">
                 <div className="grid grid-cols-7 h-full w-full">
-                    {Array.from({ length: 35 }, (_, i) => (
-                        <div
-                            key={i}
-                            className="border border-white/20 flex items-start justify-start text-lg font-bold font-serif"
-                        >
-                            {((i % 31) + 1).toString().padStart(2, '0')}
-                        </div>
-                    ))}
+                    {Array.from({ length: 35 }, (_, i) => {
+                        const randomBg = getRandomBgColor(i);
+                        return (
+                            <div
+                                key={i}
+                                className={`border border-white/50 flex items-start justify-start text-lg font-bold font-sans p-2 ${randomBg}`}
+                            >
+                                {((i % 31) + 1).toString().padStart(2, '0')}
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
 

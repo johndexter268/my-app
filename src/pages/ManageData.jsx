@@ -271,24 +271,24 @@ export default function ManageData() {
               </table>
             )}
             {activeTab === "Subjects" && (
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-gray-50">
-                    <th className="border p-2 text-left">Subject Name</th>
-                    <th className="border p-2 text-left">Code</th>
-                    <th className="border p-2 text-left">Units</th>
-                    <th className="border p-2 text-left">Year</th>
-                    <th className="border p-2 text-right">Actions</th>
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Subject Name</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Code</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Units</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Year</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="bg-white divide-y divide-gray-200">
                   {subjects.map((subject) => (
                     <tr key={subject.id} className="hover:bg-gray-50">
-                      <td className="border p-2">{subject.name}</td>
-                      <td className="border p-2">{subject.code}</td>
-                      <td className="border p-2">{subject.units}</td>
-                      <td className="border p-2">{subject.yearLevel}</td>
-                      <td className="border p-2 text-right">
+                      <td className="px-6 py-4 text-sm text-gray-800">{subject.name}</td>
+                      <td className="px-6 py-4 text-sm text-gray-800">{subject.code}</td>
+                      <td className="px-6 py-4 text-sm text-gray-800">{subject.units}</td>
+                      <td className="px-6 py-4 text-sm text-gray-800">{subject.yearLevel}</td>
+                      <td className="px-6 py-4 text-sm text-gray-800">
                         <button
                           onClick={() => handleEdit("Subject", subject)}
                           className="text-blue-500 hover:text-blue-700 mr-2"
@@ -311,20 +311,20 @@ export default function ManageData() {
               </table>
             )}
             {activeTab === "Rooms" && (
-              <table className="w-full border-collapse">
-                <thead>
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
                   <tr className="bg-gray-50">
-                    <th className="border p-2 text-left">Room Name</th>
-                    <th className="border p-2 text-left">Capacity</th>
-                    <th className="border p-2 text-right">Actions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider">Room Name</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider">Capacity</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="bg-white divide-y divide-gray-200">
                   {rooms.map((room) => (
                     <tr key={room.id} className="hover:bg-gray-50">
-                      <td className="border p-2">{room.name}</td>
-                      <td className="border p-2">{room.capacity}</td>
-                      <td className="border p-2 text-right">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">{room.name}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">{room.capacity}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
                         <button
                           onClick={() => handleEdit("Room", room)}
                           className="text-blue-500 hover:text-blue-700 mr-2"
@@ -348,19 +348,19 @@ export default function ManageData() {
             )}
             {activeTab === "Classes" && (
               <table className="w-full border-collapse">
-                <thead>
+                <thead className="bg-gray-50 border-b border-gray-200">
                   <tr className="bg-gray-50">
-                    <th className="border p-2 text-left">Class Name</th>
-                    <th className="border p-2 text-left">No. of Students</th>
-                    <th className="border p-2 text-right">Actions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider">Class Name</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider">No. of Students</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="bg-white divide-y divide-gray-200">
                   {classes.map((cls) => (
                     <tr key={cls.id} className="hover:bg-gray-50">
-                      <td className="border p-2">{cls.name}</td>
-                      <td className="border p-2">{cls.students}</td>
-                      <td className="border p-2 text-right">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">{cls.name}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">{cls.students}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
                         <button
                           onClick={() => handleEdit("Class", cls)}
                           className="text-blue-500 hover:text-blue-700 mr-2"
@@ -384,19 +384,19 @@ export default function ManageData() {
             )}
             {activeTab === "Programs" && (
               <table className="w-full border-collapse">
-                <thead>
+                <thead className="bg-gray-50 border-b border-gray-200">
                   <tr className="bg-gray-50">
-                    <th className="border p-2 text-left">Program Name</th>
-                    <th className="border p-2 text-left">Years</th>
-                    <th className="border p-2 text-right">Actions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase">Program Name</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase">Years</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {programs.map((program) => (
                     <tr key={program.id} className="hover:bg-gray-50">
-                      <td className="border p-2">{program.name}</td>
-                      <td className="border p-2">{program.years}</td>
-                      <td className="border p-2 text-right">
+                      <td className="px-6 py-4 whitespace-normal text-sm text-gray-800">{program.name}</td>
+                      <td className="px-6 py-4 whitespace-normal text-sm text-gray-800">{program.years}</td>
+                      <td className="px-6 py-4 whitespace-normal text-sm text-gray-800">
                         <button
                           onClick={() => handleEdit("Program", program)}
                           className="text-blue-500 hover:text-blue-700 mr-2"
