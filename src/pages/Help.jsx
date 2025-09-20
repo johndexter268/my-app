@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FiBook, FiInfo, FiZoomIn, FiZoomOut, FiMaximize, FiX, FiSave, FiFileText, FiPrinter, FiPlus, FiDownload } from "react-icons/fi";
+import { FiBook, FiInfo, FiZoomIn, FiZoomOut, FiMaximize, FiX, FiSave, FiFileText, FiPrinter, FiPlus, FiDownload, FiHome, FiFile, FiHelpCircle, FiEye, FiLogOut, FiSidebar } from "react-icons/fi";
 import { FaRegKeyboard } from "react-icons/fa";
 
 export default function Help() {
@@ -20,6 +20,21 @@ export default function Help() {
         { key: "Ctrl+P", action: "Print the current document", icon: <FiPrinter /> },
         { key: "Ctrl+H", action: "Open the Help page", icon: <FiInfo /> },
         { key: "Ctrl+W", action: "Close the current file", icon: <FiX /> }
+      ]
+    },
+    {
+      category: "Navigation Shortcuts",
+      icon: <FiSidebar className="text-teal-600" />,
+      description: "Use these shortcuts to quickly navigate between pages and features:",
+      items: [
+        { key: "Ctrl+1", action: "Navigate to File page", icon: <FiFile /> },
+        { key: "Ctrl+2", action: "Navigate to Home page", icon: <FiHome /> },
+        { key: "Ctrl+3", action: "Navigate to Manage Data (Scheduling)", icon: <FiBook /> },
+        { key: "Ctrl+4", action: "Navigate to Assigning (Scheduling)", icon: <FiBook /> },
+        { key: "Ctrl+5", action: "Toggle View Tools", icon: <FiEye /> },
+        { key: "Ctrl+H", action: "Navigate to Help page", icon: <FiHelpCircle /> },
+        { key: "Ctrl+L", action: "Logout / Navigate to Login", icon: <FiLogOut /> },
+        { key: "Ctrl+B", action: "Toggle Sidebar collapse/expand", icon: <FiSidebar /> }
       ]
     },
     {
@@ -46,17 +61,17 @@ export default function Help() {
     {
       name: "Umali, Allan Joseph R.",
       program: "BS Information Technology",
-      image: "https://via.placeholder.com/150x150/6B7280/FFFFFF?text=AJU"
+      image: "https://i.pinimg.com/736x/0d/64/98/0d64989794b1a4c9d89bff571d3d5842.jpg"
     },
     {
       name: "Mendoza, Angelo R.",
       program: "BS Information Technology", 
-      image: "https://via.placeholder.com/150x150/6B7280/FFFFFF?text=ARM"
+      image: "https://i.pinimg.com/736x/0d/64/98/0d64989794b1a4c9d89bff571d3d5842.jpg"
     },
     {
       name: "Rementilla, Tai Lee D.",
       program: "BS Information Technology",
-      image: "https://via.placeholder.com/150x150/6B7280/FFFFFF?text=TLR"
+      image: "https://i.pinimg.com/736x/0d/64/98/0d64989794b1a4c9d89bff571d3d5842.jpg"
     }
   ];
 

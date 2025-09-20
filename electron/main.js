@@ -9,10 +9,8 @@ const { v4: uuidv4 } = require("uuid");
 let mainWindow;
 let db;
 
-// Store multiple open files with their IDs
-const openFiles = new Map(); // Map<fileId, fileData>
+const openFiles = new Map(); 
 
-// Utility functions for time formatting
 function parseClockToMinutes(clock) {
   if (!clock) return null;
   const m = clock.trim().match(/^(\d{1,2}):?(\d{2})?\s*([AaPp][Mm])$/);
@@ -402,9 +400,6 @@ ipcMain.handle("get-programs", () => {
   });
 });
 
-// Complete IPC handlers for export and print functionality
-
-// Replace the existing export-file handler in your main.js
 ipcMain.handle("export-file", async (event, args = {}) => {
   const { fileId: rawFileId, type, id, format = 'pdf' } = args;
   console.log("Export requested - args:", args);
@@ -582,6 +577,7 @@ ipcMain.handle("export-file", async (event, args = {}) => {
             overflow-wrap: break-word;
             line-height: 1.2;
             min-width: 120px;
+            text-align: center;
           }
           .subject-name { 
             font-weight: bold; 
@@ -590,39 +586,43 @@ ipcMain.handle("export-file", async (event, args = {}) => {
             white-space: normal; 
             color: #000;
             margin-bottom: 2px;
+            text-align: center;
           }
           .teacher-name { 
             display: block; 
             font-size: 7px; 
-            font-style: italic; 
+             
             color: #000;
             word-break: break-word;
             white-space: normal;
+            text-align: center;
           }
           .room-name {
             display: block; 
             font-size: 7px; 
             color: #000;
             margin-top: 1px;
+            text-align: center;
           }
-          .sign-section { 
-            width: 100%; 
-            margin-top: 25px; 
-            display: flex; 
-            justify-content: space-between;
-            page-break-inside: avoid;
-          }
-          .sign-block { 
-            width: 45%; 
-            text-align: left; 
-            font-size: 9px; 
-            color: #000;
-          }
-          .sign-line { 
-            margin-top: 30px; 
-            border-top: 1px solid #000; 
-            width: 200px; 
-          }
+          .sign-section {
+  width: 100%;
+  margin-top: 25px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  page-break-inside: avoid;
+}
+
+.sign-block {
+  display: inline-block;
+  text-align: center;
+}
+
+.sign-line {
+  width: 200px;
+  border-bottom: 1px solid #000;
+  margin: 30px auto 0 auto;
+}
         </style>
       </head>
       <body>
@@ -714,7 +714,7 @@ ipcMain.handle("export-file", async (event, args = {}) => {
             const roomName = roomAssignment ? (roomMap[roomAssignment.roomId]?.name || 'N/A') : 'N/A';
 
             const teacherColor = teacher.color || '#f9f9f9';
-            html += `<td class="slot-cell" rowspan="${cell.span}" style="background-color: ${teacherColor}; border: 2px solid #333;">`;
+            html += `<td class="slot-cell" rowspan="${cell.span}" style="background-color: ${teacherColor}; border: 1px solid #000;">`;
             html += `<span class="subject-name">${subject?.name || 'Unknown'}</span>`;
             html += `<span class="teacher-name">Class: ${className}</span>`;
             html += `<span class="room-name">Room: ${roomName}</span>`;
@@ -731,17 +731,22 @@ ipcMain.handle("export-file", async (event, args = {}) => {
       // Add signatures for teacher schedule
       html += `
         <div class="sign-section">
-          <div class="sign-block">
-            Prepared by:
-            <div class="sign-line"></div>
-            <div style="margin-top: 5px;">ENGR. REYNALDO C. DIMAYACYAC<br>Dean, College of Engineering Technology</div>
-          </div>
-          <div class="sign-block" style="text-align: right;">
-            Approved by:
-            <div class="sign-line" style="margin-left: auto;"></div>
-            <div style="margin-top: 5px;">DR. CRISTITA B. TAN<br>VPAA</div>
-          </div>
-        </div>`;
+  <div class="sign-block">
+    Prepared by:
+    <div class="sign-line"></div>
+    <div style="margin-top: 5px; font-weight: bold;">
+      ENGR. REYNALDO C. DIMAYACYAC<br>Dean, College of Engineering Technology
+    </div>
+  </div>
+
+  <div class="sign-block">
+    Approved by:
+    <div class="sign-line"></div>
+    <div style="margin-top: 5px; font-weight: bold;">
+      DR. CRISTITA B. TAN<br>VPAA
+    </div>
+  </div>
+</div>`;
 
     } else if (type === 'program') {
       const programsToExport = (id === 'all') ? programs : programs.filter(p => p.id === parseInt(id));
@@ -841,10 +846,10 @@ ipcMain.handle("export-file", async (event, args = {}) => {
                 const roomName = roomAssignment ? (roomMap[roomAssignment.roomId]?.name || 'N/A') : 'N/A';
 
                 const teacherColor = teacher.color || '#f9f9f9';
-                html += `<td class="slot-cell" rowspan="${cell.span}" style="background-color: ${teacherColor}; border: 2px solid #333;">`;
+                html += `<td class="slot-cell" rowspan="${cell.span}" style="background-color: ${teacherColor}; border: 1px solid #000;">`;
                 html += `<span class="subject-name">${subject?.name || 'Unknown'}</span>`;
                 html += `<span class="teacher-name">${teacher?.honorifics ? teacher.honorifics + ' ' : ''}${teacher?.fullName || 'Unknown'}</span>`;
-                html += `<span class="room-name">Class: ${className}</span>`;
+                // html += `<span class="room-name">Class: ${className}</span>`;
                 html += `<span class="room-name">Room: ${roomName}</span>`;
                 html += `</td>`;
               }
@@ -859,17 +864,22 @@ ipcMain.handle("export-file", async (event, args = {}) => {
           // Add signatures for each year level
           html += `
             <div class="sign-section">
-              <div class="sign-block">
-                Prepared by:
-                <div class="sign-line"></div>
-                <div style="margin-top: 5px;">ENGR. REYNALDO C. DIMAYACYAC<br>Dean, College of Engineering Technology</div>
-              </div>
-              <div class="sign-block" style="text-align: right;">
-                Approved by:
-                <div class="sign-line" style="margin-left: auto;"></div>
-                <div style="margin-top: 5px;">DR. CRISTITA B. TAN<br>VPAA</div>
-              </div>
-            </div>`;
+  <div class="sign-block">
+    Prepared by:
+    <div class="sign-line"></div>
+    <div style="margin-top: 5px; font-weight: bold;">
+      ENGR. REYNALDO C. DIMAYACYAC<br>Dean, College of Engineering Technology
+    </div>
+  </div>
+
+  <div class="sign-block">
+    Approved by:
+    <div class="sign-line"></div>
+    <div style="margin-top: 5px; font-weight: bold;">
+      DR. CRISTITA B. TAN<br>VPAA
+    </div>
+  </div>
+</div>`;
         }
       }
     } else {
@@ -1091,6 +1101,7 @@ ipcMain.handle("print-file", async (event, args = {}) => {
             overflow-wrap: break-word;
             line-height: 1.2;
             min-width: 120px;
+            text-align: center;
           }
           .subject-name {
             font-weight: bold;
@@ -1099,11 +1110,12 @@ ipcMain.handle("print-file", async (event, args = {}) => {
             white-space: normal;
             color: #000;
             margin-bottom: 2px;
+            text-align: center;
           }
           .teacher-name {
             display: block;
             font-size: 7px;
-            font-style: italic;
+            text-align: center;
             color: #000;
             word-break: break-word;
             white-space: normal;
@@ -1113,6 +1125,7 @@ ipcMain.handle("print-file", async (event, args = {}) => {
             font-size: 7px;
             color: #000;
             margin-top: 1px;
+            text-align: center;
           }
           .sign-section {
             width: 100%;
@@ -1211,7 +1224,7 @@ ipcMain.handle("print-file", async (event, args = {}) => {
             const roomName = roomAssignment ? (roomMap[roomAssignment.roomId]?.name || 'N/A') : 'N/A';
 
             const teacherColor = teacher.color || '#f9f9f9';
-            html += `<td class="slot-cell" rowspan="${cell.span}" style="background-color: ${teacherColor}; border: 2px solid #333;">`;
+            html += `<td class="slot-cell" rowspan="${cell.span}" style="background-color: ${teacherColor}; border: 1px solid #000;">`;
             html += `<span class="subject-name">${subject?.name || 'Unknown'}</span>`;
             html += `<span class="teacher-name">Class: ${className}</span>`;
             html += `<span class="room-name">Room: ${roomName}</span>`;
@@ -1228,17 +1241,22 @@ ipcMain.handle("print-file", async (event, args = {}) => {
       // Add signatures for teacher schedule
       html += `
         <div class="sign-section">
-          <div class="sign-block">
-            Prepared by:
-            <div class="sign-line"></div>
-            <div style="margin-top: 5px;">ENGR. REYNALDO C. DIMAYACYAC<br>Dean, College of Engineering Technology</div>
-          </div>
-          <div class="sign-block" style="text-align: right;">
-            Approved by:
-            <div class="sign-line" style="margin-left: auto;"></div>
-            <div style="margin-top: 5px;">DR. CRISTITA B. TAN<br>VPAA</div>
-          </div>
-        </div>`;
+  <div class="sign-block">
+    Prepared by:
+    <div class="sign-line"></div>
+    <div style="margin-top: 5px; font-weight: bold;">
+      ENGR. REYNALDO C. DIMAYACYAC<br>Dean, College of Engineering Technology
+    </div>
+  </div>
+
+  <div class="sign-block">
+    Approved by:
+    <div class="sign-line"></div>
+    <div style="margin-top: 5px; font-weight: bold;">
+      DR. CRISTITA B. TAN<br>VPAA
+    </div>
+  </div>
+</div>`;
 
     } else if (type === 'program') {
       const programsToExport = (id === 'all') ? programs : programs.filter(p => p.id === parseInt(id));
@@ -1328,7 +1346,7 @@ ipcMain.handle("print-file", async (event, args = {}) => {
                 const roomName = roomAssignment ? (roomMap[roomAssignment.roomId]?.name || 'N/A') : 'N/A';
 
                 const teacherColor = teacher.color || '#f9f9f9';
-                html += `<td class="slot-cell" rowspan="${cell.span}" style="background-color: ${teacherColor}; border: 2px solid #333;">`;
+                html += `<td class="slot-cell" rowspan="${cell.span}" style="background-color: ${teacherColor}; border: 1px solid #000;">`;
                 html += `<span class="subject-name">${subject?.name || 'Unknown'}</span>`;
                 html += `<span class="teacher-name">${teacher?.honorifics ? teacher.honorifics + ' ' : ''}${teacher?.fullName || 'Unknown'}</span>`;
                 // html += `<span class="room-name">Class: ${className}</span>`;
@@ -1346,17 +1364,22 @@ ipcMain.handle("print-file", async (event, args = {}) => {
           // Add signatures for each year level
           html += `
             <div class="sign-section">
-              <div class="sign-block">
-                Prepared by:
-                <div class="sign-line"></div>
-                <div style="margin-top: 5px;">ENGR. REYNALDO C. DIMAYACYAC<br>Dean, College of Engineering Technology</div>
-              </div>
-              <div class="sign-block" style="text-align: right;">
-                Approved by:
-                <div class="sign-line" style="margin-left: auto;"></div>
-                <div style="margin-top: 5px;">DR. CRISTITA B. TAN<br>VPAA</div>
-              </div>
-            </div>`;
+  <div class="sign-block">
+    Prepared by:
+    <div class="sign-line"></div>
+    <div style="margin-top: 5px; font-weight: bold;">
+      ENGR. REYNALDO C. DIMAYACYAC<br>Dean, College of Engineering Technology
+    </div>
+  </div>
+
+  <div class="sign-block">
+    Approved by:
+    <div class="sign-line"></div>
+    <div style="margin-top: 5px; font-weight: bold;">
+      DR. CRISTITA B. TAN<br>VPAA
+    </div>
+  </div>
+</div>`;
         }
       }
     } else {

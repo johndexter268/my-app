@@ -201,6 +201,7 @@ export default function Toolbar() {
         });
         if (!fullScheduleActive) {
           setActiveFileId(file.id);
+          window.activeFileId = file.id;  // Add this line
           setLastActiveFileId(file.id);
         }
       } catch (error) {
@@ -231,6 +232,7 @@ export default function Toolbar() {
     const file = openFiles.find((f) => f.id === fileId);
     if (file && !fullScheduleActive) {
       setActiveFileId(fileId);
+      window.activeFileId = fileId;  // Add this line
       setLastActiveFileId(fileId);
       window.dispatchEvent(new CustomEvent('fileSelected', { detail: file }));
       navigate('/home');
@@ -368,6 +370,7 @@ export default function Toolbar() {
       if (fileId === activeFileId) {
         const newActiveFile = remainingFiles.length > 0 ? remainingFiles[0] : null;
         setActiveFileId(newActiveFile?.id || null);
+        window.activeFileId = newActiveFile?.id || null;
         setLastActiveFileId(newActiveFile?.id || null);
         if (newActiveFile) {
           window.dispatchEvent(
@@ -402,9 +405,10 @@ export default function Toolbar() {
           { ...result.file, hasUnsavedChanges: false, assignments: [] },
         ]);
         setActiveFileId(result.file.id);
+        window.activeFileId = result.file.id;  // Add this line
         setLastActiveFileId(result.file.id);
         setFormData({ name: "", academic_year: "", semester: "" });
-        navigate("/assign");
+        navigate("/home");  // Change from "/assign" to "/home" to directly show the schedule
       } else {
         alert(result.message);
       }
@@ -532,8 +536,10 @@ export default function Toolbar() {
     if (newFullScheduleActive) {
       setLastActiveFileId(activeFileId);
       setActiveFileId(null);
+      window.activeFileId = null;  // Add this line
     } else {
       setActiveFileId(lastActiveFileId);
+      window.activeFileId = lastActiveFileId;  // Add this line
       if (lastActiveFileId) {
         const file = openFiles.find((f) => f.id === lastActiveFileId);
         if (file) {
@@ -548,6 +554,7 @@ export default function Toolbar() {
     if (fullScheduleActive) {
       setFullScheduleActive(false);
       setActiveFileId(lastActiveFileId);
+      window.activeFileId = lastActiveFileId;  // Add this line
       if (lastActiveFileId) {
         const file = openFiles.find((f) => f.id === lastActiveFileId);
         if (file) {
@@ -563,6 +570,7 @@ export default function Toolbar() {
     if (fullScheduleActive) {
       setFullScheduleActive(false);
       setActiveFileId(lastActiveFileId);
+      window.activeFileId = lastActiveFileId;  // Add this line
       if (lastActiveFileId) {
         const file = openFiles.find((f) => f.id === lastActiveFileId);
         if (file) {

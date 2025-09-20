@@ -1,3 +1,4 @@
+// pages/ManageData.jsx
 import { useState, useEffect } from "react";
 import { FiPlus, FiEdit, FiTrash2 } from "react-icons/fi";
 import Modal from "../components/Modal";
@@ -15,6 +16,26 @@ export default function ManageData() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // New states for custom alert/confirm
+  const [showAlertModal, setShowAlertModal] = useState(false);
+  const [alertMessage, setAlertMessage] = useState("");
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [confirmMessage, setConfirmMessage] = useState("");
+  const [confirmCallback, setConfirmCallback] = useState(null);
+
+  // Helper to show custom alert
+  const customAlert = (message) => {
+    setAlertMessage(message);
+    setShowAlertModal(true);
+  };
+
+  // Helper to show custom confirm
+  const customConfirm = (message, callback) => {
+    setConfirmMessage(message);
+    setConfirmCallback(() => callback); // Wrap in function to call later
+    setShowConfirmModal(true);
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -34,7 +55,7 @@ export default function ManageData() {
         setPrograms(programsData);
       } catch (error) {
         console.error("Error fetching data:", error);
-        alert("Error loading data: " + (error.message || "Unknown error"));
+        customAlert("Error loading data: " + (error.message || "Unknown error"));
       } finally {
         setIsLoading(false);
       }
@@ -55,7 +76,7 @@ export default function ManageData() {
   };
 
   const handleDelete = async (type, id) => {
-    if (window.confirm(`Are you sure you want to delete this ${type.toLowerCase()}?`)) {
+    customConfirm(`Are you sure you want to delete this ${type.toLowerCase()}?`, async () => {
       setIsDeleting(true);
       try {
         const result = await window.api[`delete${type}`](id);
@@ -65,45 +86,45 @@ export default function ManageData() {
           else if (type === "Room") setRooms((prev) => prev.filter((r) => r.id !== id));
           else if (type === "Class") setClasses((prev) => prev.filter((c) => c.id !== id));
           else if (type === "Program") setPrograms((prev) => prev.filter((p) => p.id !== id));
-          alert(`${type} deleted successfully!`);
+          customAlert(`${type} deleted successfully!`);
           const currentFile = await window.api.getCurrentFile();
           if (currentFile) {
             const updatedFile = { ...currentFile, updatedAt: new Date().toISOString(), hasUnsavedChanges: true };
             await window.api.setCurrentFile(updatedFile);
           }
         } else {
-          alert(result.message || `Failed to delete ${type.toLowerCase()}.`);
+          customAlert(result.message || `Failed to delete ${type.toLowerCase()}.`);
         }
       } catch (error) {
         console.error(`Error deleting ${type.toLowerCase()}:`, error);
-        alert(`Error deleting ${type.toLowerCase()}: ${error.message || "Unknown error"}`);
+        customAlert(`Error deleting ${type.toLowerCase()}: ${error.message || "Unknown error"}`);
       } finally {
         setIsDeleting(false);
       }
-    }
+    });
   };
 
   const handleSave = async () => {
     setIsSaving(true);
     try {
       if (modalType.includes("Teacher") && (!formData.fullName || !formData.color)) {
-        alert("Full name and color are required.");
+        customAlert("Full name and color are required.");
         return;
       }
       if (modalType.includes("Subject") && (!formData.name || !formData.code || !formData.units)) {
-        alert("Name, code, and units are required.");
+        customAlert("Name, code, and units are required.");
         return;
       }
       if (modalType.includes("Room") && (!formData.name || !formData.capacity)) {
-        alert("Name and capacity are required.");
+        customAlert("Name and capacity are required.");
         return;
       }
       if (modalType.includes("Class") && (!formData.name || !formData.students || !formData.programId || !formData.yearLevel)) {
-        alert("All fields are required.");
+        customAlert("All fields are required.");
         return;
       }
       if (modalType.includes("Program") && (!formData.name || !formData.years)) {
-        alert("Name and years are required.");
+        customAlert("Name and years are required.");
         return;
       }
 
@@ -118,7 +139,7 @@ export default function ManageData() {
               : prev.map((t) => (t.id === formData.id ? newItem : t))
           );
         } else {
-          alert(result.message || "Failed to save teacher.");
+          customAlert(result.message || "Failed to save teacher.");
           return;
         }
       } else if (modalType.includes("Subject")) {
@@ -131,7 +152,7 @@ export default function ManageData() {
               : prev.map((s) => (s.id === formData.id ? newItem : s))
           );
         } else {
-          alert(result.message || "Failed to save subject.");
+          customAlert(result.message || "Failed to save subject.");
           return;
         }
       } else if (modalType.includes("Room")) {
@@ -144,7 +165,7 @@ export default function ManageData() {
               : prev.map((r) => (r.id === formData.id ? newItem : r))
           );
         } else {
-          alert(result.message || "Failed to save room.");
+          customAlert(result.message || "Failed to save room.");
           return;
         }
       } else if (modalType.includes("Class")) {
@@ -157,7 +178,7 @@ export default function ManageData() {
               : prev.map((c) => (c.id === formData.id ? newItem : c))
           );
         } else {
-          alert(result.message || "Failed to save class.");
+          customAlert(result.message || "Failed to save class.");
           return;
         }
       } else if (modalType.includes("Program")) {
@@ -170,13 +191,13 @@ export default function ManageData() {
               : prev.map((p) => (p.id === formData.id ? newItem : p))
           );
         } else {
-          alert(result.message || "Failed to save program.");
+          customAlert(result.message || "Failed to save program.");
           return;
         }
       }
       setShowModal(false);
       setFormData({});
-      alert(`${modalType.split(" ")[1]} saved successfully!`);
+      customAlert(`${modalType.split(" ")[1]} saved successfully!`);
       const currentFile = await window.api.getCurrentFile();
       if (currentFile) {
         const updatedFile = { ...currentFile, updatedAt: new Date().toISOString(), hasUnsavedChanges: true };
@@ -184,7 +205,7 @@ export default function ManageData() {
       }
     } catch (error) {
       console.error(`Error saving ${modalType.toLowerCase()}:`, error);
-      alert(`Error saving ${modalType.toLowerCase()}: ${error.message || "Unknown error"}`);
+      customAlert(`Error saving ${modalType.toLowerCase()}: ${error.message || "Unknown error"}`);
     } finally {
       setIsSaving(false);
     }
@@ -421,6 +442,7 @@ export default function ManageData() {
           </div>
         </div>
 
+        {/* Note: As suggested, you might want to remove this sidebar if it's not needed, but I've left it as-is for completeness. */}
         <div className="bg-white rounded-lg p-6 shadow-sm border">
           <h3 className="text-lg font-semibold mb-4">Edit {activeTab.slice(0, -1)}</h3>
           <div className="space-y-4">
@@ -662,7 +684,7 @@ export default function ManageData() {
                   onChange={(e) => setFormData((prev) => ({ ...prev, fullName: e.target.value }))}
                   className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500"
                   placeholder="Enter full name"
-               />
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Honorifics</label>
@@ -867,6 +889,28 @@ export default function ManageData() {
             </>
           )}
         </Modal>
+      )}
+
+      {showAlertModal && (
+        <Modal
+          title="Alert"
+          type="alert"
+          message={alertMessage}
+          onClose={() => setShowAlertModal(false)}
+        />
+      )}
+      {showConfirmModal && (
+        <Modal
+          title="Confirm"
+          type="confirm"
+          message={confirmMessage}
+          onClose={() => setShowConfirmModal(false)}
+          onConfirm={() => {
+            if (confirmCallback) confirmCallback();
+            setShowConfirmModal(false);
+          }}
+          isSaving={isDeleting} // Reuse isSaving for disabling during delete, adjust if needed
+        />
       )}
     </div>
   );
