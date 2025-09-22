@@ -159,11 +159,11 @@ export default function Sidebar() {
           style={{ borderColor: "#374151" }}
         >
           {!collapsed && (
-            <span className="text-white font-semibold text-lg">Menu</span>
+            <span className="text-white font-bold text-lg">Menu</span>
           )}
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="p-2 rounded-lg transition-colors text-gray-300 hover:text-white hover:bg-gray-700/50 ml-auto"
+            className="p-2 rounded-lg transition-colors text-white font-bold hover:text-white hover:bg-gray-700/50 ml-auto"
             disabled={isLoading}
           >
             {collapsed ? (

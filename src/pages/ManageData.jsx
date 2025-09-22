@@ -260,16 +260,16 @@ export default function ManageData() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {teachers.map((teacher) => (
                     <tr key={teacher.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
                         <div
                           className="w-6 h-6 rounded-full"
                           style={{ backgroundColor: teacher.color }}
                         ></div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
                         {teacher.honorifics} {teacher.fullName}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
                         <button
                           onClick={() => handleEdit("Teacher", teacher)}
                           className="text-blue-500 hover:text-blue-700 mr-2"
@@ -909,7 +909,7 @@ export default function ManageData() {
             if (confirmCallback) confirmCallback();
             setShowConfirmModal(false);
           }}
-          isSaving={isDeleting} // Reuse isSaving for disabling during delete, adjust if needed
+          isSaving={isDeleting} 
         />
       )}
     </div>

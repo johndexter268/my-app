@@ -37,6 +37,9 @@ export default function Toolbar() {
   const [programs, setPrograms] = useState([]);
   const navigate = useNavigate();
   const location = useLocation();
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState("");
+  const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
 
   // Keyboard shortcuts effect
   useEffect(() => {
@@ -44,16 +47,13 @@ export default function Toolbar() {
       const { ctrlKey, metaKey, key, shiftKey } = event;
       const isModifier = ctrlKey || metaKey; // Support both Ctrl and Cmd (Mac)
 
-      // Prevent shortcuts when typing in input fields
       if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA' || event.target.tagName === 'SELECT') {
-        // Only allow Escape to close modals when in input fields
         if (key === 'Escape') {
           closeAllModals();
         }
         return;
       }
 
-      // Handle Escape key to close modals
       if (key === 'Escape') {
         event.preventDefault();
         closeAllModals();
@@ -114,17 +114,14 @@ export default function Toolbar() {
         }
       }
 
-      // Handle F11 for fullscreen (without modifier)
       if (key === 'F11' && showViewTools && location.pathname === '/home') {
         event.preventDefault();
         handleFullScreen();
       }
     };
 
-    // Add event listener
     document.addEventListener('keydown', handleKeyDown);
 
-    // Cleanup
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
@@ -141,18 +138,20 @@ export default function Toolbar() {
     showPrintModal
   ]);
 
-  // Helper function to close all modals
   const closeAllModals = () => {
     setShowNewModal(false);
     setShowSaveAsModal(false);
     setShowCloseConfirmModal(false);
     setShowExportModal(false);
     setShowPrintModal(false);
+    setShowPreviewModal(false);
     setFormData({ name: "", academic_year: "", semester: "" });
     setExportData({ fileId: "", type: "program", id: "", format: "pdf" });
     setFileToCloseId(null);
-    setIsExporting(false); // Reset export loading state
-    setIsPrinting(false); // Reset print loading state
+    setIsExporting(false);
+    setIsPrinting(false);
+    setIsGeneratingPreview(false);
+    setPreviewHtml("");
   };
 
   useEffect(() => {
@@ -586,7 +585,6 @@ export default function Toolbar() {
     window.dispatchEvent(new CustomEvent('viewFullScreen'));
   };
 
-  // Updated buttons array with keyboard shortcuts in tooltips and loading state
   const buttons = [
     { name: "New", icon: <FiPlus />, onClick: handleNew, shortcut: "Ctrl+N" },
     { name: "Save", icon: <FiSave />, onClick: handleSave, disabled: !activeFileId, shortcut: "Ctrl+S" },
@@ -594,6 +592,36 @@ export default function Toolbar() {
     { name: "Export", icon: isExporting ? <FaSpinner className="animate-spin text-base" /> : <FiDownload />, onClick: handleExport, disabled: !activeFileId || isExporting, shortcut: "Ctrl+E" },
     { name: "Print", icon: isPrinting ? <FaSpinner className="animate-spin text-base" /> : <FiPrinter />, onClick: handlePrint, disabled: !activeFileId || isPrinting, shortcut: "Ctrl+P" },
   ];
+
+  const handlePreview = async () => {
+    if (isGeneratingPreview) return;
+
+    const fileIdToUse = exportData.fileId;
+    if (!fileIdToUse || !exportData.type || !exportData.id) {
+      alert("Please select all required fields for preview.");
+      return;
+    }
+
+    setIsGeneratingPreview(true);
+    try {
+      const result = await window.api.generatePreview({
+        fileId: fileIdToUse,
+        type: exportData.type,
+        id: exportData.id === "all" ? "all" : parseInt(exportData.id),
+      });
+
+      if (result.success) {
+        setPreviewHtml(result.html);
+        setShowPreviewModal(true);
+      } else {
+        alert(result.message || "Failed to generate preview");
+      }
+    } catch (error) {
+      alert("Error generating preview: " + (error.message || "Unknown error"));
+    } finally {
+      setIsGeneratingPreview(false);
+    }
+  };
 
   return (
     <>
@@ -925,18 +953,68 @@ export default function Toolbar() {
             setShowExportModal(false);
             setExportData({ fileId: "", type: "program", id: "", format: "pdf" });
             setIsExporting(false);
+            setIsGeneratingPreview(false);
           }}
-          onSave={submitExport}
-          saveText={isExporting ? "Exporting..." : "Export"}
-          saveDisabled={isExporting}
+          customButtons={
+            <div className="flex space-x-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowExportModal(false);
+                  setExportData({ fileId: "", type: "program", id: "", format: "pdf" });
+                  setIsExporting(false);
+                  setIsGeneratingPreview(false);
+                }}
+                className="px-4 py-2 text-gray-600 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handlePreview}
+                disabled={isGeneratingPreview || isExporting || !exportData.fileId || !exportData.type || !exportData.id}
+                className={`flex items-center px-4 py-2 rounded-md transition-colors ${isGeneratingPreview || isExporting || !exportData.fileId || !exportData.type || !exportData.id
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-teal-700 text-white hover:bg-teal-900'
+                  }`}
+              >
+                {isGeneratingPreview ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Generating...
+                  </>
+                ) : (
+                  'Preview'
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={submitExport}
+                disabled={isExporting || isGeneratingPreview}
+                className={`flex items-center px-4 py-2 rounded-md transition-colors ${isExporting || isGeneratingPreview
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-teal-600 text-white hover:bg-teal-700'
+                  }`}
+              >
+                {isExporting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Exporting...
+                  </>
+                ) : (
+                  'Export'
+                )}
+              </button>
+            </div>
+          }
         >
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Select File</label>
             <select
               value={exportData.fileId || ""}
               onChange={(e) => handleExportChange("fileId", e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              disabled={isExporting}
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+              disabled={isExporting || isGeneratingPreview}
             >
               <option value="">Select Schedule File</option>
               {openFiles.map((file) => (
@@ -951,8 +1029,8 @@ export default function Toolbar() {
             <select
               value={exportData.type}
               onChange={(e) => handleExportChange("type", e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              disabled={isExporting}
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+              disabled={isExporting || isGeneratingPreview}
             >
               <option value="program">Program</option>
               <option value="teacher">Teacher</option>
@@ -965,8 +1043,8 @@ export default function Toolbar() {
             <select
               value={exportData.id}
               onChange={(e) => handleExportChange("id", e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              disabled={isExporting}
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+              disabled={isExporting || isGeneratingPreview}
             >
               <option value="">
                 Select {exportData.type === "program" ? "Program" : "Teacher"}
@@ -984,11 +1062,10 @@ export default function Toolbar() {
             <select
               value={exportData.format}
               onChange={(e) => handleExportChange("format", e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              disabled={isExporting}
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+              disabled={isExporting || isGeneratingPreview}
             >
               <option value="pdf">PDF</option>
-              {/* <option value="json">JSON</option> */}
             </select>
           </div>
         </Modal>
@@ -1056,6 +1133,52 @@ export default function Toolbar() {
             </select>
           </div>
         </Modal>
+      )}
+
+      {showPreviewModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]">
+          <div className="bg-white rounded-lg shadow-lg w-11/12 h-5/6 max-w-6xl flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="text-lg font-semibold text-gray-900">Export Preview</h2>
+              <div className="flex space-x-2">
+                <button
+                  onClick={submitExport}
+                  disabled={isExporting}
+                  className={`flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 ${isExporting
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-teal-600 text-white hover:bg-teal-700'
+                    }`}
+                >
+                  {isExporting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Exporting...
+                    </>
+                  ) : (
+                    'Export PDF'
+                  )}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowPreviewModal(false);
+                    setPreviewHtml("");
+                  }}
+                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors duration-200"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <iframe
+                srcDoc={previewHtml}
+                className="w-full h-full border-0"
+                title="Export Preview"
+                style={{ backgroundColor: 'white' }}
+              />
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

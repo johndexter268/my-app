@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld("api", {
   saveAsFile: (data) => ipcRenderer.invoke("save-as-file", data),
   exportFile: (args) => ipcRenderer.invoke("export-file", args),
   printFile: (args) => ipcRenderer.invoke("print-file", args),
+  generatePreview: (data) => ipcRenderer.invoke("generate-preview", data),
   getAllScheduleFiles: () => ipcRenderer.invoke("get-all-schedule-files"),
   deleteScheduleFile: (id) => ipcRenderer.invoke("delete-schedule-file", id),
   archiveScheduleFile: (id) => ipcRenderer.invoke("archive-schedule-file", id),
