@@ -14,8 +14,8 @@ export default function Toolbar() {
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [showViewTools, setShowViewTools] = useState(false);
   const [fileToCloseId, setFileToCloseId] = useState(null);
-  const [isExporting, setIsExporting] = useState(false); // New state for export loading
-  const [isPrinting, setIsPrinting] = useState(false); // New state for print loading
+  const [isExporting, setIsExporting] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
   const MAX_OPEN_FILES = 5;
   const [formData, setFormData] = useState({
     name: "",
@@ -45,7 +45,7 @@ export default function Toolbar() {
   useEffect(() => {
     const handleKeyDown = (event) => {
       const { ctrlKey, metaKey, key, shiftKey } = event;
-      const isModifier = ctrlKey || metaKey; // Support both Ctrl and Cmd (Mac)
+      const isModifier = ctrlKey || metaKey;
 
       if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA' || event.target.tagName === 'SELECT') {
         if (key === 'Escape') {
@@ -130,7 +130,6 @@ export default function Toolbar() {
     location.pathname,
     activeFileId,
     navigate,
-    // Include handler dependencies
     showNewModal,
     showSaveAsModal,
     showCloseConfirmModal,
@@ -200,7 +199,7 @@ export default function Toolbar() {
         });
         if (!fullScheduleActive) {
           setActiveFileId(file.id);
-          window.activeFileId = file.id;  // Add this line
+          window.activeFileId = file.id;
           setLastActiveFileId(file.id);
         }
       } catch (error) {
@@ -231,7 +230,7 @@ export default function Toolbar() {
     const file = openFiles.find((f) => f.id === fileId);
     if (file && !fullScheduleActive) {
       setActiveFileId(fileId);
-      window.activeFileId = fileId;  // Add this line
+      window.activeFileId = fileId;
       setLastActiveFileId(fileId);
       window.dispatchEvent(new CustomEvent('fileSelected', { detail: file }));
       navigate('/home');
@@ -322,7 +321,7 @@ export default function Toolbar() {
   };
 
   const handleExport = () => {
-    if (isExporting) return; // Prevent multiple export requests
+    if (isExporting) return;
     const defaultFileId = activeFileId || (openFiles.length > 0 ? openFiles[0].id : "");
     const defaultType = "program";
     const defaultId = programs.length > 0 ? programs[0].id.toString() : "all";
@@ -336,7 +335,7 @@ export default function Toolbar() {
   };
 
   const handlePrint = () => {
-    if (isPrinting) return; // Prevent multiple print requests
+    if (isPrinting) return;
     const defaultFileId = activeFileId || (openFiles.length > 0 ? openFiles[0].id : "");
     const defaultType = "program";
     const defaultId = programs.length > 0 ? programs[0].id.toString() : "all";
@@ -404,10 +403,10 @@ export default function Toolbar() {
           { ...result.file, hasUnsavedChanges: false, assignments: [] },
         ]);
         setActiveFileId(result.file.id);
-        window.activeFileId = result.file.id;  // Add this line
+        window.activeFileId = result.file.id;
         setLastActiveFileId(result.file.id);
         setFormData({ name: "", academic_year: "", semester: "" });
-        navigate("/home");  // Change from "/assign" to "/home" to directly show the schedule
+        navigate("/home");
       } else {
         alert(result.message);
       }
@@ -442,7 +441,7 @@ export default function Toolbar() {
   };
 
   const submitExport = async () => {
-    if (isExporting) return; // Prevent multiple export requests
+    if (isExporting) return;
     const fileIdToUse = exportData.fileId;
     if (!fileIdToUse) {
       alert("Please select a file to export.");
@@ -475,7 +474,7 @@ export default function Toolbar() {
   };
 
   const submitPrint = async () => {
-    if (isPrinting) return; // Prevent multiple print requests
+    if (isPrinting) return;
     const fileIdToUse = exportData.fileId;
     if (!fileIdToUse) {
       alert("Please select a file to print.");
@@ -535,10 +534,10 @@ export default function Toolbar() {
     if (newFullScheduleActive) {
       setLastActiveFileId(activeFileId);
       setActiveFileId(null);
-      window.activeFileId = null;  // Add this line
+      window.activeFileId = null;
     } else {
       setActiveFileId(lastActiveFileId);
-      window.activeFileId = lastActiveFileId;  // Add this line
+      window.activeFileId = lastActiveFileId;
       if (lastActiveFileId) {
         const file = openFiles.find((f) => f.id === lastActiveFileId);
         if (file) {
@@ -553,7 +552,7 @@ export default function Toolbar() {
     if (fullScheduleActive) {
       setFullScheduleActive(false);
       setActiveFileId(lastActiveFileId);
-      window.activeFileId = lastActiveFileId;  // Add this line
+      window.activeFileId = lastActiveFileId;
       if (lastActiveFileId) {
         const file = openFiles.find((f) => f.id === lastActiveFileId);
         if (file) {
@@ -569,7 +568,7 @@ export default function Toolbar() {
     if (fullScheduleActive) {
       setFullScheduleActive(false);
       setActiveFileId(lastActiveFileId);
-      window.activeFileId = lastActiveFileId;  // Add this line
+      window.activeFileId = lastActiveFileId;
       if (lastActiveFileId) {
         const file = openFiles.find((f) => f.id === lastActiveFileId);
         if (file) {
@@ -625,222 +624,199 @@ export default function Toolbar() {
 
   return (
     <>
-      <div
-        className="border-b"
-        style={{
-          backgroundColor: "#f8fafc",
-          borderColor: "#e5e7eb",
-          fontFamily: "Inter, system-ui, -apple-system, sans-serif",
-        }}
-      >
-        <div className="px-4 py-3">
+      <div className="bg-white border-b border-gray-200 shadow-sm">
+        <div className="px-3 py-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-1">
-              {buttons.map((btn, idx) => (
-                <button
-                  key={idx}
-                  onClick={btn.onClick}
-                  disabled={btn.disabled}
-                  className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 ${btn.disabled
-                    ? 'text-gray-400 cursor-not-allowed'
-                    : 'text-gray-700 hover:text-gray-900 hover:bg-white/80'
-                    }`}
-                  style={{
-                    border: "1px solid transparent",
-                  }}
-                  title={`${btn.name} (${btn.shortcut})`}
-                  onMouseEnter={(e) => {
-                    if (!btn.disabled) {
-                      e.target.style.borderColor = "#d1d5db";
-                      e.target.style.backgroundColor = "#ffffff";
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!btn.disabled) {
-                      e.target.style.borderColor = "transparent";
-                      e.target.style.backgroundColor = "transparent";
-                    }
-                  }}
-                >
-                  <span className="text-base">{btn.icon}</span>
-                  <span className="hidden sm:inline">{btn.name}</span>
-                </button>
-              ))}
+            <div className="flex items-center">
+              <div className="flex items-center gap-1 mr-6">
+                {buttons.map((btn, idx) => (
+                  <div key={idx} className="relative group">
+                    <button
+                      onClick={btn.onClick}
+                      disabled={btn.disabled}
+                      className={`
+                        relative flex items-center gap-2.5 px-4 py-2.5 rounded-xl font-medium text-sm
+                        transition-all duration-200 ease-out
+                        ${btn.disabled
+                          ? 'text-gray-400 bg-gray-50 cursor-not-allowed'
+                          : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50 hover:shadow-sm active:scale-95'
+                        }
+                      `}
+                      title={`${btn.name} (${btn.shortcut})`}
+                    >
+                      <span className="text-lg">{btn.icon}</span>
+                      <span className="hidden lg:inline font-medium">{btn.name}</span>
+                    </button>
+                    
+                    {/* Tooltip */}
+                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap lg:hidden">
+                      {btn.name}
+                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
 
-            {/* Help button positioned in the right corner */}
-            <div className="flex items-center">
+            {/* Help button */}
+            <div className="relative group">
               <button
                 onClick={() => {
                   navigate("/help");
                   window.location.reload();
                 }}
-                className="flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 text-gray-700 hover:text-gray-900 hover:bg-white/80"
-                style={{
-                  border: "1px solid transparent",
-                }}
+                className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 hover:shadow-sm transition-all duration-200 ease-out active:scale-95"
                 title="Help (Ctrl+H)"
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = "#d1d5db";
-                  e.currentTarget.style.backgroundColor = "#ffffff";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = "transparent";
-                  e.currentTarget.style.backgroundColor = "transparent";
-                }}
               >
-                <span className="text-base"><FiHelpCircle /></span>
-                <span className="hidden sm:inline">Help</span>
+                <span className="text-lg"><FiHelpCircle /></span>
+                <span className="hidden lg:inline font-medium">Help</span>
               </button>
+              
+              {/* Tooltip */}
+              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap lg:hidden">
+                Help
+                <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+              </div>
             </div>
           </div>
 
+          {/* View Tools */}
           {location.pathname === '/home' && showViewTools && (
-            <div className="mt-2 flex items-center space-x-2 bg-gray-100 p-2 rounded-lg">
-              <button
-                onClick={handleZoomIn}
-                className="p-2 rounded-lg text-gray-700 hover:text-gray-900 hover:bg-white/80 transition-colors duration-200"
-                style={{
-                  border: "1px solid transparent",
-                }}
-                title="Zoom In (Ctrl++)"
-                onMouseEnter={(e) => {
-                  e.target.style.borderColor = "#d1d5db";
-                  e.target.style.backgroundColor = "#ffffff";
-                }}
-                onMouseLeave={(e) => {
-                  e.target.style.borderColor = "transparent";
-                  e.target.style.backgroundColor = "transparent";
-                }}
-              >
-                <FiZoomIn className="text-base" />
-              </button>
-              <button
-                onClick={handleZoomOut}
-                className="p-2 rounded-lg text-gray-700 hover:text-gray-900 hover:bg-white/80 transition-colors duration-200"
-                style={{
-                  border: "1px solid transparent",
-                }}
-                title="Zoom Out (Ctrl+-)"
-                onMouseEnter={(e) => {
-                  e.target.style.borderColor = "#d1d5db";
-                  e.target.style.backgroundColor = "#ffffff";
-                }}
-                onMouseLeave={(e) => {
-                  e.target.style.borderColor = "transparent";
-                  e.target.style.backgroundColor = "transparent";
-                }}
-              >
-                <FiZoomOut className="text-base" />
-              </button>
-              <button
-                onClick={handleFullSchedule}
-                className={`p-2 rounded-lg transition-colors duration-200 ${fullScheduleActive ? 'bg-teal-500 text-gray-700' : 'text-gray-700 hover:text-gray-900'
-                  }`}
-                style={{
-                  border: "1px solid",
-                }}
-                title="All Schedules"
-                onMouseEnter={(e) => {
-                  if (!fullScheduleActive) {
-                    e.target.style.borderColor = "#d1d5db";
-                    e.target.style.backgroundColor = "#ffffff";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!fullScheduleActive) {
-                    e.target.style.borderColor = "transparent";
-                    e.target.style.backgroundColor = "transparent";
-                  }
-                }}
-              >
-                <FiCalendar className="text-base" />
-              </button>
-              <select
-                onChange={(e) => handleScheduleByCourse(e.target.value ? parseInt(e.target.value) : null)}
-                className="p-2 rounded-lg text-sm font-medium text-gray-700 bg-white border border-gray-300 focus:ring-2 focus:ring-blue-500"
-                title="Schedule by Course"
-              >
-                <option value="">Course</option>
-                {programs.map((program) => (
-                  <option key={program.id} value={program.id}>{program.name}</option>
-                ))}
-              </select>
-              <select
-                onChange={(e) => handleYearLevelSchedule(e.target.value)}
-                className="p-2 rounded-lg text-sm font-medium text-gray-700 bg-white border border-gray-300 focus:ring-2 focus:ring-blue-500"
-                title="Year-Level Schedule"
-              >
-                <option value="">Year</option>
-                {['1st Year', '2nd Year', '3rd Year', '4th Year'].map((level) => (
-                  <option key={level} value={level}>{level}</option>
-                ))}
-              </select>
-              <button
-                onClick={handleFullScreen}
-                className="p-2 rounded-lg text-gray-700 hover:text-gray-900 hover:bg-white/80 transition-colors duration-200"
-                style={{
-                  border: "1px solid transparent",
-                }}
-                title="Full Screen (Ctrl+F or F11)"
-                onMouseEnter={(e) => {
-                  e.target.style.borderColor = "#d1d5db";
-                  e.target.style.backgroundColor = "#ffffff";
-                }}
-                onMouseLeave={(e) => {
-                  e.target.style.borderColor = "transparent";
-                  e.target.style.backgroundColor = "transparent";
-                }}
-              >
-                <GrExpand className="text-base" />
-              </button>
+            <div className="mt-4 p-1 bg-gray-50 rounded-2xl border border-gray-100">
+              <div className="flex items-center gap-3 flex-wrap">
+                {/* Zoom Controls */}
+                <div className="flex items-center gap-1 bg-white rounded-xl border border-gray-200 p-1">
+                  <button
+                    onClick={handleZoomIn}
+                    className="p-2 rounded-lg text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-all duration-200 active:scale-95"
+                    title="Zoom In (Ctrl++)"
+                  >
+                    <FiZoomIn className="w-4 h-4" />
+                  </button>
+                  <div className="w-px h-6 bg-gray-200"></div>
+                  <button
+                    onClick={handleZoomOut}
+                    className="p-2 rounded-lg text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-all duration-200 active:scale-95"
+                    title="Zoom Out (Ctrl+-)"
+                  >
+                    <FiZoomOut className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Schedule Toggle */}
+                <button
+                  onClick={handleFullSchedule}
+                  className={`
+                    flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium text-sm
+                    transition-all duration-200 ease-out active:scale-95
+                    ${fullScheduleActive 
+                      ? 'bg-blue-100 text-blue-800 border border-blue-200 shadow-sm' 
+                      : 'bg-white text-gray-700 hover:text-gray-900 hover:bg-gray-100 border border-gray-200'
+                    }
+                  `}
+                  title="All Schedules"
+                >
+                  <FiCalendar className="w-4 h-4" />
+                  <span>All Schedules</span>
+                </button>
+
+                {/* Dropdowns */}
+                <select
+                  onChange={(e) => handleScheduleByCourse(e.target.value ? parseInt(e.target.value) : null)}
+                  className="px-4 py-2.5 rounded-xl text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 outline-none"
+                  title="Schedule by Course"
+                >
+                  <option value="">Select Course</option>
+                  {programs.map((program) => (
+                    <option key={program.id} value={program.id}>{program.name}</option>
+                  ))}
+                </select>
+
+                <select
+                  onChange={(e) => handleYearLevelSchedule(e.target.value)}
+                  className="px-4 py-2.5 rounded-xl text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 outline-none"
+                  title="Year-Level Schedule"
+                >
+                  <option value="">Select Year</option>
+                  {['1st Year', '2nd Year', '3rd Year', '4th Year'].map((level) => (
+                    <option key={level} value={level}>{level}</option>
+                  ))}
+                </select>
+
+                {/* Full Screen */}
+                <button
+                  onClick={handleFullScreen}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:text-gray-900 hover:bg-gray-100 hover:border-gray-300 transition-all duration-200 active:scale-95"
+                  title="Full Screen (Ctrl+F or F11)"
+                >
+                  <GrExpand className="w-4 h-4" />
+                  <span>Fullscreen</span>
+                </button>
+              </div>
             </div>
           )}
         </div>
 
-        <div className="px-4 pb-0">
+        {/* File Tabs */}
+        <div className="px-1 pb-0 border-t border-gray-100">
           {openFiles.length > 0 ? (
-            <div className="flex items-center space-x-1">
+            <div className="flex items-start gap-1 -mb-px">
               {openFiles.map((file) => (
                 <div
                   key={file.id}
-                  className={`flex items-center px-3 py-2 rounded-t-lg text-sm cursor-pointer transition-colors duration-200 border-b-2 relative ${file.id === activeFileId
-                    ? 'bg-white text-zinc-600 border-teal-500 shadow-sm'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border-transparent hover:border-gray-300'
-                    }`}
+                  className={`
+                    group flex items-center gap-2 px-4 py-2 rounded-t-xl text-sm cursor-pointer
+                    transition-all duration-200 ease-out border-b-2 relative min-w-0 flex-shrink-0
+                    ${file.id === activeFileId
+                      ? 'bg-white text-gray-900 border-teal-500 shadow-sm transform translate-y-px' 
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 border-transparent hover:border-gray-200'
+                    }
+                  `}
                   onClick={() => handleTabClick(file.id)}
-                  style={{
-                    maxWidth: '250px',
-                    minWidth: '120px',
-                  }}
+                  style={{ maxWidth: '240px', minWidth: '140px' }}
                 >
-                  <div className="flex items-center space-x-2 min-w-0 flex-1">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
                     {loadingFiles.has(file.id) && (
-                      <FaSpinner className="animate-spin text-gray-500" size={14} />
+                      <div className="w-4 h-4 border-2 border-gray-300 border-t-teal-500 rounded-full animate-spin flex-shrink-0" />
                     )}
-                    <span className="truncate font-medium">
-                      {file.name}
-                      {file.hasUnsavedChanges && <span className="text-orange-500 ml-1">•</span>}
-                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium truncate">
+                        {file.name}
+                      </div>
+                      {/* {file.semester && file.academic_year && (
+                        <div className="text-xs text-gray-500 truncate">
+                          {file.semester} {file.academic_year}
+                        </div>
+                      )} */}
+                    </div>
+                    {file.hasUnsavedChanges && (
+                      <div className="w-2 h-2 bg-orange-400 rounded-full flex-shrink-0" title="Unsaved changes" />
+                    )}
                     <button
                       onClick={(e) => handleCloseFile(file.id, e)}
-                      className="flex-shrink-0 p-1 rounded hover:bg-red-100 hover:text-red-600 transition-colors duration-150"
+                      className="w-6 h-6 flex items-center justify-center rounded-lg opacity-0 group-hover:opacity-100 hover:bg-red-100 hover:text-red-600 transition-all duration-200 flex-shrink-0"
                       title="Close file (Ctrl+W)"
                     >
-                      <FiX size={14} />
+                      <FiX className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="text-sm text-gray-500 italic py-2">
-              No files open. Click "New" to create a schedule file or select a schedule file on the list.
+            <div className="py-4 text-sm text-gray-500 text-center bg-gray-50 rounded-lg mx-0 my-2">
+              <div className="flex items-center justify-center gap-2">
+                <div className="w-8 h-8 bg-gray-200 rounded-lg flex items-center justify-center">
+                  <FiEdit className="w-4 h-4 text-gray-500" />
+                </div>
+                <span>No files open. Click "New" to create a schedule file.</span>
+              </div>
             </div>
           )}
         </div>
       </div>
 
+      {/* Modals remain the same as original */}
       {showNewModal && (
         <Modal
           title="Create New Schedule File"
@@ -881,7 +857,6 @@ export default function Toolbar() {
               <option value="">Select Semester</option>
               <option value="1st Semester">1st Semester</option>
               <option value="2nd Semester">2nd Semester</option>
-              {/* <option value="Summer">Summer</option> */}
             </select>
           </div>
         </Modal>
@@ -927,7 +902,6 @@ export default function Toolbar() {
               <option value="">Select Semester</option>
               <option value="1st Semester">1st Semester</option>
               <option value="2nd Semester">2nd Semester</option>
-              {/* <option value="Summer">Summer</option> */}
             </select>
           </div>
         </Modal>
