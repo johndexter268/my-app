@@ -33,6 +33,10 @@ export default function Assigning() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteModalData, setDeleteModalData] = useState({ assignment: null, type: "", mergedAssignments: [] });
+  const [selectedClassesToDelete, setSelectedClassesToDelete] = useState([]);
+
   const navigate = useNavigate();
   const handleFileSelected = (e) => {
     setCurrentFile(e.detail);
@@ -102,8 +106,20 @@ export default function Assigning() {
   const handleEdit = (assignment, type) => {
     setModalType(type);
     if (type === "Time & Date Assign") {
-      const startTime = timeSlots.find(slot => slot === assignment.timeSlot)?.split('-')[0].trim() || "";
-      setFormData({ ...assignment, timeSlot: startTime });
+      const mergedAssignments = assignments.filter(
+        (a) =>
+          a.type === "time" &&
+          a.subjectId === assignment.subjectId &&
+          a.teacherId === assignment.teacherId &&
+          a.day === assignment.day &&
+          a.timeSlot === assignment.timeSlot
+      );
+      const classIds = mergedAssignments.map((a) => a.classId);
+      const classNames = classIds
+        .map((id) => classes.find((c) => c.id === id)?.name || "Unknown")
+        .join(", ");
+      const startTime = assignment.timeSlot.split('-')[0].trim();
+      setFormData({ ...assignment, timeSlot: startTime, classIds, classNames });
     } else {
       setFormData(assignment);
     }
@@ -111,26 +127,73 @@ export default function Assigning() {
     setShowModal(true);
   };
 
-  const handleDelete = async (assignmentId, type) => {
-    if (window.confirm(`Are you sure you want to delete this ${type.toLowerCase()} assignment?`)) {
-      setIsDeleting(true);
-      try {
-        const result = await window.api.deleteAssignment(assignmentId);
-        if (result.success) {
-          setAssignments((prev) => prev.filter((a) => a.id !== assignmentId));
-          alert(`${type} assignment deleted successfully!`);
-          const updatedFile = { ...currentFile, updatedAt: new Date().toISOString(), hasUnsavedChanges: true };
-          await window.api.setCurrentFile(updatedFile);
-          setCurrentFile(updatedFile);
-        } else {
-          alert(result.message);
-        }
-      } catch (error) {
-        console.error(`Error deleting ${type.toLowerCase()} assignment:`, error);
-        alert(`Error deleting ${type.toLowerCase()} assignment: ${error.message}`);
-      } finally {
-        setIsDeleting(false);
+  const handleDelete = (assignment, type) => {
+    if (type === "Time & Date Assign") {
+      const mergedAssignments = assignments.filter(
+        (a) =>
+          a.type === "time" &&
+          a.subjectId === assignment.subjectId &&
+          a.teacherId === assignment.teacherId &&
+          a.day === assignment.day &&
+          a.timeSlot === assignment.timeSlot
+      );
+      setDeleteModalData({ assignment, type, mergedAssignments });
+      setSelectedClassesToDelete(mergedAssignments.map((a) => a.classId));
+      setShowDeleteModal(true);
+    } else {
+      if (window.confirm(`Are you sure you want to delete this ${type.toLowerCase()} assignment?`)) {
+        setIsDeleting(true);
+        window.api.deleteAssignment(assignment.id)
+          .then((result) => {
+            if (result.success) {
+              setAssignments((prev) => prev.filter((a) => a.id !== assignment.id));
+              alert(`${type} assignment deleted successfully!`);
+              const updatedFile = { ...currentFile, updatedAt: new Date().toISOString(), hasUnsavedChanges: true };
+              window.api.setCurrentFile(updatedFile)
+                .then(() => setCurrentFile(updatedFile));
+            } else {
+              alert(result.message);
+            }
+          })
+          .catch((error) => {
+            console.error(`Error deleting ${type.toLowerCase()} assignment:`, error);
+            alert(`Error deleting ${type.toLowerCase()} assignment: ${error.message}`);
+          })
+          .finally(() => setIsDeleting(false));
       }
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    setIsDeleting(true);
+    try {
+      const { mergedAssignments, type } = deleteModalData;
+      const assignmentsToDelete = selectedClassesToDelete.length === mergedAssignments.length
+        ? mergedAssignments
+        : mergedAssignments.filter((a) => selectedClassesToDelete.includes(a.classId));
+
+      for (const assignment of assignmentsToDelete) {
+        const result = await window.api.deleteAssignment(assignment.id);
+        if (!result.success) {
+          alert(`Error deleting assignment for class ${classes.find((c) => c.id === assignment.classId)?.name || "Unknown"}: ${result.message}`);
+          setIsDeleting(false);
+          return;
+        }
+      }
+
+      setAssignments((prev) => prev.filter((a) => !assignmentsToDelete.some((m) => m.id === a.id)));
+      alert(`Selected ${type} assignment(s) deleted successfully!`);
+      const updatedFile = { ...currentFile, updatedAt: new Date().toISOString(), hasUnsavedChanges: true };
+      await window.api.setCurrentFile(updatedFile);
+      setCurrentFile(updatedFile);
+    } catch (error) {
+      console.error(`Error deleting ${deleteModalData.type.toLowerCase()} assignments:`, error);
+      alert(`Error deleting ${deleteModalData.type.toLowerCase()} assignments: ${error.message}`);
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteModal(false);
+      setSelectedClassesToDelete([]);
+      setDeleteModalData({ assignment: null, type: "", mergedAssignments: [] });
     }
   };
 
@@ -170,6 +233,30 @@ export default function Assigning() {
         if (!assignmentData.timeSlot) {
           alert("Invalid time slot or duration.");
           return;
+        }
+
+        // Validation for merged classes: Check if other classes for the same subject, teacher, and day have the same start time and duration
+        const existingAssignments = assignments.filter(
+          (a) =>
+            a.type === "time" &&
+            a.subjectId === assignmentData.subjectId &&
+            a.teacherId === assignmentData.teacherId &&
+            a.day === assignmentData.day &&
+            a.classId !== assignmentData.classId &&
+            (!editingId || a.id !== editingId)
+        );
+
+        if (existingAssignments.length > 0) {
+          const referenceAssignment = existingAssignments[0];
+          if (
+            referenceAssignment.timeSlot.split('-')[0].trim() !== formData.timeSlot ||
+            referenceAssignment.duration !== formData.duration
+          ) {
+            alert(
+              "Cannot save: Merged classes must have the same start time and duration for the same subject, teacher, and day."
+            );
+            return;
+          }
         }
       }
 
@@ -314,27 +401,57 @@ export default function Assigning() {
       a => a.type === "time" && a.teacherId === selectedTeacherId
     );
 
+    const groupedAssignments = {};
+    timeAssignments.forEach(a => {
+      const key = `${a.subjectId}-${a.teacherId}-${a.day}-${a.timeSlot}`;
+      if (!groupedAssignments[key]) {
+        groupedAssignments[key] = {
+          subjectId: a.subjectId,
+          teacherId: a.teacherId,
+          day: a.day,
+          timeSlot: a.timeSlot,
+          duration: a.duration,
+          classIds: [a.classId],
+          ids: [a.id]
+        };
+      } else {
+        groupedAssignments[key].classIds.push(a.classId);
+        groupedAssignments[key].ids.push(a.id);
+      }
+    });
+
     const dayAssignments = {};
     days.forEach(day => {
-      dayAssignments[day] = timeAssignments
+      dayAssignments[day] = Object.values(groupedAssignments)
         .filter(a => a.day === day)
         .map(a => {
-          // Extract just the start time from the range string
-          const startTime = a.timeSlot.split('-')[0].trim();  // e.g. "7:00 AM"
-          // Find the index of the start time in timeSlots array's entries' start times
+          const startTime = a.timeSlot.split('-')[0].trim();
           const slotIndex = timeSlots.findIndex(slot => slot.startsWith(startTime));
+          const classNames = a.classIds
+            .map(classId => classes.find(c => c.id === classId)?.name || "Unknown")
+            .join(", ");
           return {
             start: slotIndex,
-            span: Math.round(a.duration / 60), // Convert minutes to hours for rowSpan
-            assignment: a
+            span: Math.round(a.duration / 60),
+            assignment: {
+              id: a.ids[0],
+              subjectId: a.subjectId,
+              teacherId: a.teacherId,
+              classId: a.classIds[0],
+              day: a.day,
+              timeSlot: a.timeSlot,
+              duration: a.duration,
+              classNames,
+              classIds: a.classIds,
+              ids: a.ids
+            }
           };
         })
-        .filter(a => a.start !== -1) // Remove assignments with invalid start slot
+        .filter(a => a.start !== -1)
         .sort((a, b) => a.start - b.start);
     });
     return dayAssignments;
   };
-
 
   if (isLoading) {
     return <div className="p-4">Loading...</div>;
@@ -348,16 +465,22 @@ export default function Assigning() {
 
   return (
     <div className="p-4">
-      <div className="flex gap-2 mb-4 overflow-x-auto">
-        {tabs.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 rounded-md font-medium transition-colors ${activeTab === tab ? "bg-teal-100 text-teal-600 border-t-2 border-teal-600" : "text-gray-600 hover:bg-gray-100"}`}
-          >
-            {tab}
-          </button>
-        ))}
+      <div className="border-b border-gray-200 mb-4">
+        <nav className="flex space-x-6">
+          {tabs.map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`pb-2 px-1 text-sm font-medium transition-colors
+          ${activeTab === tab
+                  ? "text-teal-600 border-b-2 border-teal-600"
+                  : "text-gray-500 hover:text-gray-700"
+                }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </nav>
       </div>
 
       {activeTab === "Subject Assign" && (
@@ -578,67 +701,71 @@ export default function Assigning() {
             >
               <FiPlus /> Add Schedule
             </button>
-            {selectedTeacherId ? (
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-gray-50">
-                    <th className="border p-2 text-left">Time</th>
-                    {days.map(day => <th key={day} className="border p-2 text-left">{day}</th>)}
-                  </tr>
-                </thead>
-                <tbody>
-                  {timeSlots.map((slot, rowIndex) => (
-                    <tr key={slot}>
-                      <td className="border p-2">{slot}</td>
-                      {days.map(day => {
-                        const dayAss = getDayAssignments(selectedTeacherId)[day] || [];
-                        for (let ass of dayAss) {
-                          if (ass.start === rowIndex) {
-                            const subject = subjects.find(s => s.id === ass.assignment.subjectId)?.name || "Unknown";
-                            const cls = classes.find(c => c.id === ass.assignment.classId)?.name || "Unknown";
-                            const teacher = teachers.find(t => t.id === ass.assignment.teacherId);
-                            const bgColor = teacher?.color || "#e0f7fa";
-                            return (
-                              <td
-                                key={day}
-                                rowSpan={ass.span}
-                                className="border p-2 align-top"
-                                style={{ backgroundColor: bgColor }}
-                              >
-                                <div className="p-2 flex flex-col h-full">
-                                  <span className="text-sm text-gray-200">{subject} ({cls})</span>
-                                  <span className="text-sm text-gray-200">{ass.assignment.timeSlot}</span>
-                                  <div className="flex gap-1 mt-2">
-                                    <button
-                                      onClick={() => handleEdit(ass.assignment, "Time & Date Assign")}
-                                      className="text-blue-500 hover:text-blue-700"
-                                    >
-                                      <FiEdit />
-                                    </button>
-                                    <button
-                                      onClick={() => handleDelete(ass.assignment.id, "Time")}
-                                      disabled={isDeleting}
-                                      className={`text-red-500 hover:text-red-700 ${isDeleting ? "opacity-50 cursor-not-allowed" : ""}`}
-                                    >
-                                      <FiTrash2 />
-                                    </button>
-                                  </div>
-                                </div>
-                              </td>
-                            );
-                          } else if (ass.start < rowIndex && ass.start + ass.span > rowIndex) {
-                            return null;
-                          }
-                        }
-                        return <td key={day} className="border p-2"></td>;
-                      })}
+            <div className="overflow-x-auto rounded-xl border border-gray-200">
+              {selectedTeacherId ? (
+                <table className="w-full border-collapse">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr className="bg-gray-50">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
+                      {days.map(day => <th key={day} className="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider">{day}</th>)}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <p className="text-gray-500">Select a teacher to view schedule</p>
-            )}
+                  </thead>
+                  <tbody>
+                    {timeSlots.map((slot, rowIndex) => (
+                      <tr key={slot} className="px-6 py-3 text-left text-xs font-medium text-gray-700 tracking-wider">
+                        <td className="border p-2">{slot}</td>
+                        {days.map(day => {
+                          const dayAss = getDayAssignments(selectedTeacherId)[day] || [];
+                          for (let ass of dayAss) {
+                            if (ass.start === rowIndex) {
+                              const subject = subjects.find(s => s.id === ass.assignment.subjectId)?.name || "Unknown";
+                              const teacher = teachers.find(t => t.id === ass.assignment.teacherId);
+                              const bgColor = teacher?.color || "#e0f7fa";
+                              return (
+                                <td
+                                  key={day}
+                                  rowSpan={ass.span}
+                                  className="border p-2 align-top whitespace-normal break-words text-sm leading-snug"
+                                  style={{ backgroundColor: bgColor, wordBreak: "break-word" }}
+                                >
+                                  <div className="p-2 flex flex-col h-full">
+                                    <span className="text-sm text-gray-200 break-words">
+                                      {subject} ({ass.assignment.classNames})
+                                    </span>
+                                    <span className="text-sm text-gray-200">{ass.assignment.timeSlot}</span>
+                                    <div className="flex gap-1 mt-2">
+                                      <button
+                                        onClick={() => handleEdit(ass.assignment, "Time & Date Assign")}
+                                        className="text-blue-500 hover:text-blue-700"
+                                      >
+                                        <FiEdit />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDelete(ass.assignment, "Time")}
+                                        disabled={isDeleting}
+                                        className={`text-red-500 hover:text-red-700 ${isDeleting ? "opacity-50 cursor-not-allowed" : ""}`}
+                                      >
+                                        <FiTrash2 />
+                                      </button>
+                                    </div>
+                                  </div>
+                                </td>
+
+                              );
+                            } else if (ass.start < rowIndex && ass.start + ass.span > rowIndex) {
+                              return null;
+                            }
+                          }
+                          return <td key={day} className="border p-2"></td>;
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <p className="text-gray-500 p-2">Select a teacher to view schedule</p>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -692,7 +819,6 @@ export default function Assigning() {
                       })()}
                     </div>
                   )}
-
                 </div>
               ))}
             </div>
@@ -858,18 +984,33 @@ export default function Assigning() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Select Class</label>
-                <select
-                  value={formData.classId || ""}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, classId: e.target.value }))}
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500"
-                >
-                  <option value="">Select class</option>
-                  {classes.map((cls) => (
-                    <option key={cls.id} value={cls.id}>
-                      {cls.name}
-                    </option>
-                  ))}
-                </select>
+                {editingId && formData.classIds && formData.classIds.length > 1 ? (
+                  <select
+                    value={formData.classId || ""}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, classId: e.target.value }))}
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500"
+                  >
+                    <option value="">Select class to edit</option>
+                    {formData.classIds.map((classId) => (
+                      <option key={classId} value={classId}>
+                        {classes.find((c) => c.id === classId)?.name || "Unknown"}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <select
+                    value={formData.classId || ""}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, classId: e.target.value }))}
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500"
+                  >
+                    <option value="">Select class</option>
+                    {classes.map((cls) => (
+                      <option key={cls.id} value={cls.id}>
+                        {cls.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Day</label>
@@ -981,6 +1122,45 @@ export default function Assigning() {
               </div>
             </>
           )}
+        </Modal>
+      )}
+
+      {showDeleteModal && (
+        <Modal
+          title={`Delete ${deleteModalData.type} Assignment`}
+          onClose={() => {
+            setShowDeleteModal(false);
+            setSelectedClassesToDelete([]);
+            setDeleteModalData({ assignment: null, type: "", mergedAssignments: [] });
+          }}
+          onSave={handleDeleteConfirm}
+          isSaving={isDeleting}
+          saveButtonText="Delete Selected"
+        >
+          <div>
+            <p className="text-sm text-gray-700 mb-4">
+              Select the class(es) to delete for "{subjects.find((s) => s.id === deleteModalData.assignment.subjectId)?.name || "Unknown"}" on {deleteModalData.assignment.day} at {deleteModalData.assignment.timeSlot}:
+            </p>
+            <div className="space-y-2">
+              {deleteModalData.mergedAssignments.map((assignment) => (
+                <label key={assignment.classId} className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={selectedClassesToDelete.includes(assignment.classId)}
+                    onChange={(e) => {
+                      setSelectedClassesToDelete((prev) =>
+                        e.target.checked
+                          ? [...prev, assignment.classId]
+                          : prev.filter((id) => id !== assignment.classId)
+                      );
+                    }}
+                    className="h-4 w-4 text-teal-600"
+                  />
+                  <span>{classes.find((c) => c.id === assignment.classId)?.name || "Unknown"}</span>
+                </label>
+              ))}
+            </div>
+          </div>
         </Modal>
       )}
     </div>

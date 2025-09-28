@@ -6,14 +6,14 @@ export default function File() {
   const [scheduleFiles, setScheduleFiles] = useState([]);
   const [showArchived, setShowArchived] = useState(false);
   const [isOperating, setIsOperating] = useState(false);
-  const [viewMode, setViewMode] = useState('list'); // 'list' or 'grid'
+  const [viewMode, setViewMode] = useState('grid');
   const [searchTerm, setSearchTerm] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
     const fetchScheduleFiles = async () => {
       if (isOperating) return;
-      
+
       try {
         setIsOperating(true);
         const files = await window.api.getAllScheduleFiles();
@@ -25,13 +25,13 @@ export default function File() {
         setIsOperating(false);
       }
     };
-    
+
     fetchScheduleFiles();
   }, []);
 
   const handleSelectFile = async (file) => {
     if (isOperating) return;
-    
+
     try {
       setIsOperating(true);
       await window.api.setCurrentFile(file);
@@ -40,7 +40,7 @@ export default function File() {
         detail: file
       });
       window.dispatchEvent(fileSelectedEvent);
-      
+
       navigate("/assign");
     } catch (error) {
       console.error("Error selecting file:", error);
@@ -53,7 +53,7 @@ export default function File() {
   const handleArchive = async (id) => {
     if (window.confirm("Are you sure you want to archive this file?")) {
       if (isOperating) return;
-      
+
       try {
         setIsOperating(true);
         const result = await window.api.archiveScheduleFile(id);
@@ -78,7 +78,7 @@ export default function File() {
   const handleDelete = async (id) => {
     if (window.confirm("Are you sure you want to delete this file?")) {
       if (isOperating) return;
-      
+
       try {
         setIsOperating(true);
         const result = await window.api.deleteScheduleFile(id);
@@ -96,26 +96,80 @@ export default function File() {
     }
   };
 
-  const activeFiles = scheduleFiles.filter((file) => 
-    file.status !== "archived" && 
+  const activeFiles = scheduleFiles.filter((file) =>
+    file.status !== "archived" &&
     file.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
-  const archivedFiles = scheduleFiles.filter((file) => 
+  const archivedFiles = scheduleFiles.filter((file) =>
     file.status === "archived" &&
     file.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const generateCalendarGrid = (fileId) => {
+    const days = Array.from({ length: 35 }, (_, i) => i + 1);
+    const colors = ['bg-teal-500', 'bg-blue-500', 'bg-purple-500', 'bg-green-500', 'bg-orange-500', 'bg-pink-500'];
+
+    const seed = typeof fileId === 'string' ? fileId.charCodeAt(0) : fileId;
+
+    return days.map((day, index) => {
+      const hasEvent = (seed + index) % 4 === 0;
+      const colorIndex = (seed + index) % colors.length;
+      const dayNumber = ((seed + index) % 31) + 1;
+
+      return {
+        day: dayNumber,
+        hasEvent,
+        color: hasEvent ? colors[colorIndex] : null
+      };
+    });
+  };
+
+  const CalendarPreview = ({ fileId }) => {
+    const calendarData = generateCalendarGrid(fileId);
+
+    return (
+      <div className="w-full h-36 bg-gray-800 rounded-t-lg p-3 flex flex-col overflow-hidden relative">
+        {/* Calendar header */}
+        <div className="flex justify-between items-center mb-2 z-10">
+          <div className="text-white text-xs font-medium opacity-80">Schedule</div>
+          {/* <div className="text-white text-xs opacity-60">2024</div> */}
+        </div>
+
+        {/* Calendar grid */}
+        <div className="grid grid-cols-7 gap-0.5 h-full relative z-10">
+          {calendarData.slice(0, 21).map((item, index) => (
+            <div
+              key={index}
+              className={`aspect-square rounded-sm flex items-center justify-center text-xs font-medium relative ${item.hasEvent
+                  ? `${item.color} text-white shadow-sm`
+                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                } transition-colors`}
+            >
+              {item.day}
+            </div>
+          ))}
+        </div>
+
+        {/* Topmost overlay */}
+        <div className="absolute inset-0 bg-gray-900/80 rounded-t-lg pointer-events-none z-20"></div>
+      </div>
+    );
+  };
+
   const FileCard = ({ file, isArchived = false }) => (
-    <div 
-      className={`bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md transition-all duration-200 ${
-        !isArchived && !isOperating ? 'cursor-pointer hover:border-teal-300' : ''
-      } ${isOperating ? 'opacity-50' : ''}`}
+    <div
+      className={`bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden hover:shadow-lg transition-all duration-200 ${!isArchived && !isOperating ? 'cursor-pointer hover:border-teal-300 hover:scale-105' : ''
+        } ${isOperating ? 'opacity-50' : ''}`}
       onClick={() => !isArchived && !isOperating && handleSelectFile(file)}
     >
-      <div className="flex flex-col h-full">
+      {/* Calendar Preview */}
+      <CalendarPreview fileId={file.id} />
+
+      {/* Card Content */}
+      <div className="p-4">
         <div className="flex items-start justify-between mb-3">
-          <div className="bg-white p-2 rounded-lg flex-shrink-0">
-            <FiFile className="w-5 h-5 text-teal-600" />
+          <div className="bg-teal-50 p-2 rounded-lg flex-shrink-0">
+            <FiFile className="w-4 h-4 text-teal-600" />
           </div>
           <div className="flex items-center space-x-1 ml-2 flex-shrink-0">
             {!isArchived && (
@@ -144,19 +198,23 @@ export default function File() {
             </button>
           </div>
         </div>
-        
-        <div className="flex-1 min-w-0">
-          <h3 className="font-medium text-gray-900 mb-2 line-clamp-2 break-words leading-tight">
+
+        <div className="min-w-0">
+          <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2 break-words leading-tight">
             {file.name}
           </h3>
-          <div className="space-y-1">
-            <div className="flex flex-wrap gap-x-2 gap-y-1 text-sm text-gray-500">
-              <span className="truncate">{file.academic_year}</span>
-              <span className="text-gray-300">•</span>
-              <span className="truncate">{file.semester}</span>
+          <div className="space-y-2">
+            <div className="flex items-center space-x-2">
+              <span className="px-2 py-1 bg-teal-100 text-teal-700 text-xs font-medium rounded-full">
+                {file.academic_year}
+              </span>
+              <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
+                {file.semester}
+              </span>
             </div>
-            <p className="text-xs text-gray-400">
-              {new Date(file.updatedAt || new Date()).toLocaleDateString()}
+            <p className="text-xs text-gray-500 flex items-center">
+              <span className="w-1.5 h-1.5 bg-green-400 rounded-full mr-2"></span>
+              Updated {new Date(file.updatedAt || new Date()).toLocaleDateString()}
             </p>
           </div>
         </div>
@@ -191,11 +249,9 @@ export default function File() {
             {files.map((file, index) => (
               <tr
                 key={file.id}
-                className={`hover:bg-gray-50 transition-colors ${
-                  !isArchived && !isOperating ? 'cursor-pointer' : ''
-                } ${isOperating ? 'opacity-50' : ''} ${
-                  index % 2 === 0 ? 'bg-white' : 'bg-gray-25'
-                }`}
+                className={`hover:bg-gray-50 transition-colors ${!isArchived && !isOperating ? 'cursor-pointer' : ''
+                  } ${isOperating ? 'opacity-50' : ''} ${index % 2 === 0 ? 'bg-white' : 'bg-gray-25'
+                  }`}
                 onClick={() => !isArchived && !isOperating && handleSelectFile(file)}
               >
                 <td className="px-6 py-4 whitespace-nowrap">
@@ -268,39 +324,36 @@ export default function File() {
             <div className="flex items-center space-x-4">
               <button
                 onClick={() => setShowArchived(!showArchived)}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  showArchived 
-                    ? 'bg-teal-600 text-white hover:bg-teal-700' 
-                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                }`}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${showArchived
+                  ? 'bg-teal-600 text-white hover:bg-teal-700'
+                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                  }`}
                 disabled={isOperating}
               >
                 {showArchived ? "Show Active Files" : "Show Archived Files"}
               </button>
-              
+
               {/* View Mode Toggle */}
               <div className="flex bg-white border border-gray-300 rounded-lg p-1">
                 <button
-                  onClick={() => setViewMode('list')}
-                  className={`p-2 rounded-md transition-colors ${
-                    viewMode === 'list' 
-                      ? 'bg-blue-100 text-teal-600' 
-                      : 'text-gray-500 hover:text-gray-700'
-                  }`}
-                  title="List View"
-                >
-                  <FiList className="w-4 h-4" />
-                </button>
-                <button
                   onClick={() => setViewMode('grid')}
-                  className={`p-2 rounded-md transition-colors ${
-                    viewMode === 'grid' 
-                      ? 'bg-blue-100 text-teal-600' 
-                      : 'text-gray-500 hover:text-gray-700'
-                  }`}
+                  className={`p-2 rounded-md transition-colors ${viewMode === 'grid'
+                    ? 'bg-blue-100 text-teal-600'
+                    : 'text-gray-500 hover:text-gray-700'
+                    }`}
                   title="Grid View"
                 >
                   <FiGrid className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`p-2 rounded-md transition-colors ${viewMode === 'list'
+                    ? 'bg-blue-100 text-teal-600'
+                    : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  title="List View"
+                >
+                  <FiList className="w-4 h-4" />
                 </button>
               </div>
             </div>
@@ -313,7 +366,7 @@ export default function File() {
                 placeholder="Search files..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                className="pl-10 pr-4 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition-all"
               />
             </div>
           </div>
@@ -337,7 +390,7 @@ export default function File() {
             ) : (
               <>
                 {viewMode === 'grid' ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {archivedFiles.map((file) => (
                       <FileCard key={file.id} file={file} isArchived={true} />
                     ))}
@@ -353,7 +406,7 @@ export default function File() {
             <div className="mb-4">
               <h2 className="text-lg font-semibold text-gray-800 flex items-center">
                 <FiFile className="w-5 h-5 mr-2 text-gray-600" />
-                 Files ({activeFiles.length})
+                Files ({activeFiles.length})
               </h2>
             </div>
             {activeFiles.length === 0 ? (
@@ -369,7 +422,7 @@ export default function File() {
             ) : (
               <>
                 {viewMode === 'grid' ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {activeFiles.map((file) => (
                       <FileCard key={file.id} file={file} />
                     ))}

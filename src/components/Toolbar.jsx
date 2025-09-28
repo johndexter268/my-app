@@ -1,4 +1,4 @@
-import { FiPlus, FiSave, FiEdit, FiDownload, FiPrinter, FiX, FiHelpCircle, FiZoomIn, FiZoomOut, FiCalendar, FiUsers } from "react-icons/fi";
+import { FiPlus, FiSave, FiEdit, FiDownload, FiX, FiPrinter , FiHelpCircle, FiZoomIn, FiZoomOut, FiCalendar, FiUsers } from "react-icons/fi";
 import { MdOutlineAssignmentTurnedIn } from "react-icons/md";
 import { GrExpand } from "react-icons/gr";
 import { useState, useEffect } from "react";
@@ -589,7 +589,7 @@ export default function Toolbar() {
     { name: "Save", icon: <FiSave />, onClick: handleSave, disabled: !activeFileId, shortcut: "Ctrl+S" },
     { name: "Save As", icon: <FiSave />, onClick: handleSaveAs, disabled: !activeFileId, shortcut: "Ctrl+Shift+S" },
     { name: "Export", icon: isExporting ? <FaSpinner className="animate-spin text-base" /> : <FiDownload />, onClick: handleExport, disabled: !activeFileId || isExporting, shortcut: "Ctrl+E" },
-    { name: "Print", icon: isPrinting ? <FaSpinner className="animate-spin text-base" /> : <FiPrinter />, onClick: handlePrint, disabled: !activeFileId || isPrinting, shortcut: "Ctrl+P" },
+    { name: "Print", icon: isPrinting ? <FaSpinner className="animate-spin text-base" /> : <FiPrinter  />, onClick: handlePrint, disabled: !activeFileId || isPrinting, shortcut: "Ctrl+P" },
   ];
 
   const handlePreview = async () => {
@@ -623,351 +623,499 @@ export default function Toolbar() {
   };
 
   return (
-    <>
-      <div className="bg-white border-b border-gray-200 shadow-sm">
-        <div className="px-3 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <div className="flex items-center gap-1 mr-6">
-                {buttons.map((btn, idx) => (
-                  <div key={idx} className="relative group">
-                    <button
-                      onClick={btn.onClick}
-                      disabled={btn.disabled}
-                      className={`
-                        relative flex items-center gap-2.5 px-4 py-2.5 rounded-xl font-medium text-sm
-                        transition-all duration-200 ease-out
-                        ${btn.disabled
-                          ? 'text-gray-400 bg-gray-50 cursor-not-allowed'
-                          : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50 hover:shadow-sm active:scale-95'
-                        }
-                      `}
-                      title={`${btn.name} (${btn.shortcut})`}
-                    >
-                      <span className="text-lg">{btn.icon}</span>
-                      <span className="hidden lg:inline font-medium">{btn.name}</span>
-                    </button>
-                    
-                    {/* Tooltip */}
-                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap lg:hidden">
-                      {btn.name}
-                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Help button */}
-            <div className="relative group">
-              <button
-                onClick={() => {
-                  navigate("/help");
-                  window.location.reload();
-                }}
-                className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 hover:shadow-sm transition-all duration-200 ease-out active:scale-95"
-                title="Help (Ctrl+H)"
-              >
-                <span className="text-lg"><FiHelpCircle /></span>
-                <span className="hidden lg:inline font-medium">Help</span>
-              </button>
-              
-              {/* Tooltip */}
-              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap lg:hidden">
-                Help
-                <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
-              </div>
-            </div>
-          </div>
-
-          {/* View Tools */}
-          {location.pathname === '/home' && showViewTools && (
-            <div className="mt-4 p-1 bg-gray-50 rounded-2xl border border-gray-100">
-              <div className="flex items-center gap-3 flex-wrap">
-                {/* Zoom Controls */}
-                <div className="flex items-center gap-1 bg-white rounded-xl border border-gray-200 p-1">
+  <>
+    <div className="bg-gray-800 border-b border-gray-600 shadow-sm">
+      <div className="px-1 py-1">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center">
+            <div className="flex items-center gap-1 mr-6">
+              {buttons.map((btn, idx) => (
+                <div key={idx} className="relative group">
                   <button
-                    onClick={handleZoomIn}
-                    className="p-2 rounded-lg text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-all duration-200 active:scale-95"
-                    title="Zoom In (Ctrl++)"
+                    onClick={btn.onClick}
+                    disabled={btn.disabled}
+                    className={`
+                      relative flex items-center gap-2.5 px-2.5 py-1 rounded-md font-medium text-sm
+                      transition-all duration-200 ease-out
+                      ${btn.disabled
+                        ? 'text-gray-500 bg-gray-700 cursor-not-allowed border border-gray-600'
+                        : 'text-gray-200 hover:text-white hover:bg-gray-700 hover:shadow-sm active:scale-95 border border-gray-600 hover:border-gray-500'
+                      }
+                    `}
+                    title={`${btn.name} (${btn.shortcut})`}
                   >
-                    <FiZoomIn className="w-4 h-4" />
+                    <span className="text-lg">{btn.icon}</span>
+                    <span className="hidden lg:inline font-medium">{btn.name}</span>
                   </button>
-                  <div className="w-px h-6 bg-gray-200"></div>
-                  <button
-                    onClick={handleZoomOut}
-                    className="p-2 rounded-lg text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-all duration-200 active:scale-95"
-                    title="Zoom Out (Ctrl+-)"
-                  >
-                    <FiZoomOut className="w-4 h-4" />
-                  </button>
-                </div>
-
-                {/* Schedule Toggle */}
-                <button
-                  onClick={handleFullSchedule}
-                  className={`
-                    flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium text-sm
-                    transition-all duration-200 ease-out active:scale-95
-                    ${fullScheduleActive 
-                      ? 'bg-blue-100 text-blue-800 border border-blue-200 shadow-sm' 
-                      : 'bg-white text-gray-700 hover:text-gray-900 hover:bg-gray-100 border border-gray-200'
-                    }
-                  `}
-                  title="All Schedules"
-                >
-                  <FiCalendar className="w-4 h-4" />
-                  <span>All Schedules</span>
-                </button>
-
-                {/* Dropdowns */}
-                <select
-                  onChange={(e) => handleScheduleByCourse(e.target.value ? parseInt(e.target.value) : null)}
-                  className="px-4 py-2.5 rounded-xl text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 outline-none"
-                  title="Schedule by Course"
-                >
-                  <option value="">Select Course</option>
-                  {programs.map((program) => (
-                    <option key={program.id} value={program.id}>{program.name}</option>
-                  ))}
-                </select>
-
-                <select
-                  onChange={(e) => handleYearLevelSchedule(e.target.value)}
-                  className="px-4 py-2.5 rounded-xl text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 outline-none"
-                  title="Year-Level Schedule"
-                >
-                  <option value="">Select Year</option>
-                  {['1st Year', '2nd Year', '3rd Year', '4th Year'].map((level) => (
-                    <option key={level} value={level}>{level}</option>
-                  ))}
-                </select>
-
-                {/* Full Screen */}
-                <button
-                  onClick={handleFullScreen}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:text-gray-900 hover:bg-gray-100 hover:border-gray-300 transition-all duration-200 active:scale-95"
-                  title="Full Screen (Ctrl+F or F11)"
-                >
-                  <GrExpand className="w-4 h-4" />
-                  <span>Fullscreen</span>
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* File Tabs */}
-        <div className="px-1 pb-0 border-t border-gray-100">
-          {openFiles.length > 0 ? (
-            <div className="flex items-start gap-1 -mb-px">
-              {openFiles.map((file) => (
-                <div
-                  key={file.id}
-                  className={`
-                    group flex items-center gap-2 px-4 py-2 rounded-t-xl text-sm cursor-pointer
-                    transition-all duration-200 ease-out border-b-2 relative min-w-0 flex-shrink-0
-                    ${file.id === activeFileId
-                      ? 'bg-white text-gray-900 border-teal-500 shadow-sm transform translate-y-px' 
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 border-transparent hover:border-gray-200'
-                    }
-                  `}
-                  onClick={() => handleTabClick(file.id)}
-                  style={{ maxWidth: '240px', minWidth: '140px' }}
-                >
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                    {loadingFiles.has(file.id) && (
-                      <div className="w-4 h-4 border-2 border-gray-300 border-t-teal-500 rounded-full animate-spin flex-shrink-0" />
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <div className="font-medium truncate">
-                        {file.name}
-                      </div>
-                      {/* {file.semester && file.academic_year && (
-                        <div className="text-xs text-gray-500 truncate">
-                          {file.semester} {file.academic_year}
-                        </div>
-                      )} */}
-                    </div>
-                    {file.hasUnsavedChanges && (
-                      <div className="w-2 h-2 bg-orange-400 rounded-full flex-shrink-0" title="Unsaved changes" />
-                    )}
-                    <button
-                      onClick={(e) => handleCloseFile(file.id, e)}
-                      className="w-6 h-6 flex items-center justify-center rounded-lg opacity-0 group-hover:opacity-100 hover:bg-red-100 hover:text-red-600 transition-all duration-200 flex-shrink-0"
-                      title="Close file (Ctrl+W)"
-                    >
-                      <FiX className="w-4 h-4" />
-                    </button>
+                  
+                  {/* Tooltip */}
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity poInter-events-none whitespace-nowrap lg:hidden">
+                    {btn.name}
+                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
                   </div>
                 </div>
               ))}
             </div>
-          ) : (
-            <div className="py-4 text-sm text-gray-500 text-center bg-gray-50 rounded-lg mx-0 my-2">
-              <div className="flex items-center justify-center gap-2">
-                <div className="w-8 h-8 bg-gray-200 rounded-lg flex items-center justify-center">
-                  <FiEdit className="w-4 h-4 text-gray-500" />
-                </div>
-                <span>No files open. Click "New" to create a schedule file.</span>
-              </div>
+          </div>
+
+          {/* Help button */}
+          <div className="relative group">
+            <button
+              onClick={() => {
+                navigate("/help");
+                window.location.reload();
+              }}
+              className="flex items-center gap-2.5 px-2.5 py-1 rounded-md text-sm font-medium text-gray-200 hover:text-white hover:bg-gray-700 hover:shadow-sm transition-all duration-200 ease-out active:scale-95 border border-gray-600 hover:border-gray-500"
+              title="Help (Ctrl+H)"
+            >
+              <span className="text-lg"><FiHelpCircle /></span>
+              <span className="hidden lg:inline font-medium">Help</span>
+            </button>
+            
+            {/* Tooltip */}
+            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity poInter-events-none whitespace-nowrap lg:hidden">
+              Help
+              <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
             </div>
-          )}
+          </div>
         </div>
+
+        {/* View Tools */}
+        {location.pathname === '/home' && showViewTools && (
+          <div className="mt-2 p-1 bg-gray-700 rounded-md border border-gray-600">
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* Zoom Controls */}
+              <div className="flex items-center gap-1 p-0">
+                <button
+                  onClick={handleZoomIn}
+                  className="p-2 rounded-lg text-gray-300 hover:text-white hover:bg-gray-500 transition-all duration-200 active:scale-95"
+                  title="Zoom In (Ctrl++)"
+                >
+                  <FiZoomIn className="w-4 h-4" />
+                </button>
+                <div className="w-px h-6 bg-gray-500"></div>
+                <button
+                  onClick={handleZoomOut}
+                  className="p-2 rounded-lg text-gray-300 hover:text-white hover:bg-gray-500 transition-all duration-200 active:scale-95"
+                  title="Zoom Out (Ctrl+-)"
+                >
+                  <FiZoomOut className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Schedule Toggle */}
+              <button
+                onClick={handleFullSchedule}
+                className={`
+                  flex items-center gap-2 px-2 py-1 rounded-md font-medium text-sm
+                  transition-all duration-200 ease-out active:scale-95
+                  ${fullScheduleActive 
+                    ? 'bg-teal-600 text-white border border-teal-500 shadow-sm hover:bg-teal-500' 
+                    : 'bg-gray-600 text-gray-200 hover:text-white hover:bg-gray-500 border border-gray-500'
+                  }
+                `}
+                title="All Schedules"
+              >
+                <FiCalendar className="w-4 h-4" />
+                <span>All Schedules</span>
+              </button>
+
+              {/* Dropdowns */}
+              <select
+                onChange={(e) => handleScheduleByCourse(e.target.value ? parseInt(e.target.value) : null)}
+                className="px-2 py-1 rounded-md text-sm font-medium text-gray-200 bg-gray-600 border border-gray-500 hover:border-gray-400 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all duration-200 outline-none"
+                title="Schedule by Course"
+              >
+                <option value="">Select Course</option>
+                {programs.map((program) => (
+                  <option key={program.id} value={program.id}>{program.name}</option>
+                ))}
+              </select>
+
+              <select
+                onChange={(e) => handleYearLevelSchedule(e.target.value)}
+                className="px-2 py-1 rounded-md text-sm font-medium text-gray-200 bg-gray-600 border border-gray-500 hover:border-gray-400 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all duration-200 outline-none"
+                title="Year-Level Schedule"
+              >
+                <option value="">Select Year</option>
+                {['1st Year', '2nd Year', '3rd Year', '4th Year'].map((level) => (
+                  <option key={level} value={level}>{level}</option>
+                ))}
+              </select>
+
+              {/* Full Screen */}
+              <button
+                onClick={handleFullScreen}
+                className="flex items-center gap-2 px-2 py-1 rounded-md text-sm font-medium text-gray-200 bg-gray-600 border border-gray-500 hover:text-white hover:bg-gray-500 hover:border-gray-400 transition-all duration-200 active:scale-95"
+                title="Full Screen (Ctrl+F or F11)"
+              >
+                <GrExpand className="w-4 h-4" />
+                <span>Fullscreen</span>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Modals remain the same as original */}
-      {showNewModal && (
-        <Modal
-          title="Create New Schedule File"
-          onClose={() => {
-            setShowNewModal(false);
-            setFormData({ name: "", academic_year: "", semester: "" });
-          }}
-          onSave={submitNewFile}
-        >
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => handleFormChange("name", e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Enter schedule name"
-              autoFocus
-            />
+      {/* File Tabs */}
+      <div className="px-0 pb-0 border-t border-gray-600">
+        {openFiles.length > 0 ? (
+          <div className="flex items-start px-1 pt-1 gap-1 -mb-px bg-gray-700">
+            {openFiles.map((file) => (
+              <div
+                key={file.id}
+                className={`
+                  group flex items-center gap-2 px-4 py-1 rounded-t-xl text-sm cursor-poInter
+                  transition-all duration-200 ease-out border-b-2 relative min-w-0 flex-shrink-0
+                  ${file.id === activeFileId
+                    ? 'bg-gray-600 text-gray-100 border-teal-500 shadow-sm transform translate-y-px' 
+                    : 'text-gray-300 hover:text-gray-100 hover:bg-gray-650 border-transparent hover:border-gray-500'
+                  }
+                `}
+                onClick={() => handleTabClick(file.id)}
+                style={{ maxWidth: '240px', minWidth: '140px', cursor: 'pointer' }}
+              >
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  {loadingFiles.has(file.id) && (
+                    <div className="w-4 h-4 border-2 border-gray-400 border-t-teal-500 rounded-full animate-spin flex-shrink-0" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium truncate">
+                      {file.name}
+                    </div>
+                  </div>
+                  {file.hasUnsavedChanges && (
+                    <div className="w-2 h-2 bg-orange-400 rounded-full flex-shrink-0" title="Unsaved changes" />
+                  )}
+                  <button
+                    onClick={(e) => handleCloseFile(file.id, e)}
+                    className="w-6 h-6 flex items-center justify-center rounded-md opacity-0 group-hover:opacity-100 hover:border border-red-500 hover:text-white transition-all duration-200 flex-shrink-0"
+                    title="Close file (Ctrl+W)"
+                  >
+                    <FiX className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Academic Year</label>
-            <input
-              type="text"
-              value={formData.academic_year}
-              onChange={(e) => handleFormChange("academic_year", e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="e.g., 2024-2025"
-            />
+        ) : (
+          <div className="py-1 text-sm text-gray-400 text-center mx-0 my-2">
+            <div className="flex items-center justify-center gap-2">
+              <div className="w-5 h-5 bg-gray-600 rounded-lg flex items-center justify-center">
+                <FiEdit className="w-3 h-3 text-gray-400" />
+              </div>
+              <span>No files open. Click "New" to create a schedule file.</span>
+            </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Semester</label>
-            <select
-              value={formData.semester}
-              onChange={(e) => handleFormChange("semester", e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        )}
+      </div>
+    </div>
+
+    {/* Modals remain the same as original */}
+    {showNewModal && (
+      <Modal
+        title="Create New Schedule File"
+        onClose={() => {
+          setShowNewModal(false);
+          setFormData({ name: "", academic_year: "", semester: "" });
+        }}
+        onSave={submitNewFile}
+      >
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+          <input
+            type="text"
+            value={formData.name}
+            onChange={(e) => handleFormChange("name", e.target.value)}
+            className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="Enter schedule name"
+            autoFocus
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Academic Year</label>
+          <input
+            type="text"
+            value={formData.academic_year}
+            onChange={(e) => handleFormChange("academic_year", e.target.value)}
+            className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="e.g., 2024-2025"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Semester</label>
+          <select
+            value={formData.semester}
+            onChange={(e) => handleFormChange("semester", e.target.value)}
+            className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="">Select Semester</option>
+            <option value="1st Semester">1st Semester</option>
+            <option value="2nd Semester">2nd Semester</option>
+          </select>
+        </div>
+      </Modal>
+    )}
+
+    {showSaveAsModal && (
+      <Modal
+        title="Save As New Schedule File"
+        onClose={() => {
+          setShowSaveAsModal(false);
+          setFormData({ name: "", academic_year: "", semester: "" });
+        }}
+        onSave={submitSaveAs}
+      >
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+          <input
+            type="text"
+            value={formData.name}
+            onChange={(e) => handleFormChange("name", e.target.value)}
+            className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="Enter new schedule name"
+            autoFocus
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Academic Year</label>
+          <input
+            type="text"
+            value={formData.academic_year}
+            onChange={(e) => handleFormChange("academic_year", e.target.value)}
+            className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="e.g., 2024-2025"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Semester</label>
+          <select
+            value={formData.semester}
+            onChange={(e) => handleFormChange("semester", e.target.value)}
+            className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="">Select Semester</option>
+            <option value="1st Semester">1st Semester</option>
+            <option value="2nd Semester">2nd Semester</option>
+          </select>
+        </div>
+      </Modal>
+    )}
+
+    {showCloseConfirmModal && (
+      <Modal
+        title="Unsaved Changes"
+        onClose={() => setShowCloseConfirmModal(false)}
+        onSave={() => confirmCloseFile(fileToCloseId)}
+        saveText="Close Anyway"
+      >
+        <p className="text-sm text-gray-700">
+          You have unsaved changes. Are you sure you want to close this file?
+        </p>
+      </Modal>
+    )}
+
+    {showExportModal && (
+      <Modal
+        title="Export Schedule"
+        onClose={() => {
+          setShowExportModal(false);
+          setExportData({ fileId: "", type: "program", id: "", format: "pdf" });
+          setIsExporting(false);
+          setIsGeneratingPreview(false);
+        }}
+        customButtons={
+          <div className="flex space-x-2">
+            <button
+              type="button"
+              onClick={() => {
+                setShowExportModal(false);
+                setExportData({ fileId: "", type: "program", id: "", format: "pdf" });
+                setIsExporting(false);
+                setIsGeneratingPreview(false);
+              }}
+              className="px-4 py-2 text-gray-600 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors"
             >
-              <option value="">Select Semester</option>
-              <option value="1st Semester">1st Semester</option>
-              <option value="2nd Semester">2nd Semester</option>
-            </select>
-          </div>
-        </Modal>
-      )}
-
-      {showSaveAsModal && (
-        <Modal
-          title="Save As New Schedule File"
-          onClose={() => {
-            setShowSaveAsModal(false);
-            setFormData({ name: "", academic_year: "", semester: "" });
-          }}
-          onSave={submitSaveAs}
-        >
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => handleFormChange("name", e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Enter new schedule name"
-              autoFocus
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Academic Year</label>
-            <input
-              type="text"
-              value={formData.academic_year}
-              onChange={(e) => handleFormChange("academic_year", e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="e.g., 2024-2025"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Semester</label>
-            <select
-              value={formData.semester}
-              onChange={(e) => handleFormChange("semester", e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handlePreview}
+              disabled={isGeneratingPreview || isExporting || !exportData.fileId || !exportData.type || !exportData.id}
+              className={`flex items-center px-4 py-2 rounded-md transition-colors ${isGeneratingPreview || isExporting || !exportData.fileId || !exportData.type || !exportData.id
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : 'bg-teal-700 text-white hover:bg-teal-900'
+                }`}
             >
-              <option value="">Select Semester</option>
-              <option value="1st Semester">1st Semester</option>
-              <option value="2nd Semester">2nd Semester</option>
-            </select>
+              {isGeneratingPreview ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Generating...
+                </>
+              ) : (
+                'Preview'
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={submitExport}
+              disabled={isExporting || isGeneratingPreview}
+              className={`flex items-center px-4 py-2 rounded-md transition-colors ${isExporting || isGeneratingPreview
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : 'bg-teal-600 text-white hover:bg-teal-700'
+                }`}
+            >
+              {isExporting ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Exporting...
+                </>
+              ) : (
+                'Export'
+              )}
+            </button>
           </div>
-        </Modal>
-      )}
+        }
+      >
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Select File</label>
+          <select
+            value={exportData.fileId || ""}
+            onChange={(e) => handleExportChange("fileId", e.target.value)}
+            className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+            disabled={isExporting || isGeneratingPreview}
+          >
+            <option value="">Select Schedule File</option>
+            {openFiles.map((file) => (
+              <option key={file.id} value={file.id}>
+                {file.name} ({file.semester} {file.academic_year})
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Export Type</label>
+          <select
+            value={exportData.type}
+            onChange={(e) => handleExportChange("type", e.target.value)}
+            className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+            disabled={isExporting || isGeneratingPreview}
+          >
+            <option value="program">Program</option>
+            <option value="teacher">Teacher</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            {exportData.type === "program" ? "Program" : "Teacher"}
+          </label>
+          <select
+            value={exportData.id}
+            onChange={(e) => handleExportChange("id", e.target.value)}
+            className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+            disabled={isExporting || isGeneratingPreview}
+          >
+            <option value="">
+              Select {exportData.type === "program" ? "Program" : "Teacher"}
+            </option>
+            {exportData.type === "program" && <option value="all">All Programs</option>}
+            {(exportData.type === "program" ? programs : teachers).map((item) => (
+              <option key={item.id} value={item.id}>
+                {exportData.type === "program" ? item.name : item.fullName}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Format</label>
+          <select
+            value={exportData.format}
+            onChange={(e) => handleExportChange("format", e.target.value)}
+            className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+            disabled={isExporting || isGeneratingPreview}
+          >
+            <option value="pdf">PDF</option>
+          </select>
+        </div>
+      </Modal>
+    )}
 
-      {showCloseConfirmModal && (
-        <Modal
-          title="Unsaved Changes"
-          onClose={() => setShowCloseConfirmModal(false)}
-          onSave={() => confirmCloseFile(fileToCloseId)}
-          saveText="Close Anyway"
-        >
-          <p className="text-sm text-gray-700">
-            You have unsaved changes. Are you sure you want to close this file?
-          </p>
-        </Modal>
-      )}
+    {showPrintModal && (
+      <Modal
+        title="Print Schedule"
+        onClose={() => {
+          setShowPrintModal(false);
+          setExportData({ fileId: "", type: "program", id: "", format: "pdf" });
+          setIsPrinting(false);
+        }}
+        onSave={submitPrint}
+        saveText={isPrinting ? "Printing..." : "Print"}
+        saveDisabled={isPrinting}
+      >
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Select File</label>
+          <select
+            value={exportData.fileId || ""}
+            onChange={(e) => handleExportChange("fileId", e.target.value)}
+            className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            disabled={isPrinting}
+          >
+            <option value="">Select Schedule File</option>
+            {openFiles.map((file) => (
+              <option key={file.id} value={file.id}>
+                {file.name} ({file.semester} {file.academic_year})
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Print Type</label>
+          <select
+            value={exportData.type}
+            onChange={(e) => handleExportChange("type", e.target.value)}
+            className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            disabled={isPrinting}
+          >
+            <option value="program">Program</option>
+            <option value="teacher">Teacher</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            {exportData.type === "program" ? "Program" : "Teacher"}
+          </label>
+          <select
+            value={exportData.id}
+            onChange={(e) => handleExportChange("id", e.target.value)}
+            className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            disabled={isPrinting}
+          >
+            <option value="">
+              Select {exportData.type === "program" ? "Program" : "Teacher"}
+            </option>
+            {exportData.type === "program" && <option value="all">All Programs</option>}
+            {(exportData.type === "program" ? programs : teachers).map((item) => (
+              <option key={item.id} value={item.id}>
+                {exportData.type === "program" ? item.name : item.fullName}
+              </option>
+            ))}
+          </select>
+        </div>
+      </Modal>
+    )}
 
-      {showExportModal && (
-        <Modal
-          title="Export Schedule"
-          onClose={() => {
-            setShowExportModal(false);
-            setExportData({ fileId: "", type: "program", id: "", format: "pdf" });
-            setIsExporting(false);
-            setIsGeneratingPreview(false);
-          }}
-          customButtons={
+    {showPreviewModal && (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]">
+        <div className="bg-white rounded-lg shadow-lg w-11/12 h-5/6 max-w-6xl flex flex-col">
+          <div className="flex items-center justify-between p-4 border-b">
+            <h2 className="text-lg font-semibold text-gray-900">Export Preview</h2>
             <div className="flex space-x-2">
               <button
-                type="button"
-                onClick={() => {
-                  setShowExportModal(false);
-                  setExportData({ fileId: "", type: "program", id: "", format: "pdf" });
-                  setIsExporting(false);
-                  setIsGeneratingPreview(false);
-                }}
-                className="px-4 py-2 text-gray-600 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handlePreview}
-                disabled={isGeneratingPreview || isExporting || !exportData.fileId || !exportData.type || !exportData.id}
-                className={`flex items-center px-4 py-2 rounded-md transition-colors ${isGeneratingPreview || isExporting || !exportData.fileId || !exportData.type || !exportData.id
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-teal-700 text-white hover:bg-teal-900'
-                  }`}
-              >
-                {isGeneratingPreview ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Generating...
-                  </>
-                ) : (
-                  'Preview'
-                )}
-              </button>
-              <button
-                type="button"
                 onClick={submitExport}
-                disabled={isExporting || isGeneratingPreview}
-                className={`flex items-center px-4 py-2 rounded-md transition-colors ${isExporting || isGeneratingPreview
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-teal-600 text-white hover:bg-teal-700'
+                disabled={isExporting}
+                className={`flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 ${isExporting
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-teal-600 text-white hover:bg-teal-700'
                   }`}
               >
                 {isExporting ? (
@@ -976,184 +1124,31 @@ export default function Toolbar() {
                     Exporting...
                   </>
                 ) : (
-                  'Export'
+                  'Export PDF'
                 )}
               </button>
+              <button
+                onClick={() => {
+                  setShowPreviewModal(false);
+                  setPreviewHtml("");
+                }}
+                className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors duration-200"
+              >
+                Close
+              </button>
             </div>
-          }
-        >
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Select File</label>
-            <select
-              value={exportData.fileId || ""}
-              onChange={(e) => handleExportChange("fileId", e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-              disabled={isExporting || isGeneratingPreview}
-            >
-              <option value="">Select Schedule File</option>
-              {openFiles.map((file) => (
-                <option key={file.id} value={file.id}>
-                  {file.name} ({file.semester} {file.academic_year})
-                </option>
-              ))}
-            </select>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Export Type</label>
-            <select
-              value={exportData.type}
-              onChange={(e) => handleExportChange("type", e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-              disabled={isExporting || isGeneratingPreview}
-            >
-              <option value="program">Program</option>
-              <option value="teacher">Teacher</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {exportData.type === "program" ? "Program" : "Teacher"}
-            </label>
-            <select
-              value={exportData.id}
-              onChange={(e) => handleExportChange("id", e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-              disabled={isExporting || isGeneratingPreview}
-            >
-              <option value="">
-                Select {exportData.type === "program" ? "Program" : "Teacher"}
-              </option>
-              {exportData.type === "program" && <option value="all">All Programs</option>}
-              {(exportData.type === "program" ? programs : teachers).map((item) => (
-                <option key={item.id} value={item.id}>
-                  {exportData.type === "program" ? item.name : item.fullName}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Format</label>
-            <select
-              value={exportData.format}
-              onChange={(e) => handleExportChange("format", e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-              disabled={isExporting || isGeneratingPreview}
-            >
-              <option value="pdf">PDF</option>
-            </select>
-          </div>
-        </Modal>
-      )}
-
-      {showPrintModal && (
-        <Modal
-          title="Print Schedule"
-          onClose={() => {
-            setShowPrintModal(false);
-            setExportData({ fileId: "", type: "program", id: "", format: "pdf" });
-            setIsPrinting(false);
-          }}
-          onSave={submitPrint}
-          saveText={isPrinting ? "Printing..." : "Print"}
-          saveDisabled={isPrinting}
-        >
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Select File</label>
-            <select
-              value={exportData.fileId || ""}
-              onChange={(e) => handleExportChange("fileId", e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              disabled={isPrinting}
-            >
-              <option value="">Select Schedule File</option>
-              {openFiles.map((file) => (
-                <option key={file.id} value={file.id}>
-                  {file.name} ({file.semester} {file.academic_year})
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Print Type</label>
-            <select
-              value={exportData.type}
-              onChange={(e) => handleExportChange("type", e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              disabled={isPrinting}
-            >
-              <option value="program">Program</option>
-              <option value="teacher">Teacher</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {exportData.type === "program" ? "Program" : "Teacher"}
-            </label>
-            <select
-              value={exportData.id}
-              onChange={(e) => handleExportChange("id", e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              disabled={isPrinting}
-            >
-              <option value="">
-                Select {exportData.type === "program" ? "Program" : "Teacher"}
-              </option>
-              {exportData.type === "program" && <option value="all">All Programs</option>}
-              {(exportData.type === "program" ? programs : teachers).map((item) => (
-                <option key={item.id} value={item.id}>
-                  {exportData.type === "program" ? item.name : item.fullName}
-                </option>
-              ))}
-            </select>
-          </div>
-        </Modal>
-      )}
-
-      {showPreviewModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]">
-          <div className="bg-white rounded-lg shadow-lg w-11/12 h-5/6 max-w-6xl flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h2 className="text-lg font-semibold text-gray-900">Export Preview</h2>
-              <div className="flex space-x-2">
-                <button
-                  onClick={submitExport}
-                  disabled={isExporting}
-                  className={`flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 ${isExporting
-                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      : 'bg-teal-600 text-white hover:bg-teal-700'
-                    }`}
-                >
-                  {isExporting ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Exporting...
-                    </>
-                  ) : (
-                    'Export PDF'
-                  )}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowPreviewModal(false);
-                    setPreviewHtml("");
-                  }}
-                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors duration-200"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-            <div className="flex-1 overflow-hidden">
-              <iframe
-                srcDoc={previewHtml}
-                className="w-full h-full border-0"
-                title="Export Preview"
-                style={{ backgroundColor: 'white' }}
-              />
-            </div>
+          <div className="flex-1 overflow-hidden">
+            <iframe
+              srcDoc={previewHtml}
+              className="w-full h-full border-0"
+              title="Export Preview"
+              style={{ backgroundColor: 'white' }}
+            />
           </div>
         </div>
-      )}
-    </>
-  );
+      </div>
+    )}
+  </>
+);
 }

@@ -65,7 +65,7 @@ export default function Help() {
     },
     {
       name: "Mendoza, Angelo R.",
-      program: "BS Information Technology", 
+      program: "BS Information Technology",
       image: "https://i.pinimg.com/736x/0d/64/98/0d64989794b1a4c9d89bff571d3d5842.jpg"
     },
     {
@@ -77,18 +77,22 @@ export default function Help() {
 
   return (
     <div className="p-4">
-      <div className="flex gap-2 mb-4 overflow-x-auto">
-        {tabs.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 rounded-md font-medium transition-colors whitespace-nowrap ${
-              activeTab === tab ? "bg-teal-100 text-teal-600 border-t-2 border-teal-600" : "text-gray-600 hover:bg-gray-100"
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
+      <div className="border-b border-gray-200 mb-4">
+        <nav className="flex space-x-6">
+          {tabs.map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`pb-2 px-1 text-sm font-medium transition-colors
+          ${activeTab === tab
+                  ? "text-teal-600 border-b-2 border-teal-600"
+                  : "text-gray-500 hover:text-gray-700"
+                }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </nav>
       </div>
 
       <div className="bg-white rounded-lg shadow-sm border">
@@ -99,9 +103,9 @@ export default function Help() {
                 <FiBook className="text-2xl text-teal-600" />
                 <h2 className="text-2xl font-bold text-gray-800">User Manual</h2>
               </div>
-              <a 
-                href="/imgs/User_Manual.pdf" 
-                download 
+              <a
+                href="/imgs/User_Manual.pdf"
+                download
                 className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors"
                 title="Download User Manual"
               >
@@ -109,11 +113,11 @@ export default function Help() {
                 Download PDF
               </a>
             </div>
-            
-            <div className="border border-gray-200 rounded-lg overflow-hidden">
+
+            <div className="flex justify-center border border-gray-200 rounded-lg overflow-hidden">
               <iframe
                 src="/imgs/User_Manual.pdf#view=FitH&toolbar=1&navpanes=0"
-                className="w-full h-[800px]"
+                className="w-[800px] h-[600px]"
                 title="User Manual PDF"
                 frameBorder="0"
               >
@@ -122,9 +126,9 @@ export default function Help() {
                   <p className="text-gray-600 mb-4">
                     Your browser doesn't support PDF viewing. Please download the file to view it.
                   </p>
-                  <a 
-                    href="/imgs/User_Manual.pdf" 
-                    download 
+                  <a
+                    href="/imgs/User_Manual.pdf"
+                    download
                     className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors"
                   >
                     <FiDownload className="w-4 h-4" />
@@ -133,7 +137,8 @@ export default function Help() {
                 </div>
               </iframe>
             </div>
-            
+
+
             <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
               <div className="flex items-start gap-2">
                 <FiInfo className="text-blue-600 mt-1" />
@@ -207,20 +212,20 @@ export default function Help() {
               <FiInfo className="text-2xl text-teal-600" />
               <h2 className="text-2xl font-bold text-gray-800">About</h2>
             </div>
-            
+
             <div className="prose max-w-none text-gray-700 leading-relaxed space-y-4 mb-8">
               <p>
                 The <strong>Class Scheduling System for Golden Gate Colleges</strong> is a capstone project designed to address the challenges of managing class schedules within the institution. Scheduling plays a crucial role in organizing academic activities, ensuring efficient use of resources, and avoiding conflicts between faculty, students, and classrooms. Traditionally, this process at Golden Gate Colleges (GGC) has been handled manually using tools such as Microsoft Word and Excel. While effective to some extent, this approach is time-consuming, prone to errors, and often results in delays in posting final schedules.
               </p>
-              
+
               <p>
                 Golden Gate Colleges, established in November 1946, is the first private higher education institution in Batangas. Over the years, GGC has continued to provide quality education through its various departments, including Teacher Education, Accountancy and Business Administration, Nursing, and Engineering and Technology. Despite its growth and modernization, the college continues to face challenges with its manual scheduling system, especially in the <strong>Engineering and Technology Department</strong> where scheduling conflicts, overlapping class times, and classroom shortages frequently occur.
               </p>
-              
+
               <p>
                 The proposed Class Scheduling System aims to streamline this process by providing an automated solution tailored to the needs of the college. By integrating technology, the system reduces administrative workload, minimizes scheduling conflicts, and ensures timely release of class schedules. This not only improves efficiency for administrators but also provides faculty and students with a more reliable and accessible schedule, enhancing the overall academic experience.
               </p>
-              
+
               <p>
                 This project demonstrates the potential of automation in addressing long-standing challenges, paving the way for a more organized, accurate, and user-friendly scheduling process for Golden Gate Colleges.
               </p>
@@ -232,8 +237,8 @@ export default function Help() {
                 {developers.map((developer, index) => (
                   <div key={index} className="bg-gradient-to-br from-teal-50 to-blue-50 rounded-lg p-6 text-center border border-teal-100 shadow-sm">
                     <div className="w-24 h-24 mx-auto mb-4 rounded-full overflow-hidden bg-gray-200">
-                      <img 
-                        src={developer.image} 
+                      <img
+                        src={developer.image}
                         alt={developer.name}
                         className="w-full h-full object-cover"
                       />

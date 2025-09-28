@@ -114,7 +114,7 @@ export default function Sidebar() {
 
   const menuItems = [
     { name: "Files", icon: <FiFile />, path: "/file" },
-    { name: "Schedule", icon: <FiHome />, path: "/home" },
+    { name: "Home", icon: <FiHome />, path: "/home" },
     {
       name: "Scheduling Tool",
       icon: <FiBook />,
@@ -145,7 +145,7 @@ export default function Sidebar() {
       )}
       <div
         className={`h-screen transition-all duration-300 ease-out ${collapsed ? "w-16" : "w-72"
-          } flex flex-col border-r shadow-sm ${isLoading ? "opacity-50 pointer-events-none" : ""
+          } flex flex-col border-r shadow-sm ${isLoading ? "opacity-50 poInter-events-none" : ""
           }`}
         style={{
           backgroundColor: "#1a2332",
@@ -155,17 +155,16 @@ export default function Sidebar() {
         }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b" style={{ borderColor: "#374151" }}>
+        <div className="flex items-center justify-between p-3 border-b" style={{ borderColor: "#374151" }}>
           {!collapsed && (
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center">
+              {/* <div className="w-8 h-8 rounded-lg flex items-center justify-center">
                 <img
                   src="/imgs/icons8-calendar-100.png"
                   alt="calendar"
                   className="w-8 h-8"
                 />
-              </div>
-
+              </div> */}
               <span className="text-white font-semibold text-lg">Menu</span>
             </div>
           )}
@@ -203,7 +202,7 @@ export default function Sidebar() {
                     onClick={collapsed ? () => handleNavigation("/manage") : toggleScheduling}
                     className={`
                       group w-full flex items-center px-4 py-3 text-sm font-medium 
-                      transition-all duration-200 cursor-pointer rounded-xl
+                      transition-all duration-200 cursor-poInter rounded-xl
                       ${isSchedulingActive
                         ? "text-white bg-teal-500 shadow-sm"
                         : "text-gray-300 hover:text-white hover:bg-gray-700/50"
@@ -243,7 +242,7 @@ export default function Sidebar() {
                               ${location.pathname === sub.path
                                 ? "text-white bg-gray-700/60 shadow-sm"
                                 : "text-gray-300 hover:text-white hover:bg-gray-700/30"
-                              } ${isLoading ? "pointer-events-none" : ""}
+                              } ${isLoading ? "poInter-events-none" : ""}
                             `}
                           >
                             {sub.name}
@@ -262,7 +261,7 @@ export default function Sidebar() {
                       w-full flex items-center gap-3 px-4 py-3 text-sm font-medium 
                       transition-all duration-200 rounded-xl
                       text-gray-300 hover:text-white hover:bg-gray-700/50 active:scale-95
-                      ${isLoading ? "pointer-events-none" : ""}
+                      ${isLoading ? "poInter-events-none" : ""}
                       ${collapsed ? "justify-center" : ""}
                     `}
                     disabled={isLoading}
@@ -274,7 +273,7 @@ export default function Sidebar() {
 
                   {/* Tooltip for collapsed state */}
                   {collapsed && (
-                    <div className="absolute left-full top-1/2 transform -translate-y-1/2 ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                    <div className="absolute left-full top-1/2 transform -translate-y-1/2 ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity poInter-events-none whitespace-nowrap z-50">
                       {item.name}
                       <div className="absolute right-full top-1/2 transform -translate-y-1/2 border-4 border-transparent border-r-gray-900"></div>
                     </div>
@@ -294,7 +293,7 @@ export default function Sidebar() {
                       ${location.pathname === item.path
                         ? "text-white bg-teal-500 shadow-sm"
                         : "text-gray-300 hover:text-white hover:bg-gray-700/50"
-                      } ${isLoading ? "pointer-events-none" : ""}
+                      } ${isLoading ? "poInter-events-none" : ""}
                       ${collapsed ? "justify-center" : ""}
                     `}
                     title={collapsed ? item.name : undefined}
@@ -305,7 +304,7 @@ export default function Sidebar() {
 
                   {/* Tooltip for collapsed state */}
                   {collapsed && (
-                    <div className="absolute left-full top-1/2 transform -translate-y-1/2 ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                    <div className="absolute left-full top-1/2 transform -translate-y-1/2 ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity poInter-events-none whitespace-nowrap z-50">
                       {item.name}
                       <div className="absolute right-full top-1/2 transform -translate-y-1/2 border-4 border-transparent border-r-gray-900"></div>
                     </div>
@@ -331,7 +330,7 @@ export default function Sidebar() {
                 ${location.pathname === "/login"
                   ? "text-white bg-teal-500 shadow-sm"
                   : "text-gray-300 hover:text-white hover:bg-gray-700/50"
-                } ${isLoading ? "pointer-events-none" : ""}
+                } ${isLoading ? "poInter-events-none" : ""}
                 ${collapsed ? "justify-center" : ""}
               `}
               title={collapsed ? "Logout" : undefined}
@@ -344,7 +343,7 @@ export default function Sidebar() {
 
             {/* Tooltip for collapsed state */}
             {collapsed && (
-              <div className="absolute left-full top-1/2 transform -translate-y-1/2 ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+              <div className="absolute left-full top-1/2 transform -translate-y-1/2 ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity poInter-events-none whitespace-nowrap z-50">
                 Logout
                 <div className="absolute right-full top-1/2 transform -translate-y-1/2 border-4 border-transparent border-r-gray-900"></div>
               </div>

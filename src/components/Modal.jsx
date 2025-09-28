@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 
 export default function Modal({
   title,
@@ -7,11 +7,24 @@ export default function Modal({
   onSave,
   isSaving = false,
   saveText = "Save",
-  type = "form", 
-  message, 
-  onConfirm, 
-  customButtons, 
+  type = "form",
+  message,
+  onConfirm,
+  customButtons,
 }) {
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose]);
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg p-6 w-96 max-w-md mx-4">
@@ -34,7 +47,13 @@ export default function Modal({
                 </button>
               )}
               <button
-                onClick={type === "alert" ? onClose : type === "confirm" ? onConfirm : onSave}
+                onClick={
+                  type === "alert"
+                    ? onClose
+                    : type === "confirm"
+                    ? onConfirm
+                    : onSave
+                }
                 disabled={isSaving}
                 className="flex items-center px-4 py-2 text-white bg-teal-600 rounded-md hover:bg-teal-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -43,7 +62,9 @@ export default function Modal({
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                     Saving...
                   </>
-                ) : type === "alert" || type === "confirm" ? "OK" : saveText}
+                ) : type === "alert" || type === "confirm"
+                  ? "OK"
+                  : saveText}
               </button>
             </>
           )}

@@ -8,7 +8,7 @@ export default function Layout({ children }) {
      <Sidebar />
       <div className="flex-1 flex flex-col">
         <Toolbar />
-        <div className="flex-1 overflow-auto p-4 bg-white">{children}</div>
+        <div className="flex-1 overflow-auto p-0 bg-white">{children}</div>
       </div>
     </div>
   );

@@ -1,83 +1,88 @@
 # Class Scheduling System
 
-A desktop-based **Class Scheduling System** for **Golden Gate Colleges**, developed as a capstone project. The system is designed to streamline the process of creating, managing, and finalizing class schedules, reducing manual workload and minimizing scheduling conflicts.
+A desktop-based **Class Scheduling System** for **Golden Gate Colleges**, developed as a capstone project.  
+The system streamlines scheduling by reducing manual work, preventing conflicts, and ensuring timely release of schedules.
 
-Built with:
+---
 
-* ⚛️ **React** – Component-based front-end framework
-* ⚡ **Vite** – Fast development environment and build tool
-* 🎨 **Tailwind CSS** – Utility-first CSS framework for styling
-* 🖥️ **Electron** – Cross-platform desktop app framework
-* 📦 **NPM** – Package manager for dependencies
-* 🗄️ **SQLite3** – Lightweight relational database for local data storage
+## 📚 Table of Contents
+- [Features](#-features)
+- [Screenshots](#-screenshots)
+- [Setup Instructions](#-setup-instructions)
+- [Database Setup](#-database-setup-sqlite3)
+- [Shortcut Keys](#-shortcut-keys)
+- [Help & Documentation](#-help--documentation)
+- [About](#-about)
+- [License](#-license)
 
 ---
 
 ## ✨ Features
+- 🔑 **Authentication** – Secure login for users.
+- 📊 **Scheduling** – Automated scheduling with conflict detection.
+- 🏫 **Multi-Program Support** – Manage schedules across multiple departments.
+- ⚡ **Real-Time Updates** – Instantly see changes when assigning faculty or rooms.
+- 🎨 **Modern UI** – Built with **React + Tailwind**.
+- 💾 **Local Database** – Data stored in **SQLite3** for fast, offline access.
+- 📂 **File Management** – Create, save, export, and print schedules.
 
-### 🔑 Authentication
+---
 
-* Secure login system for users.
+## 📸 Screenshots
 
-### 📂 Navigations
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px;">
 
-* **File** – Manage files and sessions.
-* **Home** – Dashboard with quick access to core functions.
-* **Scheduling Tool**
+  <div>
+    <h4>Login</h4>
+    <img src="public/imgs/screenshots/login.png" alt="Login" width="100%" />
+  </div>
 
-  * *Manage Data* – Input and organize class, faculty, and room information.
-  * *Assigning* – Assign faculty and classrooms to classes with conflict checks.
-* **View** – Toggle different views and layouts.
-* **Help** – Access help documentation and shortcut keys.
+  <div>
+    <h4>File</h4>
+    <img src="public/imgs/screenshots/File.png" alt="File" width="100%" />
+  </div>
 
-### 📊 Scheduling
+  <div>
+    <h4>Home</h4>
+    <img src="public/imgs/screenshots/Home.png" alt="Home" width="100%" />
+  </div>
 
-* Automated class scheduling with conflict detection.
-* Support for multiple programs.
-* Real-time updates when assigning classes.
+  <div>
+    <h4>View Tools Enabled</h4>
+    <img src="public/imgs/screenshots/ViewTools.png" alt="View Tools Enabled" width="100%" />
+  </div>
 
-### 🛠️ Tools & Usability
+  <div>
+    <h4>Manage Data</h4>
+    <img src="public/imgs/screenshots/ManageData.png" alt="Manage Data" width="100%" />
+  </div>
 
-* Modern UI with **Tailwind** styling.
-* Lightweight, responsive, and desktop-friendly via **Electron**.
-* Local data persistence using **SQLite3**.
+  <div>
+    <h4>Assigning</h4>
+    <img src="public/imgs/screenshots/Assigning.png" alt="Assigning" width="100%" />
+  </div>
+
+</div>
 
 ---
 
 ## ⚙️ Setup Instructions
 
-Follow these steps to set up the system locally:
-
-### 1. Clone the repository
-
 ```bash
+# 1. Clone the repository
 git clone https://github.com/johndexter268/my-app.git
 cd my-app
-```
 
-### 2. Install dependencies
-
-```bash
+# 2. Install dependencies
 npm install
-```
 
-### 3. Run the app in development mode
-
-```bash
+# 3. Run in development mode
 npm run dev
-```
 
-### 4. Run Electron with React + Vite
+# 4. Run with Electron
+npm run electron:dev
 
-```bash
-npm run dev
-```
-
-*(Make sure you’ve set up scripts for `electron:dev` in `package.json`.)*
-
-### 5. Build the app for production
-
-```bash
+# 5. Build for production
 npm run build
 npm run electron:build
 ```
@@ -85,35 +90,65 @@ npm run electron:build
 ---
 
 ## 🗄️ Database Setup (SQLite3)
-
-1. The database file (`database.sqlite`) is automatically generated when the app is first run.
-2. Use the included migrations or schema file (`/db/schema.sql`) to initialize the structure.
-
----
-
-## 📖 Help & Shortcuts
-
-* **Ctrl+N** – New File
-* **Ctrl+S** – Save
-* **Ctrl+Shift+S** – Save As
-* **Ctrl+E** – Export
-* **Ctrl+P** – Print
-* **Ctrl+H** – Help
-* **Ctrl+W** – Close File
-* **Ctrl++ / Ctrl+=** – Zoom In
-* **Ctrl+-** – Zoom Out
-* **Ctrl+F / F11** – Full Screen
-* **Escape** – Close modal
+- The database (`database.sqlite`) is auto-generated on first run.
+- Use `/db/schema.sql` for schema initialization.
 
 ---
 
-## 👨‍💻 Developers
+## ⌨️ Shortcut Keys
 
-* **Umali, Allan Joseph R.**
-* **Mendoza, Angelo R.**
-* **Rementilla, Tai Lee D.**
+### Main Actions
+| Action | Shortcut |
+|--------|-----------|
+| New File | Ctrl+N |
+| Save | Ctrl+S |
+| Save As | Ctrl+Shift+S |
+| Export | Ctrl+E |
+| Print | Ctrl+P |
+| Help | Ctrl+H |
+| Close File | Ctrl+W |
 
-Capstone Project – Bachelor of Science in Information Technology
-Golden Gate Colleges
+### Navigation
+| Action | Shortcut |
+|--------|-----------|
+| File Page | Ctrl+1 |
+| Home Page | Ctrl+2 |
+| Manage Data (Scheduling) | Ctrl+3 |
+| Assigning (Scheduling) | Ctrl+4 |
+| Toggle View Tools | Ctrl+5 |
+| Help Page | Ctrl+H |
+| Logout / Login Page | Ctrl+L |
+| Toggle Sidebar | Ctrl+B |
+
+### View Tools
+| Action | Shortcut |
+|--------|-----------|
+| Zoom In | Ctrl++ / Ctrl+= |
+| Zoom Out | Ctrl+- |
+| Full Screen | Ctrl+F / F11 |
+
+### General
+| Action | Shortcut |
+|--------|-----------|
+| Close Modal | Escape |
+
+*(More detailed shortcuts available in the in-app **Help** section.)*
 
 ---
+
+## 📖 Help & Documentation
+- Built-in **Help tab** with:
+  - User Guide (PDF)
+  - Shortcut Keys & Commands
+  - About section with developer details
+
+---
+
+## ℹ️ About
+Golden Gate Colleges, established in **1946**, is the first private higher education institution in Batangas.  
+This project aims to replace manual scheduling (Word/Excel) with an automated system, reducing workload and minimizing conflicts, especially in the **Engineering and Technology Department**.
+
+---
+
+## 📜 License
+This project is licensed under the **MIT License**.  

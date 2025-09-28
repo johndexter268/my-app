@@ -401,6 +401,7 @@ ipcMain.handle("get-programs", () => {
   });
 });
 
+
 ipcMain.handle("export-file", async (event, args = {}) => {
   const { fileId: rawFileId, type, id, format = 'pdf' } = args;
   console.log("Export requested - args:", args);
@@ -1411,7 +1412,7 @@ ipcMain.handle("print-file", async (event, args = {}) => {
       // Wait for content to render
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      console.log("Sending to printer...");
+      console.log("Sending to prInter...");
 
       return await new Promise((resolve, reject) => {
         printWindow.webContents.print({
@@ -1422,7 +1423,7 @@ ipcMain.handle("print-file", async (event, args = {}) => {
           console.log("Print operation result:", success ? "Success" : `Failed: ${failureReason}`);
           printWindow.close();
           if (success) {
-            resolve({ success: true, message: "File sent to printer!" });
+            resolve({ success: true, message: "File sent to prInter!" });
           } else {
             reject({ success: false, message: "Print failed: " + (failureReason || "Unknown error") });
           }
@@ -1641,6 +1642,15 @@ ipcMain.handle("save-program", (event, data) => {
         }
       );
     }
+  });
+});
+
+ipcMain.handle("delete-program", (event, id) => {
+  return new Promise((resolve, reject) => {
+    db.run(`DELETE FROM programs WHERE id=?`, [id], (err) => {
+      if (err) reject(err.message);
+      else resolve({ success: true });
+    });
   });
 });
 

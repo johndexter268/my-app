@@ -982,7 +982,7 @@ export default function Home() {
                                 row.push(
                                   <td
                                     key={`${day}-${timeIndex}-time`}
-                                    className="border border-darknavy p-1 text-xs bg-darknavy text-white"
+                                    className="border border-gray-300 p-1 text-xs bg-white text-darknavy"
                                     style={{ height: "35px", width: "100px" }}
                                   >
                                     {timeSlot}
@@ -1137,7 +1137,7 @@ export default function Home() {
                                 row.push(
                                   <td
                                     key={`${day}-${timeIndex}-time`}
-                                    className="border border-darknavy p-1 text-xs bg-darknavy text-white"
+                                    className="border border-gray-300 p-1 text-xs bg-white text-darknavy"
                                     style={{ height: "35px", width: "100px" }}
                                   >
                                     {timeSlot}
@@ -1451,7 +1451,7 @@ export default function Home() {
                               row.push(
                                 <td
                                   key={`${day}-${timeIndex}-time`}
-                                  className="border border-darknavy p-1 text-xs bg-darknavy text-white"
+                                  className="border border-gray-300 p-1 text-xs bg-white text-darknavy"
                                   style={{ height: "35px", width: "100px" }}
                                 >
                                   {timeSlot}
@@ -1612,7 +1612,7 @@ export default function Home() {
                               row.push(
                                 <td
                                   key={`${day}-${timeIndex}-time`}
-                                  className="border border-darknavy p-1 text-xs bg-darknavy text-white"
+                                  className="border border-gray-300 p-1 text-xs bg-white text-darknavy"
                                   style={{ height: "35px", width: "100px" }}
                                 >
                                   {timeSlot}

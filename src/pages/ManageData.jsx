@@ -219,19 +219,24 @@ export default function ManageData() {
 
   return (
     <div className="p-4">
-      <div className="flex gap-2 mb-4 overflow-x-auto">
-        {tabs.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 rounded-md font-medium transition-colors ${
-              activeTab === tab ? "bg-teal-100 text-teal-600 border-t-2 border-teal-600" : "text-gray-600 hover:bg-gray-100"
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
+      <div className="border-b border-gray-200 mb-4">
+        <nav className="flex space-x-6">
+          {tabs.map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`pb-2 px-1 text-sm font-medium transition-colors
+          ${activeTab === tab
+                  ? "text-teal-600 border-b-2 border-teal-600"
+                  : "text-gray-500 hover:text-gray-700"
+                }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </nav>
       </div>
+
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-6">
         <div className="bg-white rounded-lg p-6 shadow-sm border">
@@ -240,14 +245,13 @@ export default function ManageData() {
             <button
               onClick={() => handleAdd(activeTab.slice(0, -1))}
               disabled={isSaving || isDeleting}
-              className={`flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700 ${
-                isSaving || isDeleting ? "opacity-50 cursor-not-allowed" : ""
-              }`}
+              className={`flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700 ${isSaving || isDeleting ? "opacity-50 cursor-not-allowed" : ""
+                }`}
             >
               <FiPlus /> Add New
             </button>
           </div>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto rounded-xl border border-gray-200">
             {activeTab === "Teachers" && (
               <table className="w-full border-collapse">
                 <thead className="bg-gray-50 border-b border-gray-200">
@@ -279,9 +283,8 @@ export default function ManageData() {
                         <button
                           onClick={() => handleDelete("Teacher", teacher.id)}
                           disabled={isDeleting}
-                          className={`text-red-500 hover:text-red-700 ${
-                            isDeleting ? "opacity-50 cursor-not-allowed" : ""
-                          }`}
+                          className={`text-red-500 hover:text-red-700 ${isDeleting ? "opacity-50 cursor-not-allowed" : ""
+                            }`}
                         >
                           <FiTrash2 />
                         </button>
@@ -319,9 +322,8 @@ export default function ManageData() {
                         <button
                           onClick={() => handleDelete("Subject", subject.id)}
                           disabled={isDeleting}
-                          className={`text-red-500 hover:text-red-700 ${
-                            isDeleting ? "opacity-50 cursor-not-allowed" : ""
-                          }`}
+                          className={`text-red-500 hover:text-red-700 ${isDeleting ? "opacity-50 cursor-not-allowed" : ""
+                            }`}
                         >
                           <FiTrash2 />
                         </button>
@@ -355,9 +357,8 @@ export default function ManageData() {
                         <button
                           onClick={() => handleDelete("Room", room.id)}
                           disabled={isDeleting}
-                          className={`text-red-500 hover:text-red-700 ${
-                            isDeleting ? "opacity-50 cursor-not-allowed" : ""
-                          }`}
+                          className={`text-red-500 hover:text-red-700 ${isDeleting ? "opacity-50 cursor-not-allowed" : ""
+                            }`}
                         >
                           <FiTrash2 />
                         </button>
@@ -391,9 +392,8 @@ export default function ManageData() {
                         <button
                           onClick={() => handleDelete("Class", cls.id)}
                           disabled={isDeleting}
-                          className={`text-red-500 hover:text-red-700 ${
-                            isDeleting ? "opacity-50 cursor-not-allowed" : ""
-                          }`}
+                          className={`text-red-500 hover:text-red-700 ${isDeleting ? "opacity-50 cursor-not-allowed" : ""
+                            }`}
                         >
                           <FiTrash2 />
                         </button>
@@ -427,9 +427,8 @@ export default function ManageData() {
                         <button
                           onClick={() => handleDelete("Program", program.id)}
                           disabled={isDeleting}
-                          className={`text-red-500 hover:text-red-700 ${
-                            isDeleting ? "opacity-50 cursor-not-allowed" : ""
-                          }`}
+                          className={`text-red-500 hover:text-red-700 ${isDeleting ? "opacity-50 cursor-not-allowed" : ""
+                            }`}
                         >
                           <FiTrash2 />
                         </button>
@@ -909,7 +908,7 @@ export default function ManageData() {
             if (confirmCallback) confirmCallback();
             setShowConfirmModal(false);
           }}
-          isSaving={isDeleting} 
+          isSaving={isDeleting}
         />
       )}
     </div>
