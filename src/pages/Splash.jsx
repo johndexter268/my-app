@@ -10,7 +10,7 @@ export default function Splash() {
   }, [navigate]);
 
   return (
-    <div className="flex h-screen text-white bg-darknavy">
+    <div className="flex h-screen text-white bg-zinc-900">
       <div className="flex flex-col flex-1 p-8">
         <img src="/imgs/app-icon.png" alt="Logo" className="w-24 mb-8" />
         <div className="flex flex-col justify-center flex-1">

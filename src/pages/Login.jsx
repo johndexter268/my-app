@@ -44,7 +44,7 @@ export default function Login() {
     };
 
     return (
-        <div className="relative flex items-center justify-center h-screen bg-darknavy text-white overflow-hidden">
+        <div className="relative flex items-center justify-center h-screen bg-zinc-900 text-white overflow-hidden">
             {/* Calendar Grid Background */}
             <div className="absolute inset-0 opacity-10">
                 <div className="grid grid-cols-7 h-full w-full">

@@ -982,7 +982,7 @@ export default function Home() {
                                 row.push(
                                   <td
                                     key={`${day}-${timeIndex}-time`}
-                                    className="border border-gray-300 p-1 text-xs bg-white text-darknavy"
+                                    className="border border-gray-300 p-1 text-xs bg-white text-zinc-900"
                                     style={{ height: "35px", width: "100px" }}
                                   >
                                     {timeSlot}
@@ -1137,7 +1137,7 @@ export default function Home() {
                                 row.push(
                                   <td
                                     key={`${day}-${timeIndex}-time`}
-                                    className="border border-gray-300 p-1 text-xs bg-white text-darknavy"
+                                    className="border border-gray-300 p-1 text-xs bg-white text-zinc-900"
                                     style={{ height: "35px", width: "100px" }}
                                   >
                                     {timeSlot}
@@ -1451,7 +1451,7 @@ export default function Home() {
                               row.push(
                                 <td
                                   key={`${day}-${timeIndex}-time`}
-                                  className="border border-gray-300 p-1 text-xs bg-white text-darknavy"
+                                  className="border border-gray-300 p-1 text-xs bg-white text-zinc-900"
                                   style={{ height: "35px", width: "100px" }}
                                 >
                                   {timeSlot}
@@ -1612,7 +1612,7 @@ export default function Home() {
                               row.push(
                                 <td
                                   key={`${day}-${timeIndex}-time`}
-                                  className="border border-gray-300 p-1 text-xs bg-white text-darknavy"
+                                  className="border border-gray-300 p-1 text-xs bg-white text-zinc-900"
                                   style={{ height: "35px", width: "100px" }}
                                 >
                                   {timeSlot}
@@ -1818,14 +1818,14 @@ export default function Home() {
           </div>
 
           <div className="w-80 bg-white rounded-lg shadow-sm border" style={{ zIndex: 10 }}>
-            <div className="bg-darknavy rounded-t-lg p-4 text-white">
+            <div className="bg-zinc-900 rounded-t-lg p-4 text-white">
               <h2 className="text-md font-semibold mb-4">Assignment List</h2>
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search by subject or teacher..."
-                className="w-full p-2 border bg-darknavy border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500"
+                className="w-full p-2 border bg-zinc-900 border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500"
               />
               <div className="mt-2">
                 <select
@@ -1835,7 +1835,7 @@ export default function Home() {
                     setFilterOptions({ ...filterOptions, teacherId });
                     setSelectedTeacherId(teacherId || null);
                   }}
-                  className="w-full p-2 border bg-darknavy border-gray-300 rounded-md"
+                  className="w-full p-2 border bg-zinc-900 border-gray-300 rounded-md"
                 >
                   <option value="">All Teachers</option>
                   {teachers.map((teacher) => (

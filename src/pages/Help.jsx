@@ -61,17 +61,17 @@ export default function Help() {
     {
       name: "Umali, Allan Joseph R.",
       program: "BS Information Technology",
-      image: "https://i.pinimg.com/736x/0d/64/98/0d64989794b1a4c9d89bff571d3d5842.jpg"
+      image: "imgs/allan.jpg"
     },
     {
       name: "Mendoza, Angelo R.",
       program: "BS Information Technology",
-      image: "https://i.pinimg.com/736x/0d/64/98/0d64989794b1a4c9d89bff571d3d5842.jpg"
+      image: "imgs/gelo.jpg"
     },
     {
       name: "Rementilla, Tai Lee D.",
       program: "BS Information Technology",
-      image: "https://i.pinimg.com/736x/0d/64/98/0d64989794b1a4c9d89bff571d3d5842.jpg"
+      image: "imgs/thai.jpg"
     }
   ];
 
