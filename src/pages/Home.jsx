@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { FiTrash2 } from "react-icons/fi";
 import { FaSpinner } from "react-icons/fa";
+import Modal from "../components/Modal"
 
 export default function Home() {
   const [currentFile, setCurrentFile] = useState(null);
@@ -20,6 +21,8 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedTeacherId, setSelectedTeacherId] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [conflictModal, setConflictModal] = useState({ open: false, conflicts: [] });
+  const [deleteModal, setDeleteModal] = useState({ open: false, assignmentId: null });
   const [filterOptions, setFilterOptions] = useState({
     teacherId: "",
     showWithSchedule: true,
@@ -39,6 +42,7 @@ export default function Home() {
   const contentRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
+  const userRole = localStorage.getItem('userRole') || 'user';
 
   useEffect(() => {
     const fetchData = async () => {
@@ -225,16 +229,36 @@ export default function Home() {
   }, [isDragging, panX, panY, startX, startY, zoomLevel]);
 
   const timeSlots = [
-    '7:00 AM-8:00 AM', '8:00 AM-9:00 AM', '9:00 AM-10:00 AM', '10:00 AM-11:00 AM', '11:00 AM-12:00 PM',
-    '12:00 PM-1:00 PM', '1:00 PM-2:00 PM', '2:00 PM-3:00 PM', '3:00 PM-4:00 PM', '4:00 PM-5:00 PM',
-    '5:00 PM-6:00 PM', '6:00 PM-7:00 PM'
+    '7:00 AM - 7:30 AM', '7:30 AM - 8:00 AM', '8:00 AM - 8:30 AM', '8:30 AM - 9:00 AM',
+    '9:00 AM - 9:30 AM', '9:30 AM - 10:00 AM', '10:00 AM - 10:30 AM', '10:30 AM - 11:00 AM',
+    '11:00 AM - 11:30 AM', '11:30 AM - 12:00 PM', '12:00 PM - 12:30 PM', '12:30 PM - 1:00 PM',
+    '1:00 PM - 1:30 PM', '1:30 PM - 2:00 PM', '2:00 PM - 2:30 PM', '2:30 PM - 3:00 PM',
+    '3:00 PM - 3:30 PM', '3:30 PM - 4:00 PM', '4:00 PM - 4:30 PM', '4:30 PM - 5:00 PM',
+    '5:00 PM - 5:30 PM', '5:30 PM - 6:00 PM', '6:00 PM - 6:30 PM', '6:30 PM - 7:00 PM',
+    '7:00 PM - 7:30 PM'
   ];
 
-  const startTimeArray = [
-    "7:00 AM", "8:00 AM", "9:00 AM", "10:00 AM", "11:00 AM",
-    "12:00 PM", "1:00 PM", "2:00 PM", "3:00 PM", "4:00 PM",
-    "5:00 PM", "6:00 PM"
-  ];
+  const parseTime = (timeStr) => {
+    const [time, period] = timeStr.split(' ');
+    let [hours, minutes] = time.split(':').map(Number);
+    if (period === 'PM' && hours !== 12) hours += 12;
+    if (period === 'AM' && hours === 12) hours = 0;
+    return hours * 60 + minutes;
+  };
+
+  const formatTime = (minutes) => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    const period = hours >= 12 ? 'PM' : 'AM';
+    const displayHours = hours % 12 === 0 ? 12 : hours % 12;
+    return `${displayHours}:${mins.toString().padStart(2, '0')} ${period}`;
+  };
+
+  // const startTimeArray = [
+  //   "7:00 AM", "8:00 AM", "9:00 AM", "10:00 AM", "11:00 AM",
+  //   "12:00 PM", "1:00 PM", "2:00 PM", "3:00 PM", "4:00 PM",
+  //   "5:00 PM", "6:00 PM"
+  // ];
 
   const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const yearLevels = ["1st Year", "2nd Year", "3rd Year", "4th Year"];
@@ -287,11 +311,12 @@ export default function Home() {
     }
     return filtered
       .map((a) => {
-        const startTime = a.timeSlot.split('-')[0].trim();
-        const slotIndex = timeSlots.findIndex((slot) => slot.startsWith(startTime));
+        const startTime = a.timeSlot.split('-')[0].trim(); // Extract start time from range
+        const slotIndex = timeSlots.findIndex((slot) => slot.split('-')[0].trim() === startTime);
+        const slotSpan = Math.round(a.duration / 30); // Calculate span for rowspan (e.g., 180 min = 6 slots)
         return {
           start: slotIndex,
-          span: Math.round(a.duration / 60),
+          span: slotSpan,
           assignment: a,
         };
       })
@@ -321,7 +346,7 @@ export default function Home() {
     const classIds = [assignment.classId, ...matchingAssignments.map((a) => a.classId)];
     return classIds.reduce((total, classId) => {
       const classData = classes.find((c) => c.id === classId);
-      return total + (classData?.students || 0);
+      return total + (classData?.numStudents || 0); // Fixed to use numStudents
     }, 0);
   };
 
@@ -349,13 +374,14 @@ export default function Home() {
       dayAssignments.forEach(({ start, span, assignment }) => {
         const assYearLevel = getYearLevel(assignment.classId);
         if (assYearLevel && grid[day][start] && levels.includes(assYearLevel)) {
+          const slotSpan = Math.round(assignment.duration / 30); // Calculate span for rowspan (e.g., 180 min = 6 slots)
           grid[day][start].yearLevels[assYearLevel] = {
             occupied: true,
             assignment: assignment,
-            span: span,
+            span: slotSpan,
           };
 
-          for (let i = 1; i < span; i++) {
+          for (let i = 1; i < slotSpan; i++) {
             if (grid[day][start + i]) {
               grid[day][start + i].yearLevels[assYearLevel] = {
                 occupied: true,
@@ -394,20 +420,20 @@ export default function Home() {
         });
       });
 
-      // Fill in assignments
       const dayAssignments = getDayAssignments(day, selectedTeacherId);
       dayAssignments.forEach(({ start, span, assignment }) => {
         const programId = getProgramId(assignment.classId);
         const assYearLevel = getYearLevel(assignment.classId);
 
         if (programId && assYearLevel && mergedGrid[day][start]) {
+          const slotSpan = Math.round(assignment.duration / 30); // Calculate span for rowspan (e.g., 180 min = 6 slots)
           mergedGrid[day][start].programs[programId].yearLevels[assYearLevel] = {
             occupied: true,
             assignment: assignment,
-            span: span,
+            span: slotSpan,
           };
 
-          for (let i = 1; i < span; i++) {
+          for (let i = 1; i < slotSpan; i++) {
             if (mergedGrid[day][start + i]) {
               mergedGrid[day][start + i].programs[programId].yearLevels[assYearLevel] = {
                 occupied: true,
@@ -442,12 +468,10 @@ export default function Home() {
   };
 
   const getTimeSlotRange = (startTime, duration) => {
-    const startIndex = startTimeArray.indexOf(startTime);
-    if (startIndex === -1) return "";
-    const hours = Math.round(parseInt(duration) / 60);
-    const endIndex = startIndex + hours;
-    if (endIndex > startTimeArray.length) return "";
-    const endTime = startTimeArray[endIndex] || startTimeArray[startTimeArray.length - 1];
+    const startMinutes = parseTime(startTime);
+    if (startMinutes === null) return "";
+    const endMinutes = startMinutes + parseInt(duration);
+    const endTime = formatTime(endMinutes);
     return `${startTime}-${endTime}`;
   };
 
@@ -464,7 +488,7 @@ export default function Home() {
       updatedAssignment = {
         ...assignment,
         day,
-        timeSlot: timeSlots[timeIndex],
+        timeSlot: timeSlots[timeIndex].split('-')[0].trim(), // Use start time for assignment
       };
       newRoomId = getAssignmentRoom(assignment) !== "N/A" ? roomAssignments.find(
         (ra) =>
@@ -475,7 +499,10 @@ export default function Home() {
       )?.roomId : null;
     } else if (assignment.type === "room") {
       if (getYearLevel(assignment.classId) !== yearLevel) {
-        alert("Class year level does not match the drop column.");
+        setConflictModal({
+          open: true,
+          conflicts: ["Class year level does not match the drop column."],
+        });
         return;
       }
       updatedAssignment = {
@@ -484,8 +511,8 @@ export default function Home() {
         teacherId: assignment.teacherId,
         classId: assignment.classId,
         day,
-        timeSlot: timeSlots[timeIndex],
-        duration: 180,
+        timeSlot: timeSlots[timeIndex].split('-')[0].trim(),
+        duration: 30,
         type: "time",
         scheduleFileId: currentFile.id,
       };
@@ -493,7 +520,10 @@ export default function Home() {
     } else if (assignment.type === "subject") {
       const subject = subjects.find((s) => s.id === assignment.subjectId);
       if (subject && subject.yearLevel !== yearLevel) {
-        alert("Subject year level does not match the drop column.");
+        setConflictModal({
+          open: true,
+          conflicts: ["Subject year level does not match the drop column."],
+        });
         return;
       }
       const targetClassId = programId
@@ -506,8 +536,8 @@ export default function Home() {
         teacherId: assignment.teacherId,
         classId: targetClassId || "",
         day,
-        timeSlot: timeSlots[timeIndex],
-        duration: 180,
+        timeSlot: timeSlots[timeIndex].split('-')[0].trim(),
+        duration: 30,
         type: "time",
         scheduleFileId: currentFile.id,
       };
@@ -516,40 +546,49 @@ export default function Home() {
 
     const dayAssignments = getDayAssignments(day, null);
     const conflictSet = new Set();
-    const startSlot = timeSlots.findIndex((slot) => slot.startsWith(updatedAssignment.timeSlot.split('-')[0].trim()));
-    const span = Math.round(updatedAssignment.duration / 60);
+    const startSlot = timeSlots.findIndex((slot) => slot.split('-')[0].trim() === updatedAssignment.timeSlot);
+    const span = Math.round(updatedAssignment.duration / 30); // Calculate span for 30-minute intervals
 
-    // Check for conflicts
+    // Consolidated conflict detection
+    const teacherConflicts = new Set();
+    const classConflicts = new Set();
+    const subjectConflicts = new Set();
+    const roomConflicts = new Set();
+
     for (let i = startSlot; i < startSlot + span; i++) {
       dayAssignments.forEach(({ start, span: assSpan, assignment: ass }) => {
         if (start <= i && start + assSpan > i) {
-          // Allow teacher to be assigned if subject, day, and time slot match (indicating merged class)
           if (
             ass.teacherId === updatedAssignment.teacherId &&
-            !(ass.subjectId === updatedAssignment.subjectId &&
-              ass.day === updatedAssignment.day &&
-              ass.timeSlot === updatedAssignment.timeSlot)
+            ass.subjectId !== updatedAssignment.subjectId &&
+            !teacherConflicts.has(ass.teacherId)
           ) {
-            conflictSet.add("Teacher already assigned at this time to a different subject.");
+            teacherConflicts.add(ass.teacherId);
+            conflictSet.add(
+              `Teacher ${getTeacherName(ass.teacherId)} is already assigned to ${getSubjectName(ass.subjectId)} at this time.`
+            );
           }
-          if (ass.classId === updatedAssignment.classId) {
-            conflictSet.add("Class already scheduled at this time.");
+          if (ass.classId === updatedAssignment.classId && !classConflicts.has(ass.classId)) {
+            classConflicts.add(ass.classId);
+            conflictSet.add(`Class ${getClassName(ass.classId)} is already scheduled at this time.`);
+          }
+          if (
+            ass.subjectId === updatedAssignment.subjectId &&
+            ass.day === updatedAssignment.day &&
+            ass.timeSlot === updatedAssignment.timeSlot &&
+            ass.teacherId !== updatedAssignment.teacherId &&
+            !subjectConflicts.has(ass.subjectId)
+          ) {
+            subjectConflicts.add(ass.subjectId);
+            conflictSet.add(
+              `Subject ${getSubjectName(ass.subjectId)} is already assigned to ${getTeacherName(ass.teacherId)} at this time.`
+            );
           }
         }
       });
     }
 
-    // Check for room sharing and capacity
     if (newRoomId) {
-      const matchingAssignments = timeAssignments.filter(
-        (a) =>
-          a.subjectId === updatedAssignment.subjectId &&
-          a.teacherId === updatedAssignment.teacherId &&
-          a.day === day &&
-          a.timeSlot === updatedAssignment.timeSlot &&
-          a.id !== updatedAssignment.id
-      );
-
       const room = rooms.find((r) => r.id === newRoomId);
       if (room) {
         const totalStudents = getTotalStudentsForMergedClasses(updatedAssignment, day, updatedAssignment.timeSlot);
@@ -558,7 +597,6 @@ export default function Home() {
         }
       }
 
-      // Check for room conflicts
       for (let i = startSlot; i < startSlot + span; i++) {
         dayAssignments.forEach(({ start, span: assSpan, assignment: ass }) => {
           if (start <= i && start + assSpan > i) {
@@ -577,9 +615,11 @@ export default function Home() {
                 ass.teacherId === updatedAssignment.teacherId &&
                 ass.day === updatedAssignment.day &&
                 ass.timeSlot === updatedAssignment.timeSlot
-              )
+              ) &&
+              !roomConflicts.has(assRoomId)
             ) {
-              conflictSet.add("Room already occupied by a different class.");
+              roomConflicts.add(assRoomId);
+              conflictSet.add(`Room ${getRoomName(assRoomId)} is already occupied by another class.`);
             }
           }
         });
@@ -587,7 +627,10 @@ export default function Home() {
     }
 
     if (conflictSet.size > 0) {
-      alert(`Cannot drop here:\n${[...conflictSet].join("\n")}`);
+      setConflictModal({
+        open: true,
+        conflicts: [...conflictSet],
+      });
       return;
     }
 
@@ -622,87 +665,124 @@ export default function Home() {
             });
           }
         }
-
-        const data = await window.api.getAssignments(currentFile.id);
-        setTimeAssignments(data.filter((a) => a.type === "time") || []);
-        setRoomAssignments(data.filter((a) => a.type === "room") || []);
-        setSubjectAssignments(data.filter((a) => a.type === "subject") || []);
+        setTimeAssignments((prev) =>
+          prev.map((a) => (a.id === updatedAssignment.id ? updatedAssignment : a))
+        );
+        setAssignments((prev) =>
+          prev.map((a) => (a.id === updatedAssignment.id ? updatedAssignment : a))
+        );
+        setRoomAssignments((prev) => {
+          const existing = prev.find(
+            (ra) =>
+              ra.scheduleFileId === updatedAssignment.scheduleFileId &&
+              ra.subjectId === updatedAssignment.subjectId &&
+              ra.teacherId === updatedAssignment.teacherId &&
+              ra.classId === updatedAssignment.classId
+          );
+          if (existing) {
+            return prev.map((ra) =>
+              ra.id === existing.id ? { ...ra, roomId: newRoomId } : ra
+            );
+          }
+          if (newRoomId) {
+            return [
+              ...prev,
+              {
+                id: crypto.randomUUID(),
+                scheduleFileId: updatedAssignment.scheduleFileId,
+                subjectId: updatedAssignment.subjectId,
+                teacherId: updatedAssignment.teacherId,
+                classId: updatedAssignment.classId,
+                roomId: newRoomId,
+              },
+            ];
+          }
+          return prev;
+        });
       } else {
-        alert(result.message);
+        setConflictModal({
+          open: true,
+          conflicts: ["Failed to assign time slot."],
+        });
       }
     } catch (error) {
-      console.error("Error saving assignment:", error);
-      alert("Error saving assignment: " + error.message);
+      console.error("Error assigning time slot:", error);
+      setConflictModal({
+        open: true,
+        conflicts: ["An error occurred while assigning the time slot."],
+      });
     }
   };
 
   const handleSaveEdit = async (assignmentId, updatedData) => {
     const newTimeSlot = getTimeSlotRange(updatedData.startTime, updatedData.duration);
     if (!newTimeSlot) {
-      alert("Invalid start time or duration.");
+      setConflictModal({
+        open: true,
+        conflicts: ["Invalid start time or duration."],
+      });
       return;
     }
 
     const newData = {
       ...updatedData,
       timeSlot: newTimeSlot,
-      duration: updatedData.duration,
+      duration: parseInt(updatedData.duration),
     };
 
     const dayAssignments = getDayAssignments(newData.day, null).filter((ass) => ass.assignment.id !== assignmentId);
-    const conflicts = [];
-    const startSlot = timeSlots.findIndex((slot) => slot.startsWith(newData.timeSlot.split('-')[0].trim()));
-    const span = Math.round(newData.duration / 60);
-    const newRoomId = updatedData.roomId || (
-      roomAssignments.find(
-        (ra) =>
-          ra.scheduleFileId === newData.scheduleFileId &&
-          ra.subjectId === newData.subjectId &&
-          ra.teacherId === newData.teacherId &&
-          ra.classId === newData.classId
-      )?.roomId || null
-    );
+    const conflicts = new Set();
+    const startSlot = timeSlots.findIndex((slot) => slot.split('-')[0].trim() === newData.timeSlot.split('-')[0].trim());
+    const span = Math.round(newData.duration / 30);
 
-    // Check for conflicts
+    // Consolidated conflict detection
+    const teacherConflicts = new Set();
+    const classConflicts = new Set();
+    const subjectConflicts = new Set();
+    const roomConflicts = new Set();
+
     for (let i = startSlot; i < startSlot + span; i++) {
       dayAssignments.forEach(({ start, span: assSpan, assignment: ass }) => {
         if (start <= i && start + assSpan > i) {
-          // Allow teacher to be assigned if subject, day, and time slot match (indicating merged class)
           if (
             ass.teacherId === newData.teacherId &&
-            !(ass.subjectId === newData.subjectId &&
-              ass.day === newData.day &&
-              ass.timeSlot === newData.timeSlot)
+            ass.subjectId !== newData.subjectId &&
+            !teacherConflicts.has(ass.teacherId)
           ) {
-            conflicts.push("Teacher already assigned at this time to a different subject.");
+            teacherConflicts.add(ass.teacherId);
+            conflicts.add(
+              `Teacher ${getTeacherName(ass.teacherId)} is already assigned to ${getSubjectName(ass.subjectId)} at this time.`
+            );
           }
-          if (ass.classId === newData.classId) {
-            conflicts.push("Class already scheduled at this time.");
+          if (ass.classId === newData.classId && !classConflicts.has(ass.classId)) {
+            classConflicts.add(ass.classId);
+            conflicts.add(`Class ${getClassName(ass.classId)} is already scheduled at this time.`);
+          }
+          if (
+            ass.subjectId === newData.subjectId &&
+            ass.day === newData.day &&
+            ass.timeSlot === newData.timeSlot &&
+            ass.teacherId !== newData.teacherId &&
+            !subjectConflicts.has(ass.subjectId)
+          ) {
+            subjectConflicts.add(ass.subjectId);
+            conflicts.add(
+              `Subject ${getSubjectName(ass.subjectId)} is already assigned to ${getTeacherName(ass.teacherId)} at this time.`
+            );
           }
         }
       });
     }
 
-    // Check for room sharing and capacity
-    if (newRoomId) {
-      const matchingAssignments = timeAssignments.filter(
-        (a) =>
-          a.subjectId === newData.subjectId &&
-          a.teacherId === newData.teacherId &&
-          a.day === newData.day &&
-          a.timeSlot === newData.timeSlot &&
-          a.id !== assignmentId
-      );
-
-      const room = rooms.find((r) => r.id === newRoomId);
+    if (newData.roomId) {
+      const room = rooms.find((r) => r.id === newData.roomId);
       if (room) {
         const totalStudents = getTotalStudentsForMergedClasses(newData, newData.day, newData.timeSlot);
         if (totalStudents > room.capacity) {
-          conflicts.push(`Room ${room.name} capacity (${room.capacity}) exceeded. Total students: ${totalStudents}`);
+          conflicts.add(`Room ${room.name} capacity (${room.capacity}) exceeded. Total students: ${totalStudents}`);
         }
       }
 
-      // Check for room conflicts
       for (let i = startSlot; i < startSlot + span; i++) {
         dayAssignments.forEach(({ start, span: assSpan, assignment: ass }) => {
           if (start <= i && start + assSpan > i) {
@@ -715,30 +795,38 @@ export default function Home() {
             )?.roomId : null;
             if (
               assRoomId &&
-              newRoomId === assRoomId &&
+              newData.roomId === assRoomId &&
               !(
                 ass.subjectId === newData.subjectId &&
                 ass.teacherId === newData.teacherId &&
                 ass.day === newData.day &&
                 ass.timeSlot === newData.timeSlot
-              )
+              ) &&
+              !roomConflicts.has(assRoomId)
             ) {
-              conflicts.push("Room already occupied by a different class.");
+              roomConflicts.add(assRoomId);
+              conflicts.add(`Room ${getRoomName(assRoomId)} is already occupied by another class.`);
             }
           }
         });
       }
     }
 
-    if (conflicts.length > 0) {
-      alert(`Cannot save:\n${conflicts.join("\n")}`);
+    if (conflicts.size > 0) {
+      setConflictModal({
+        open: true,
+        conflicts: [...conflicts],
+      });
       return;
     }
 
     try {
-      const timeResult = await window.api.updateTimeSlotAssignment(newData);
-      if (!timeResult.success) {
-        alert(timeResult.message);
+      const result = await window.api.updateTimeSlotAssignment(newData);
+      if (!result.success) {
+        setConflictModal({
+          open: true,
+          conflicts: [result.message || "Failed to update assignment."],
+        });
         return;
       }
 
@@ -750,7 +838,7 @@ export default function Home() {
           ra.classId === newData.classId
       );
 
-      if (newRoomId) {
+      if (newData.roomId) {
         if (existingRoomAssignment) {
           const roomResult = await window.api.updateRoomAssignment({
             id: existingRoomAssignment.id,
@@ -761,7 +849,10 @@ export default function Home() {
             roomId: newData.roomId,
           });
           if (!roomResult.success) {
-            alert(roomResult.message);
+            setConflictModal({
+              open: true,
+              conflicts: [roomResult.message || "Failed to update room assignment."],
+            });
             return;
           }
         } else {
@@ -773,7 +864,10 @@ export default function Home() {
             roomId: newData.roomId,
           });
           if (!roomResult.success) {
-            alert(roomResult.message);
+            setConflictModal({
+              open: true,
+              conflicts: [roomResult.message || "Failed to assign room."],
+            });
             return;
           }
         }
@@ -786,28 +880,43 @@ export default function Home() {
       setRoomAssignments(data.filter((a) => a.type === "room") || []);
       setSubjectAssignments(data.filter((a) => a.type === "subject") || []);
       setEditingAssignment(null);
-      alert("Assignment updated successfully!");
+      setConflictModal({
+        open: true,
+        conflicts: ["Assignment updated successfully!"],
+      });
     } catch (error) {
       console.error("Error updating assignment:", error);
-      alert("Error updating assignment: " + error.message);
+      setConflictModal({
+        open: true,
+        conflicts: ["Error updating assignment: " + (error.message || "Unknown error")],
+      });
     }
   };
 
   const handleDelete = async (assignmentId) => {
-    if (!window.confirm("Are you sure you want to delete this assignment?")) {
-      return;
-    }
+    setDeleteModal({ open: true, assignmentId }); // Show modal instead of confirm
+  };
 
+  const confirmDelete = async () => {
+    const assignmentId = deleteModal.assignmentId;
     try {
       const timeAssignment = timeAssignments.find((a) => a.id === assignmentId);
       if (!timeAssignment) {
-        alert("Assignment not found.");
+        setConflictModal({
+          open: true,
+          conflicts: ["Assignment not found."],
+        });
+        setDeleteModal({ open: false, assignmentId: null });
         return;
       }
 
       const timeResult = await window.api.deleteAssignment(assignmentId);
       if (!timeResult.success) {
-        alert(timeResult.message);
+        setConflictModal({
+          open: true,
+          conflicts: [timeResult.message],
+        });
+        setDeleteModal({ open: false, assignmentId: null });
         return;
       }
 
@@ -821,7 +930,11 @@ export default function Home() {
       if (roomAssignment) {
         const roomResult = await window.api.deleteAssignment(roomAssignment.id);
         if (!roomResult.success) {
-          alert(roomResult.message);
+          setConflictModal({
+            open: true,
+            conflicts: [roomResult.message],
+          });
+          setDeleteModal({ open: false, assignmentId: null });
           return;
         }
       }
@@ -830,11 +943,18 @@ export default function Home() {
       setTimeAssignments(data.filter((a) => a.type === "time") || []);
       setRoomAssignments(data.filter((a) => a.type === "room") || []);
       setSubjectAssignments(data.filter((a) => a.type === "subject") || []);
-      alert("Assignment deleted successfully!");
+      setConflictModal({
+        open: true,
+        conflicts: ["Assignment deleted successfully!"],
+      });
     } catch (error) {
       console.error("Error deleting assignment:", error);
-      alert("Error deleting assignment: " + error.message);
+      setConflictModal({
+        open: true,
+        conflicts: ["Error deleting assignment: " + error.message],
+      });
     }
+    setDeleteModal({ open: false, assignmentId: null });
   };
 
   const filteredAssignments = assignments.filter((assignment) => {
@@ -890,7 +1010,6 @@ export default function Home() {
               </button>
             </div>
 
-            {/* Full screen content */}
             <div className="space-y-8">
               {fullScheduleActive ? (
                 <div>
@@ -908,17 +1027,11 @@ export default function Home() {
                       <table className="w-full border-collapse text-sm">
                         <thead className="bg-gray-50 sticky top-0 z-10">
                           <tr className="bg-gray-50">
-                            <th className="border p-2 text-md" style={{ width: "80px" }}>
-                              Program
-                            </th>
-                            <th className="border p-2 text-center" style={{ width: "60px" }}>
-                              Day
-                            </th>
+                            <th className="border p-2 text-md" style={{ width: "80px" }}>Program</th>
+                            <th className="border p-2 text-center" style={{ width: "60px" }}>Day</th>
                             <th className="border p-2 text-center" style={{ width: "120px" }}>Time</th>
                             {yearLevels.map((level) => (
-                              <th key={level} className="border p-2 text-center">
-                                {level}
-                              </th>
+                              <th key={level} className="border p-2 text-center">{level}</th>
                             ))}
                           </tr>
                         </thead>
@@ -1003,15 +1116,17 @@ export default function Home() {
                                     row.push(
                                       <td
                                         key={`${program.id}-${day}-${timeIndex}-${level}`}
-                                        className={`p-2 relative text-sm align-middle bg-transparent`}
+                                        className="p-2 relative text-sm align-middle bg-transparent"
                                         style={{
                                           maxWidth: "100px",
                                           height: `${35 * levelData.span}px`,
                                           verticalAlign: "middle",
                                         }}
                                         rowSpan={levelData.span}
-                                        onDragOver={(e) => e.preventDefault()}
-                                        onDrop={(e) => handleDrop(e, day, timeIndex, level, program.id)}
+                                        {...(userRole !== 'user' ? {
+                                          onDragOver: (e) => e.preventDefault(),
+                                          onDrop: (e) => handleDrop(e, day, timeIndex, level, program.id)
+                                        } : {})}
                                       >
                                         <div className="flex items-center justify-start h-full px-1">
                                           <div className="relative group">
@@ -1025,15 +1140,123 @@ export default function Home() {
                                               className="absolute left-0 top-6 bg-gray-900 text-white text-xs rounded-lg p-3 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20 min-w-52 border border-gray-700"
                                               style={{ zIndex: 20 }}
                                             >
-                                              <div className="text-left space-y-1">
-                                                <div className="font-bold text-white border-b border-gray-700 pb-1">
-                                                  {subjectName}
+                                              {editingAssignment && editingAssignment.id === assignment.id && userRole !== 'user' ? (
+                                                <div className="space-y-2">
+                                                  <div className="font-bold text-white border-b border-gray-700 pb-1">
+                                                    {subjectName}
+                                                  </div>
+                                                  <div className="text-blue-200">{teacherName}</div>
+                                                  <div>
+                                                    <label className="block text-gray-300">Start Time</label>
+                                                    <select
+                                                      value={editingAssignment.startTime || ""}
+                                                      onChange={(e) =>
+                                                        setEditingAssignment({ ...editingAssignment, startTime: e.target.value })
+                                                      }
+                                                      className="w-full p-1 border bg-gray-800 text-white rounded-md"
+                                                    >
+                                                      <option value="">Select start time</option>
+                                                      {timeSlots.map((slot) => (
+                                                        <option key={slot} value={slot}>{slot}</option>
+                                                      ))}
+                                                    </select>
+                                                  </div>
+                                                  <div>
+                                                    <label className="block text-gray-300">Duration</label>
+                                                    <select
+                                                      value={editingAssignment.duration || ""}
+                                                      onChange={(e) =>
+                                                        setEditingAssignment({ ...editingAssignment, duration: e.target.value })
+                                                      }
+                                                      className="w-full p-1 border bg-gray-800 text-white rounded-md"
+                                                    >
+                                                      <option value="">Select duration</option>
+                                                      <option value="60">1 hour</option>
+                                                      <option value="120">2 hours</option>
+                                                      <option value="180">3 hours</option>
+                                                      <option value="240">4 hours</option>
+                                                    </select>
+                                                  </div>
+                                                  <div>
+                                                    <label className="block text-gray-300">Room</label>
+                                                    <select
+                                                      value={editingAssignment.roomId || ""}
+                                                      onChange={(e) =>
+                                                        setEditingAssignment({ ...editingAssignment, roomId: e.target.value })
+                                                      }
+                                                      className="w-full p-1 border bg-gray-800 text-white rounded-md"
+                                                    >
+                                                      <option value="">No Room</option>
+                                                      {rooms.map((room) => (
+                                                        <option key={room.id} value={room.id}>{room.name}</option>
+                                                      ))}
+                                                    </select>
+                                                  </div>
+                                                  <div className="flex gap-2">
+                                                    <button
+                                                      onClick={() =>
+                                                        handleSaveEdit(assignment.id, {
+                                                          ...assignment,
+                                                          startTime: editingAssignment.startTime,
+                                                          duration: editingAssignment.duration,
+                                                          roomId: editingAssignment.roomId,
+                                                        })
+                                                      }
+                                                      className="px-2 py-1 bg-teal-600 text-white rounded-md hover:bg-teal-700"
+                                                    >
+                                                      Save
+                                                    </button>
+                                                    <button
+                                                      onClick={() => setEditingAssignment(null)}
+                                                      className="px-2 py-1 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+                                                    >
+                                                      Cancel
+                                                    </button>
+                                                  </div>
                                                 </div>
-                                                <div className="text-blue-200">{teacherName}</div>
-                                                <div className="text-gray-300">{assignment.timeSlot} - {day}</div>
-                                                <div className="text-gray-300">Room: {room}</div>
-                                                <div className="text-gray-300">Program: {program.name}</div>
-                                              </div>
+                                              ) : (
+                                                <div className="text-left space-y-1">
+                                                  <div className="font-bold text-white border-b border-gray-700 pb-1">
+                                                    {subjectName}
+                                                  </div>
+                                                  <div className="text-blue-200">{teacherName}</div>
+                                                  <div className="text-gray-300">{assignment.timeSlot} - {day}</div>
+                                                  <div className="text-gray-300">Room: {room}</div>
+                                                  <div className="text-gray-300">Program: {program.name}</div>
+                                                  {userRole !== 'user' && (
+                                                    <div className="flex gap-2">
+                                                      <button
+                                                        onClick={() =>
+                                                          setEditingAssignment({
+                                                            ...assignment,
+                                                            startTime: assignment.timeSlot.split('-')[0].trim(),
+                                                            duration: assignment.duration,
+                                                            roomId:
+                                                              roomAssignments.find(
+                                                                (ra) =>
+                                                                  ra.scheduleFileId === assignment.scheduleFileId &&
+                                                                  ra.subjectId === assignment.subjectId &&
+                                                                  ra.teacherId === assignment.teacherId &&
+                                                                  ra.classId === assignment.classId
+                                                              )?.roomId || '',
+                                                          })
+                                                        }
+                                                        className="text-blue-500 hover:text-blue-300 text-xs"
+                                                        title="Edit"
+                                                      >
+                                                        Edit
+                                                      </button>
+                                                      <button
+                                                        onClick={() => handleDelete(assignment.id)}
+                                                        className="text-red-500 hover:text-red-300 text-xs"
+                                                        title="Remove"
+                                                      >
+                                                        <FiTrash2 />
+                                                      </button>
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              )}
                                               <div className="absolute -top-2 left-3 w-0 h-0 border-l-4 border-r-4 border-b-4 border-l-transparent border-r-transparent border-b-gray-900"></div>
                                             </div>
                                           </div>
@@ -1053,8 +1276,10 @@ export default function Home() {
                                         key={`${program.id}-${day}-${timeIndex}-${level}`}
                                         className={`border p-1 relative text-sm text-center align-middle ${bgColor}`}
                                         style={{ minWidth: "140px", height: "35px" }}
-                                        onDragOver={(e) => e.preventDefault()}
-                                        onDrop={(e) => handleDrop(e, day, timeIndex, level, program.id)}
+                                        {...(userRole !== 'user' ? {
+                                          onDragOver: (e) => e.preventDefault(),
+                                          onDrop: (e) => handleDrop(e, day, timeIndex, level, program.id)
+                                        } : {})}
                                       ></td>
                                     );
                                   }
@@ -1097,9 +1322,7 @@ export default function Home() {
                               </th>
                               <th className="border p-2 text-center" style={{ width: "120px" }}>Time</th>
                               {levels.map((level) => (
-                                <th key={level} className="border p-2 text-center">
-                                  {level}
-                                </th>
+                                <th key={level} className="border p-2 text-center">{level}</th>
                               ))}
                             </tr>
                           </thead>
@@ -1158,15 +1381,17 @@ export default function Home() {
                                     row.push(
                                       <td
                                         key={`${day}-${timeIndex}-${level}`}
-                                        className={`p-2 relative text-sm align-middle bg-transparent`}
+                                        className="p-2 relative text-sm align-middle bg-transparent"
                                         style={{
                                           maxWidth: "100px",
                                           height: `${35 * levelData.span}px`,
                                           verticalAlign: "middle",
                                         }}
                                         rowSpan={levelData.span}
-                                        onDragOver={(e) => e.preventDefault()}
-                                        onDrop={(e) => handleDrop(e, day, timeIndex, level)}
+                                        {...(userRole !== 'user' ? {
+                                          onDragOver: (e) => e.preventDefault(),
+                                          onDrop: (e) => handleDrop(e, day, timeIndex, level)
+                                        } : {})}
                                       >
                                         <div className="flex items-center justify-start h-full px-1">
                                           <div className="relative group">
@@ -1180,7 +1405,7 @@ export default function Home() {
                                               className="absolute left-0 top-6 bg-gray-900 text-white text-xs rounded-lg p-3 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20 min-w-52 border border-gray-700"
                                               style={{ zIndex: 20 }}
                                             >
-                                              {editingAssignment && editingAssignment.id === assignment.id ? (
+                                              {editingAssignment && editingAssignment.id === assignment.id && userRole !== 'user' ? (
                                                 <div className="space-y-2">
                                                   <div className="font-bold text-white border-b border-gray-700 pb-1">
                                                     {subjectName}
@@ -1196,10 +1421,8 @@ export default function Home() {
                                                       className="w-full p-1 border bg-gray-800 text-white rounded-md"
                                                     >
                                                       <option value="">Select start time</option>
-                                                      {startTimeArray.map((slot) => (
-                                                        <option key={slot} value={slot}>
-                                                          {slot}
-                                                        </option>
+                                                      {timeSlots.map((slot) => (
+                                                        <option key={slot} value={slot}>{slot}</option>
                                                       ))}
                                                     </select>
                                                   </div>
@@ -1230,9 +1453,7 @@ export default function Home() {
                                                     >
                                                       <option value="">No Room</option>
                                                       {rooms.map((room) => (
-                                                        <option key={room.id} value={room.id}>
-                                                          {room.name}
-                                                        </option>
+                                                        <option key={room.id} value={room.id}>{room.name}</option>
                                                       ))}
                                                     </select>
                                                   </div>
@@ -1266,36 +1487,41 @@ export default function Home() {
                                                   <div className="text-blue-200">{teacherName}</div>
                                                   <div className="text-gray-300">{assignment.timeSlot} - {day}</div>
                                                   <div className="text-gray-300">Room: {room}</div>
-                                                  <div className="flex gap-2">
-                                                    <button
-                                                      onClick={() =>
-                                                        setEditingAssignment({
-                                                          ...assignment,
-                                                          startTime: assignment.timeSlot.split('-')[0].trim(),
-                                                          duration: assignment.duration,
-                                                          roomId:
-                                                            roomAssignments.find(
-                                                              (ra) =>
-                                                                ra.scheduleFileId === assignment.scheduleFileId &&
-                                                                ra.subjectId === assignment.subjectId &&
-                                                                ra.teacherId === assignment.teacherId &&
-                                                                ra.classId === assignment.classId
-                                                            )?.roomId || '',
-                                                        })
-                                                      }
-                                                      className="text-blue-500 hover:text-blue-300 text-xs"
-                                                      title="Edit"
-                                                    >
-                                                      Edit
-                                                    </button>
-                                                    <button
-                                                      onClick={() => handleDelete(assignment.id)}
-                                                      className="text-red-500 hover:text-red-300 text-xs"
-                                                      title="Remove"
-                                                    >
-                                                      <FiTrash2 />
-                                                    </button>
-                                                  </div>
+                                                  {fullScheduleActive && (
+                                                    <div className="text-gray-300">Program: {program.name}</div>
+                                                  )}
+                                                  {userRole !== 'user' && (
+                                                    <div className="flex gap-2">
+                                                      <button
+                                                        onClick={() =>
+                                                          setEditingAssignment({
+                                                            ...assignment,
+                                                            startTime: assignment.timeSlot.split('-')[0].trim(),
+                                                            duration: assignment.duration,
+                                                            roomId:
+                                                              roomAssignments.find(
+                                                                (ra) =>
+                                                                  ra.scheduleFileId === assignment.scheduleFileId &&
+                                                                  ra.subjectId === assignment.subjectId &&
+                                                                  ra.teacherId === assignment.teacherId &&
+                                                                  ra.classId === assignment.classId
+                                                              )?.roomId || '',
+                                                          })
+                                                        }
+                                                        className="text-blue-500 hover:text-blue-300 text-xs"
+                                                        title="Edit"
+                                                      >
+                                                        Edit
+                                                      </button>
+                                                      <button
+                                                        onClick={() => handleDelete(assignment.id)}
+                                                        className="text-red-500 hover:text-red-300 text-xs"
+                                                        title="Remove"
+                                                      >
+                                                        <FiTrash2 />
+                                                      </button>
+                                                    </div>
+                                                  )}
                                                 </div>
                                               )}
                                               <div className="absolute -top-2 left-3 w-0 h-0 border-l-4 border-r-4 border-b-4 border-l-transparent border-r-transparent border-b-gray-900"></div>
@@ -1317,8 +1543,10 @@ export default function Home() {
                                         key={`${day}-${timeIndex}-${level}`}
                                         className={`border p-1 relative text-sm text-center align-middle ${bgColor}`}
                                         style={{ minWidth: "140px", height: "35px" }}
-                                        onDragOver={(e) => e.preventDefault()}
-                                        onDrop={(e) => handleDrop(e, day, timeIndex, level)}
+                                        {...(userRole !== 'user' ? {
+                                          onDragOver: (e) => e.preventDefault(),
+                                          onDrop: (e) => handleDrop(e, day, timeIndex, level)
+                                        } : {})}
                                       ></td>
                                     );
                                   }
@@ -1377,17 +1605,11 @@ export default function Home() {
                     <table className="w-full border-collapse text-sm">
                       <thead className="bg-gray-50 sticky top-0 z-10">
                         <tr className="bg-gray-50">
-                          <th className="border p-2 text-md" style={{ width: "80px" }}>
-                            Program
-                          </th>
-                          <th className="border p-2 text-center" style={{ width: "60px" }}>
-                            Day
-                          </th>
+                          <th className="border p-2 text-md" style={{ width: "80px" }}>Program</th>
+                          <th className="border p-2 text-center" style={{ width: "60px" }}>Day</th>
                           <th className="border p-2 text-center" style={{ width: "120px" }}>Time</th>
                           {yearLevels.map((level) => (
-                            <th key={level} className="border p-2 text-center">
-                              {level}
-                            </th>
+                            <th key={level} className="border p-2 text-center">{level}</th>
                           ))}
                         </tr>
                       </thead>
@@ -1472,15 +1694,17 @@ export default function Home() {
                                   row.push(
                                     <td
                                       key={`${program.id}-${day}-${timeIndex}-${level}`}
-                                      className={`p-2 relative text-sm align-middle bg-transparent`}
+                                      className="p-2 relative text-sm align-middle bg-transparent"
                                       style={{
                                         maxWidth: "100px",
                                         height: `${35 * levelData.span}px`,
                                         verticalAlign: "middle",
                                       }}
                                       rowSpan={levelData.span}
-                                      onDragOver={(e) => e.preventDefault()}
-                                      onDrop={(e) => handleDrop(e, day, timeIndex, level, program.id)}
+                                      {...(userRole !== 'user' ? {
+                                        onDragOver: (e) => e.preventDefault(),
+                                        onDrop: (e) => handleDrop(e, day, timeIndex, level, program.id)
+                                      } : {})}
                                     >
                                       <div className="flex items-center justify-start h-full px-1">
                                         <div className="relative group">
@@ -1502,6 +1726,38 @@ export default function Home() {
                                               <div className="text-gray-300">{assignment.timeSlot} - {day}</div>
                                               <div className="text-gray-300">Room: {room}</div>
                                               <div className="text-gray-300">Program: {program.name}</div>
+                                              {userRole !== 'user' && (
+                                                <div className="flex gap-2">
+                                                  <button
+                                                    onClick={() =>
+                                                      setEditingAssignment({
+                                                        ...assignment,
+                                                        startTime: assignment.timeSlot.split('-')[0].trim(),
+                                                        duration: assignment.duration,
+                                                        roomId:
+                                                          roomAssignments.find(
+                                                            (ra) =>
+                                                              ra.scheduleFileId === assignment.scheduleFileId &&
+                                                              ra.subjectId === assignment.subjectId &&
+                                                              ra.teacherId === assignment.teacherId &&
+                                                              ra.classId === assignment.classId
+                                                          )?.roomId || '',
+                                                      })
+                                                    }
+                                                    className="text-blue-500 hover:text-blue-300 text-xs"
+                                                    title="Edit"
+                                                  >
+                                                    Edit
+                                                  </button>
+                                                  <button
+                                                    onClick={() => handleDelete(assignment.id)}
+                                                    className="text-red-500 hover:text-red-300 text-xs"
+                                                    title="Remove"
+                                                  >
+                                                    <FiTrash2 />
+                                                  </button>
+                                                </div>
+                                              )}
                                             </div>
                                             <div className="absolute -top-2 left-3 w-0 h-0 border-l-4 border-r-4 border-b-4 border-l-transparent border-r-transparent border-b-gray-900"></div>
                                           </div>
@@ -1522,8 +1778,10 @@ export default function Home() {
                                       key={`${program.id}-${day}-${timeIndex}-${level}`}
                                       className={`border p-1 relative text-sm text-center align-middle ${bgColor}`}
                                       style={{ minWidth: "140px", height: "35px" }}
-                                      onDragOver={(e) => e.preventDefault()}
-                                      onDrop={(e) => handleDrop(e, day, timeIndex, level, program.id)}
+                                      {...(userRole !== 'user' ? {
+                                        onDragOver: (e) => e.preventDefault(),
+                                        onDrop: (e) => handleDrop(e, day, timeIndex, level, program.id)
+                                      } : {})}
                                     ></td>
                                   );
                                 }
@@ -1572,9 +1830,7 @@ export default function Home() {
                             </th>
                             <th className="border p-2 text-center" style={{ width: "120px" }}>Time</th>
                             {levels.map((level) => (
-                              <th key={level} className="border p-2 text-center">
-                                {level}
-                              </th>
+                              <th key={level} className="border p-2 text-center">{level}</th>
                             ))}
                           </tr>
                         </thead>
@@ -1633,15 +1889,17 @@ export default function Home() {
                                   row.push(
                                     <td
                                       key={`${day}-${timeIndex}-${level}`}
-                                      className={`p-2 relative text-sm align-middle bg-transparent`}
+                                      className="p-2 relative text-sm align-middle bg-transparent"
                                       style={{
                                         maxWidth: "100px",
                                         height: `${35 * levelData.span}px`,
                                         verticalAlign: "middle",
                                       }}
                                       rowSpan={levelData.span}
-                                      onDragOver={(e) => e.preventDefault()}
-                                      onDrop={(e) => handleDrop(e, day, timeIndex, level)}
+                                      {...(userRole !== 'user' ? {
+                                        onDragOver: (e) => e.preventDefault(),
+                                        onDrop: (e) => handleDrop(e, day, timeIndex, level)
+                                      } : {})}
                                     >
                                       <div className="flex items-center justify-start h-full px-1">
                                         <div className="relative group">
@@ -1655,7 +1913,7 @@ export default function Home() {
                                             className="absolute left-0 top-6 bg-gray-900 text-white text-xs rounded-lg p-3 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20 min-w-52 border border-gray-700"
                                             style={{ zIndex: 20 }}
                                           >
-                                            {editingAssignment && editingAssignment.id === assignment.id ? (
+                                            {editingAssignment && editingAssignment.id === assignment.id && userRole !== 'user' ? (
                                               <div className="space-y-2">
                                                 <div className="font-bold text-white border-b border-gray-700 pb-1">
                                                   {subjectName}
@@ -1671,10 +1929,8 @@ export default function Home() {
                                                     className="w-full p-1 border bg-gray-800 text-white rounded-md"
                                                   >
                                                     <option value="">Select start time</option>
-                                                    {startTimeArray.map((slot) => (
-                                                      <option key={slot} value={slot}>
-                                                        {slot}
-                                                      </option>
+                                                    {timeSlots.map((slot) => (
+                                                      <option key={slot} value={slot}>{slot}</option>
                                                     ))}
                                                   </select>
                                                 </div>
@@ -1705,9 +1961,7 @@ export default function Home() {
                                                   >
                                                     <option value="">No Room</option>
                                                     {rooms.map((room) => (
-                                                      <option key={room.id} value={room.id}>
-                                                        {room.name}
-                                                      </option>
+                                                      <option key={room.id} value={room.id}>{room.name}</option>
                                                     ))}
                                                   </select>
                                                 </div>
@@ -1733,166 +1987,201 @@ export default function Home() {
                                                   </button>
                                                 </div>
                                               </div>
-                                            ) : (
-                                              <div className="text-left space-y-1">
-                                                <div className="font-bold text-white border-b border-gray-700 pb-1">
-                                                  {subjectName}
+                                              ) : (
+                                                <div className="text-left space-y-1">
+                                                  <div className="font-bold text-white border-b border-gray-700 pb-1">
+                                                    {subjectName}
+                                                  </div>
+                                                  <div className="text-blue-200">{teacherName}</div>
+                                                  <div className="text-gray-300">{assignment.timeSlot} - {day}</div>
+                                                  <div className="text-gray-300">Room: {room}</div>
+                                                  {fullScheduleActive && (
+                                                    <div className="text-gray-300">Program: {program.name}</div>
+                                                  )}
+                                                  {userRole !== 'user' && (
+                                                    <div className="flex gap-2">
+                                                      <button
+                                                        onClick={() =>
+                                                          setEditingAssignment({
+                                                            ...assignment,
+                                                            startTime: assignment.timeSlot.split('-')[0].trim(),
+                                                            duration: assignment.duration,
+                                                            roomId:
+                                                              roomAssignments.find(
+                                                                (ra) =>
+                                                                  ra.scheduleFileId === assignment.scheduleFileId &&
+                                                                  ra.subjectId === assignment.subjectId &&
+                                                                  ra.teacherId === assignment.teacherId &&
+                                                                  ra.classId === assignment.classId
+                                                              )?.roomId || '',
+                                                          })
+                                                        }
+                                                        className="text-blue-500 hover:text-blue-300 text-xs"
+                                                        title="Edit"
+                                                      >
+                                                        Edit
+                                                      </button>
+                                                      <button
+                                                        onClick={() => handleDelete(assignment.id)}
+                                                        className="text-red-500 hover:text-red-300 text-xs"
+                                                        title="Remove"
+                                                      >
+                                                        <FiTrash2 />
+                                                      </button>
+                                                    </div>
+                                                  )}
                                                 </div>
-                                                <div className="text-blue-200">{teacherName}</div>
-                                                <div className="text-gray-300">{assignment.timeSlot} - {day}</div>
-                                                <div className="text-gray-300">Room: {room}</div>
-                                                <div className="flex gap-2">
-                                                  <button
-                                                    onClick={() =>
-                                                      setEditingAssignment({
-                                                        ...assignment,
-                                                        startTime: assignment.timeSlot.split('-')[0].trim(),
-                                                        duration: assignment.duration,
-                                                        roomId:
-                                                          roomAssignments.find(
-                                                            (ra) =>
-                                                              ra.scheduleFileId === assignment.scheduleFileId &&
-                                                              ra.subjectId === assignment.subjectId &&
-                                                              ra.teacherId === assignment.teacherId &&
-                                                              ra.classId === assignment.classId
-                                                          )?.roomId || '',
-                                                      })
-                                                    }
-                                                    className="text-blue-500 hover:text-blue-300 text-xs"
-                                                    title="Edit"
-                                                  >
-                                                    Edit
-                                                  </button>
-                                                  <button
-                                                    onClick={() => handleDelete(assignment.id)}
-                                                    className="text-red-500 hover:text-red-300 text-xs"
-                                                    title="Remove"
-                                                  >
-                                                    <FiTrash2 />
-                                                  </button>
-                                                </div>
-                                              </div>
-                                            )}
-                                            <div className="absolute -top-2 left-3 w-0 h-0 border-l-4 border-r-4 border-b-4 border-l-transparent border-r-transparent border-b-gray-900"></div>
+                                              )}
+                                              <div className="absolute -top-2 left-3 w-0 h-0 border-l-4 border-r-4 border-b-4 border-l-transparent border-r-transparent border-b-gray-900"></div>
+                                            </div>
+                                          </div>
+                                          <div className="flex-1 text-left overflow-hidden">
+                                            <div className="text-xs font-semibold leading-tight text-gray-800 truncate">
+                                              {subjectName}
+                                            </div>
+                                            <div className="text-xs text-gray-600 leading-tight truncate">{teacherName}</div>
                                           </div>
                                         </div>
-                                        <div className="flex-1 text-left overflow-hidden">
-                                          <div className="text-xs font-semibold leading-tight text-gray-800 truncate">
-                                            {subjectName}
-                                          </div>
-                                          <div className="text-xs text-gray-600 leading-tight truncate">{teacherName}</div>
-                                        </div>
-                                      </div>
-                                    </td>
-                                  );
-                                } else {
-                                  const bgColor = isAvailable ? "bg-teal-50" : "";
-                                  row.push(
-                                    <td
-                                      key={`${day}-${timeIndex}-${level}`}
-                                      className={`border p-1 relative text-sm text-center align-middle ${bgColor}`}
-                                      style={{ minWidth: "140px", height: "35px" }}
-                                      onDragOver={(e) => e.preventDefault()}
-                                      onDrop={(e) => handleDrop(e, day, timeIndex, level)}
-                                    ></td>
-                                  );
-                                }
+                                      </td>
+                                    );
+                                  } else {
+                                    const bgColor = isAvailable ? "bg-teal-50" : "";
+                                    row.push(
+                                      <td
+                                        key={`${day}-${timeIndex}-${level}`}
+                                        className={`border p-1 relative text-sm text-center align-middle ${bgColor}`}
+                                        style={{ minWidth: "140px", height: "35px" }}
+                                        {...(userRole !== 'user' ? {
+                                          onDragOver: (e) => e.preventDefault(),
+                                          onDrop: (e) => handleDrop(e, day, timeIndex, level)
+                                        } : {})}
+                                      ></td>
+                                    );
+                                  }
+                                });
+
+                                rows.push(
+                                  <tr key={`${day}-${timeIndex}`}>
+                                    {row}
+                                  </tr>
+                                );
                               });
 
-                              rows.push(
-                                <tr key={`${day}-${timeIndex}`}>
-                                  {row}
-                                </tr>
-                              );
-                            });
-
-                            return rows;
-                          })}
-                        </tbody>
-                      </table>
+                              return rows;
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
-            )}
+                ))
+              )}
           </div>
 
-          <div className="w-80 bg-white rounded-lg shadow-sm border" style={{ zIndex: 10 }}>
-            <div className="bg-zinc-900 rounded-t-lg p-4 text-white">
-              <h2 className="text-md font-semibold mb-4">Assignment List</h2>
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search by subject or teacher..."
-                className="w-full p-2 border bg-zinc-900 border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500"
-              />
-              <div className="mt-2">
-                <select
-                  value={filterOptions.teacherId}
-                  onChange={(e) => {
-                    const teacherId = e.target.value ? parseInt(e.target.value) : "";
-                    setFilterOptions({ ...filterOptions, teacherId });
-                    setSelectedTeacherId(teacherId || null);
-                  }}
-                  className="w-full p-2 border bg-zinc-900 border-gray-300 rounded-md"
-                >
-                  <option value="">All Teachers</option>
-                  {teachers.map((teacher) => (
-                    <option key={teacher.id} value={teacher.id}>
-                      {teacher.honorifics} {teacher.fullName}
-                    </option>
-                  ))}
-                </select>
-                <label className="flex items-center gap-2 mt-2">
-                  <input
-                    type="checkbox"
-                    checked={filterOptions.showWithSchedule}
-                    onChange={(e) => setFilterOptions({ ...filterOptions, showWithSchedule: e.target.checked })}
-                    className="h-4 w-4 text-teal-600"
-                  />
-                  Show with schedule
-                </label>
-                <label className="flex items-center gap-2 mt-1">
-                  <input
-                    type="checkbox"
-                    checked={filterOptions.showWithoutSchedule}
-                    onChange={(e) => setFilterOptions({ ...filterOptions, showWithoutSchedule: e.target.checked })}
-                    className="h-4 w-4 text-teal-600"
-                  />
-                  Show without schedule
-                </label>
+          {userRole !== 'user' && (
+            <div className="w-80 bg-white rounded-lg shadow-sm border" style={{ zIndex: 10 }}>
+              <div className="bg-zinc-900 rounded-t-lg p-4 text-white">
+                <h2 className="text-md font-semibold mb-4">Assignment List</h2>
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search by subject or teacher..."
+                  className="w-full p-2 border bg-zinc-900 border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500"
+                />
+                <div className="mt-2">
+                  <select
+                    value={filterOptions.teacherId}
+                    onChange={(e) => {
+                      const teacherId = e.target.value ? parseInt(e.target.value) : "";
+                      setFilterOptions({ ...filterOptions, teacherId });
+                      setSelectedTeacherId(teacherId || null);
+                    }}
+                    className="w-full p-2 border bg-zinc-900 border-gray-300 rounded-md"
+                  >
+                    <option value="">All Teachers</option>
+                    {teachers.map((teacher) => (
+                      <option key={teacher.id} value={teacher.id}>
+                        {teacher.honorifics} {teacher.fullName}
+                      </option>
+                    ))}
+                  </select>
+                  <label className="flex items-center gap-2 mt-2">
+                    <input
+                      type="checkbox"
+                      checked={filterOptions.showWithSchedule}
+                      onChange={(e) => setFilterOptions({ ...filterOptions, showWithSchedule: e.target.checked })}
+                      className="h-4 w-4 text-teal-600"
+                    />
+                    Show with schedule
+                  </label>
+                  <label className="flex items-center gap-2 mt-1">
+                    <input
+                      type="checkbox"
+                      checked={filterOptions.showWithoutSchedule}
+                      onChange={(e) => setFilterOptions({ ...filterOptions, showWithoutSchedule: e.target.checked })}
+                      className="h-4 w-4 text-teal-600"
+                    />
+                    Show without schedule
+                  </label>
+                </div>
+              </div>
+              <div className="space-y-2 h-[900px] overflow-y-auto p-4">
+                {filteredAssignments.map((assignment) => (
+                  <div
+                    key={assignment.id}
+                    {...(userRole !== 'user' ? {
+                      draggable: true,
+                      onDragStart: (e) => e.dataTransfer.setData("text/plain", assignment.id)
+                    } : {})}
+                    className="p-2 bg-gray-50 rounded-md cursor-move border border-gray-200 hover:bg-gray-100"
+                  >
+                    <div className="text-sm font-medium">{getSubjectName(assignment.subjectId)}</div>
+                    <div className="text-xs text-gray-600">{getTeacherName(assignment.teacherId)}</div>
+                    {assignment.timeSlot && (
+                      <div className="text-xs text-gray-500">
+                        {assignment.day} {assignment.timeSlot} ({getClassName(assignment.classId)})
+                      </div>
+                    )}
+                    {assignment.roomId && (
+                      <div className="text-xs text-gray-500">Room: {getRoomName(assignment.roomId)}</div>
+                    )}
+                    {!assignment.timeSlot && (
+                      <div className="text-xs text-orange-500">Unscheduled</div>
+                    )}
+                  </div>
+                ))}
+                {filteredAssignments.length === 0 && (
+                  <div className="text-sm text-gray-500 italic">No assignments found.</div>
+                )}
               </div>
             </div>
-            <div className="space-y-2 min-h-96 overflow-y-auto p-4">
-              {filteredAssignments.map((assignment) => (
-                <div
-                  key={assignment.id}
-                  draggable
-                  onDragStart={(e) => e.dataTransfer.setData("text/plain", assignment.id)}
-                  className="p-2 bg-gray-50 rounded-md cursor-move border border-gray-200 hover:bg-gray-100"
-                >
-                  <div className="text-sm font-medium">{getSubjectName(assignment.subjectId)}</div>
-                  <div className="text-xs text-gray-600">{getTeacherName(assignment.teacherId)}</div>
-                  {assignment.timeSlot && (
-                    <div className="text-xs text-gray-500">
-                      {assignment.day} {assignment.timeSlot} ({getClassName(assignment.classId)})
-                    </div>
-                  )}
-                  {assignment.roomId && (
-                    <div className="text-xs text-gray-500">Room: {getRoomName(assignment.roomId)}</div>
-                  )}
-                  {!assignment.timeSlot && (
-                    <div className="text-xs text-orange-500">Unscheduled</div>
-                  )}
-                </div>
-              ))}
-              {filteredAssignments.length === 0 && (
-                <div className="text-sm text-gray-500 italic">No assignments found.</div>
-              )}
-            </div>
-          </div>
+          )}
         </div>
+      )}
+      {conflictModal.open && (
+        <Modal
+          title="Scheduling Conflicts"
+          type="alert"
+          message={
+            <ul className="list-disc pl-5">
+              {conflictModal.conflicts.map((conflict, index) => (
+                <li key={index} className="text-red-600">{conflict}</li>
+              ))}
+            </ul>
+          }
+          onClose={() => setConflictModal({ open: false, conflicts: [] })}
+        />
+      )}
+
+      {deleteModal.open && userRole !== 'user' && (
+        <Modal
+          title="Confirm Deletion"
+          type="confirm"
+          message="Are you sure you want to delete this assignment?"
+          onClose={() => setDeleteModal({ open: false, assignmentId: null })}
+          onConfirm={confirmDelete}
+        />
       )}
     </>
   );

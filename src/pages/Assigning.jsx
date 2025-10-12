@@ -197,13 +197,27 @@ export default function Assigning() {
     }
   };
 
+  const parseTime = (timeStr) => {
+    const [time, period] = timeStr.split(' ');
+    let [hours, minutes] = time.split(':').map(Number);
+    if (period === 'PM' && hours !== 12) hours += 12;
+    if (period === 'AM' && hours === 12) hours = 0;
+    return hours * 60 + minutes;
+  };
+
+  const formatTime = (minutes) => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    const period = hours >= 12 ? 'PM' : 'AM';
+    const displayHours = hours % 12 === 0 ? 12 : hours % 12;
+    return `${displayHours}:${mins.toString().padStart(2, '0')} ${period}`;
+  };
+
   const getTimeSlotRange = (startTime, duration) => {
-    const startIndex = startTimeArray.indexOf(startTime);
-    if (startIndex === -1) return "";
-    const hours = Math.round(parseInt(duration) / 60);
-    const endIndex = startIndex + hours;
-    if (endIndex > startTimeArray.length) return "";
-    const endTime = startTimeArray[endIndex] || startTimeArray[startTimeArray.length - 1];
+    const startMinutes = parseTime(startTime);
+    if (startMinutes === null) return "";
+    const endMinutes = startMinutes + parseInt(duration);
+    const endTime = formatTime(endMinutes);
     return `${startTime}-${endTime}`;
   };
 
@@ -250,13 +264,47 @@ export default function Assigning() {
           const referenceAssignment = existingAssignments[0];
           if (
             referenceAssignment.timeSlot.split('-')[0].trim() !== formData.timeSlot ||
-            referenceAssignment.duration !== formData.duration
+            referenceAssignment.duration !== parseInt(formData.duration)
           ) {
             alert(
               "Cannot save: Merged classes must have the same start time and duration for the same subject, teacher, and day."
             );
             return;
           }
+        }
+
+        // Check for conflicts
+        const startSlot = timeSlots.findIndex((slot) => slot.split('-')[0].trim() === formData.timeSlot);
+        const span = Math.round(parseInt(formData.duration) / 30);
+        const dayAssignments = assignments.filter(
+          (a) => a.type === "time" && a.day === assignmentData.day && (!editingId || a.id !== editingId)
+        );
+
+        const conflicts = new Set();
+        for (let i = startSlot; i < startSlot + span; i++) {
+          dayAssignments.forEach((ass) => {
+            const assStart = timeSlots.findIndex((slot) => slot.split('-')[0].trim() === ass.timeSlot.split('-')[0].trim());
+            const assSpan = Math.round(ass.duration / 30);
+            if (assStart <= i && assStart + assSpan > i) {
+              if (ass.teacherId === assignmentData.teacherId && ass.subjectId !== assignmentData.subjectId) {
+                conflicts.add(
+                  `Teacher ${teachers.find((t) => t.id === ass.teacherId)?.fullName || "Unknown"} is already assigned to ${
+                    subjects.find((s) => s.id === ass.subjectId)?.name || "Unknown"
+                  } at this time.`
+                );
+              }
+              if (ass.classId === assignmentData.classId) {
+                conflicts.add(
+                  `Class ${classes.find((c) => c.id === ass.classId)?.name || "Unknown"} is already scheduled at this time.`
+                );
+              }
+            }
+          });
+        }
+
+        if (conflicts.size > 0) {
+          alert([...conflicts].join("\n"));
+          return;
         }
       }
 
@@ -383,15 +431,20 @@ export default function Assigning() {
   };
 
   const timeSlots = [
-    '7:00 AM-8:00 AM', '8:00 AM-9:00 AM', '9:00 AM-10:00 AM', '10:00 AM-11:00 AM', '11:00 AM-12:00 PM',
-    '12:00 PM-1:00 PM', '1:00 PM-2:00 PM', '2:00 PM-3:00 PM', '3:00 PM-4:00 PM', '4:00 PM-5:00 PM',
-    '5:00 PM-6:00 PM', '6:00 PM-7:00 PM'
+    '7:00 AM - 7:30 AM', '7:30 AM - 8:00 AM', '8:00 AM - 8:30 AM', '8:30 AM - 9:00 AM',
+    '9:00 AM - 9:30 AM', '9:30 AM - 10:00 AM', '10:00 AM - 10:30 AM', '10:30 AM - 11:00 AM',
+    '11:00 AM - 11:30 AM', '11:30 AM - 12:00 PM', '12:00 PM - 12:30 PM', '12:30 PM - 1:00 PM',
+    '1:00 PM - 1:30 PM', '1:30 PM - 2:00 PM', '2:00 PM - 2:30 PM', '2:30 PM - 3:00 PM',
+    '3:00 PM - 3:30 PM', '3:30 PM - 4:00 PM', '4:00 PM - 4:30 PM', '4:30 PM - 5:00 PM',
+    '5:00 PM - 5:30 PM', '5:30 PM - 6:00 PM', '6:00 PM - 6:30 PM', '6:30 PM - 7:00 PM',
+    '7:00 PM - 7:30 PM'
   ];
 
   const startTimeArray = [
-    "7:00 AM", "8:00 AM", "9:00 AM", "10:00 AM", "11:00 AM",
-    "12:00 PM", "1:00 PM", "2:00 PM", "3:00 PM", "4:00 PM",
-    "5:00 PM", "6:00 PM"
+    "7:00 AM", "7:30 AM", "8:00 AM", "8:30 AM", "9:00 AM", "9:30 AM", "10:00 AM", "10:30 AM",
+    "11:00 AM", "11:30 AM", "12:00 PM", "12:30 PM", "1:00 PM", "1:30 PM", "2:00 PM", "2:30 PM",
+    "3:00 PM", "3:30 PM", "4:00 PM", "4:30 PM", "5:00 PM", "5:30 PM", "6:00 PM", "6:30 PM",
+    "7:00 PM"
   ];
 
   const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -426,13 +479,13 @@ export default function Assigning() {
         .filter(a => a.day === day)
         .map(a => {
           const startTime = a.timeSlot.split('-')[0].trim();
-          const slotIndex = timeSlots.findIndex(slot => slot.startsWith(startTime));
+          const slotIndex = timeSlots.findIndex(slot => slot.split('-')[0].trim() === startTime);
           const classNames = a.classIds
             .map(classId => classes.find(c => c.id === classId)?.name || "Unknown")
             .join(", ");
           return {
             start: slotIndex,
-            span: Math.round(a.duration / 60),
+            span: Math.round(a.duration / 30),
             assignment: {
               id: a.ids[0],
               subjectId: a.subjectId,
@@ -683,7 +736,7 @@ export default function Assigning() {
                     </span>
                   </div>
                   <span className="text-sm text-gray-500">
-                    {getTeacherSubjectCount(teacher.id)} subjects
+                    {getTeacherSubjectCount(teacher.id)}
                   </span>
                 </div>
               ))}
@@ -750,7 +803,6 @@ export default function Assigning() {
                                     </div>
                                   </div>
                                 </td>
-
                               );
                             } else if (ass.start < rowIndex && ass.start + ass.span > rowIndex) {
                               return null;
@@ -825,59 +877,84 @@ export default function Assigning() {
           </div>
 
           <div className="bg-white rounded-lg p-6 shadow-sm border">
-            <h2 className="text-lg font-semibold mb-4">Class Room Assignments</h2>
-            {selectedClassId ? (
-              <>
-                <div className="mb-4">
-                  <h3 className="text-md font-medium">
-                    {classes.find((c) => c.id === selectedClassId)?.name}
-                  </h3>
-                  <p className="text-sm text-gray-500">
-                    No. of Students: {classes.find((c) => c.id === selectedClassId)?.students || 0}
-                  </p>
+  <h2 className="text-lg font-semibold mb-4">Class Room Assignments</h2>
+  {selectedClassId ? (
+    <>
+      <div className="mb-6 pb-4 border-b">
+        <h3 className="text-md font-medium text-gray-900">
+          {classes.find((c) => c.id === selectedClassId)?.name}
+        </h3>
+        <p className="text-sm text-gray-500 mt-1">
+          {classes.find((c) => c.id === selectedClassId)?.students || 0} Students
+        </p>
+      </div>
+      <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+        {assignments
+          .filter((a) => a.type === "room" && a.classId === selectedClassId)
+          .map((assignment) => {
+            const timeAssignment = assignments.find(
+              (t) => t.type === "time" && t.subjectId === assignment.subjectId && t.classId === assignment.classId && t.teacherId === assignment.teacherId
+            );
+            const subjectAssignment = assignments.find(
+              (s) => s.type === "subject" && s.subjectId === assignment.subjectId && s.teacherId === assignment.teacherId
+            );
+            const teacher = teachers.find((t) => t.id === assignment.teacherId)?.fullName || "No teacher";
+            const room = rooms.find((r) => r.id === assignment.roomId)?.name || "No room";
+            const schedule = timeAssignment
+              ? { time: timeAssignment.timeSlot, day: timeAssignment.day }
+              : null;
+            return (
+              <div
+                key={assignment.id}
+                className="p-4 hover:bg-gray-50 rounded-lg border border-gray-200 transition-colors"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <h4 className="font-medium text-gray-900 mb-2">
+                      {subjects.find((s) => s.id === assignment.subjectId)?.name || "Unknown"}
+                    </h4>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-600">
+                      <span>{teacher}</span>
+                      <span className="text-gray-300">•</span>
+                      <span>{room}</span>
+                      {schedule && (
+                        <>
+                          <span className="text-gray-300">•</span>
+                          <span>{schedule.day}</span>
+                          <span className="text-gray-300">•</span>
+                          <span>{schedule.time}</span>
+                        </>
+                      )}
+                      {!schedule && (
+                        <>
+                          <span className="text-gray-300">•</span>
+                          <span className="text-amber-600">No schedule</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleDelete(assignment.id, "Room")}
+                    disabled={isDeleting}
+                    className={`ml-3 p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors ${
+                      isDeleting ? "opacity-50 cursor-not-allowed" : ""
+                    }`}
+                    aria-label="Delete assignment"
+                  >
+                    <FiTrash2 size={18} />
+                  </button>
                 </div>
-                <div className="space-y-2">
-                  {assignments
-                    .filter((a) => a.type === "room" && a.classId === selectedClassId)
-                    .map((assignment) => {
-                      const timeAssignment = assignments.find(
-                        (t) => t.type === "time" && t.subjectId === assignment.subjectId && t.classId === assignment.classId && t.teacherId === assignment.teacherId
-                      );
-                      const subjectAssignment = assignments.find(
-                        (s) => s.type === "subject" && s.subjectId === assignment.subjectId && s.teacherId === assignment.teacherId
-                      );
-                      const teacher = teachers.find((t) => t.id === assignment.teacherId)?.fullName || "No teacher";
-                      const room = rooms.find((r) => r.id === assignment.roomId)?.name || "No room";
-                      const schedule = timeAssignment
-                        ? `${timeAssignment.timeSlot} | ${timeAssignment.day}`
-                        : "No schedule";
-                      return (
-                        <div
-                          key={assignment.id}
-                          className="p-2 hover:bg-gray-50 rounded-md border-b"
-                        >
-                          <div className="flex justify-between">
-                            <span>{subjects.find((s) => s.id === assignment.subjectId)?.name || "Unknown"} | {schedule} | {room}</span>
-                            <button
-                              onClick={() => handleDelete(assignment.id, "Room")}
-                              disabled={isDeleting}
-                              className={`text-red-500 hover:text-red-700 ${isDeleting ? "opacity-50 cursor-not-allowed" : ""}`}
-                            >
-                              <FiTrash2 />
-                            </button>
-                          </div>
-                          <p className="text-sm text-gray-600">
-                            {teacher}
-                          </p>
-                        </div>
-                      );
-                    })}
-                </div>
-              </>
-            ) : (
-              <p className="text-gray-500">Select a class to view room assignments</p>
-            )}
-          </div>
+              </div>
+            );
+          })}
+      </div>
+    </>
+  ) : (
+    <div className="text-center py-8">
+      <p className="text-gray-400">Select a class to view room assignments</p>
+    </div>
+  )}
+</div>
 
           <div className="bg-white rounded-lg p-6 shadow-sm border">
             <h2 className="text-lg font-semibold mb-4">Rooms</h2>
@@ -1050,9 +1127,13 @@ export default function Assigning() {
                   className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500"
                 >
                   <option value="">Select duration</option>
+                  <option value="30">30 minutes</option>
                   <option value="60">1 hour</option>
+                  <option value="90">1.5 hours</option>
                   <option value="120">2 hours</option>
+                  <option value="150">2.5 hours</option>
                   <option value="180">3 hours</option>
+                  <option value="210">3.5 hours</option>
                   <option value="240">4 hours</option>
                 </select>
               </div>

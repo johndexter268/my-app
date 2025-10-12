@@ -10,11 +10,19 @@ export default {
         sans: ["Inter", "Arial", "sans-serif"],   // <-- default sans
         display: ["Poppins", "sans-serif"],      // optional custom
       },
-      colors: {
-        darknavy: "#0e141d",
-        tealgreen: "#00b081",
-        lightgray: "#e7ebee",
-        mintgreen: "#d9f1e0",
+       animation: {
+        slideUp: 'slideUp 0.5s ease-out',
+        fadeIn: 'fadeIn 0.5s ease-out forwards',
+      },
+      keyframes: {
+        slideUp: {
+          '0%': { transform: 'translateY(20px)', opacity: '0' },
+          '100%': { transform: 'translateY(0)', opacity: '1' },
+        },
+        fadeIn: {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
       },
     },
   },

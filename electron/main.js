@@ -1,36 +1,39 @@
+/* eslint-disable no-unused-vars */
+/* eslint-disable no-undef */
 const { app, BrowserWindow, ipcMain, dialog } = require("electron");
 const path = require("path");
 const { pathToFileURL } = require("url");
 const fs = require("fs");
-const isDev = require("electron-is-dev");
+// const isDev = require("electron-is-dev");
+
 const sqlite3 = require("sqlite3").verbose();
 const { v4: uuidv4 } = require("uuid");
 
 let mainWindow;
 let db;
 
-const openFiles = new Map(); 
+const openFiles = new Map();
 
 function parseClockToMinutes(clock) {
   if (!clock) return null;
   const m = clock.trim().match(/^(\d{1,2}):?(\d{2})?\s*([AaPp][Mm])$/);
   if (!m) return null;
-  let hh = parseInt(m[1], 10);
-  const mm = parseInt(m[2] || "00", 10);
+  let hh = Number.parseInt(m[1], 10);
+  const mm = Number.parseInt(m[2] || "00", 10);
   const ampm = m[3].toUpperCase();
   if (hh === 12) hh = 0;
-  if (ampm === 'PM') hh += 12;
+  if (ampm === "PM") hh += 12;
   return hh * 60 + mm;
 }
 
 function minutesToClock(mins) {
-  mins = ((mins % (24 * 60)) + (24 * 60)) % (24 * 60);
+  mins = ((mins % (24 * 60)) + 24 * 60) % (24 * 60);
   let hh = Math.floor(mins / 60);
   const mm = mins % 60;
-  const ampm = hh >= 12 ? 'PM' : 'AM';
+  const ampm = hh >= 12 ? "PM" : "AM";
   if (hh === 0) hh = 12;
   else if (hh > 12) hh -= 12;
-  return `${hh}:${mm.toString().padStart(2, '0')} ${ampm}`;
+  return `${hh}:${mm.toString().padStart(2, "0")} ${ampm}`;
 }
 
 // ---------------- DATABASE ----------------
@@ -44,8 +47,23 @@ function initializeDatabase() {
     db.run(`CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username TEXT,
-      password TEXT
+      password TEXT,
+      role TEXT DEFAULT 'user'
     )`);
+
+    db.get(`SELECT * FROM users WHERE username=?`, ["admin"], (err, row) => {
+      if (!row) {
+        db.run(`INSERT INTO users (username, password, role) VALUES (?, ?, ?)`, ["admin", "admin123", "admin"]);
+        console.log("Default admin user created");
+      }
+    });
+
+    db.get(`SELECT * FROM users WHERE username=?`, ["user"], (err, row) => {
+      if (!row) {
+        db.run(`INSERT INTO users (username, password, role) VALUES (?, ?, ?)`, ["user", "user123", "user"]);
+        console.log("Default user account created");
+      }
+    });
 
     db.run(`CREATE TABLE IF NOT EXISTS schedule_files (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -134,13 +152,6 @@ function initializeDatabase() {
       FOREIGN KEY(roomId) REFERENCES rooms(id)
     )`);
 
-    db.get(`SELECT * FROM users WHERE username=?`, ["admin"], (err, row) => {
-      if (!row) {
-        db.run(`INSERT INTO users (username, password) VALUES (?, ?)`, ["admin", "password"]);
-        console.log("Default admin user created");
-      }
-    });
-
     db.run(`ALTER TABLE time_assignments ADD COLUMN teacherId INTEGER REFERENCES teachers(id)`, (err) => {
       if (err && !err.message.includes('duplicate column name')) {
         console.error("Error adding teacherId to time_assignments:", err.message);
@@ -156,11 +167,13 @@ function initializeDatabase() {
 
 // ---------------- MAIN WINDOW ----------------
 function createMainWindow() {
+  const isDev = !app.isPackaged;
+  console.log("isDev:", isDev);
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     title: "Class Scheduling System",
-    icon: path.join(__dirname, "app-icon.png"),
+    icon: path.join(__dirname, "../build/app-icon.ico"), // ✅ Use the .ico inside /build for Windows
     show: false,
     autoHideMenuBar: true,
     webPreferences: {
@@ -170,40 +183,62 @@ function createMainWindow() {
     },
   });
 
+  // ✅ Correct path logic for dev and production
   const startUrl = isDev
-    ? "http://localhost:5173/#/"
-    : `file://${path.join(__dirname, "../dist/index.html")}#/`;
+    ? "http://localhost:5173"
+    : `file://${path.join(__dirname, "../dist/index.html")}`;
 
   mainWindow.loadURL(startUrl);
 
+  // ✅ Optional hash routing fix (React Router)
+  // If you use React Router’s HashRouter, no change needed
+  // If you use BrowserRouter, remove "#/" completely in both cases
+
+  // ✅ Show window only when ready
   mainWindow.once("ready-to-show", () => {
     mainWindow.maximize();
     mainWindow.show();
   });
 
-  mainWindow.on("closed", () => (mainWindow = null));
+  mainWindow.on("closed", () => {
+    mainWindow = null;
+  });
+
+  // ✅ Optional: open DevTools only in dev mode
+  if (isDev) {
+    mainWindow.webContents.openDevTools();
+  }
 }
 
 // ---------------- IPC HANDLERS ----------------
 ipcMain.handle("login", (event, { username, password }) => {
   return new Promise((resolve, reject) => {
-    if (!username || !password) {
-      resolve({ success: false, message: "Username and password are required" });
-      return;
-    }
-    db.get(
-      `SELECT * FROM users WHERE username=? AND password=?`,
-      [username, password],
-      (err, row) => {
-        if (err) {
-          console.error("Login error:", err.message);
-          reject(err.message);
-        } else if (row) {
-          resolve({ success: true, message: "Login success!" });
-        } else {
-          resolve({ success: false, message: "Invalid credentials" });
-        }
+    db.get(`SELECT * FROM users WHERE username=? AND password=?`, [username, password], (err, row) => {
+      if (err) {
+        console.error("Login error:", err.message);
+        reject(err.message);
+      } else if (row) {
+        resolve({ success: true, message: "Login success!", role: row.role, username: row.username });
+      } else {
+        resolve({ success: false, message: "Invalid credentials" });
       }
+    });
+  });
+});
+
+ipcMain.handle("unarchive-schedule-file", (event, id) => {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `UPDATE schedule_files SET status='active', updatedAt=? WHERE id=?`,
+      [new Date().toISOString(), id],
+      (err) => {
+        if (err) {
+          console.error("Unarchive file error:", err.message);
+          reject(err.message);
+          return;
+        }
+        resolve({ success: true, message: "File unarchived!" });
+      },
     );
   });
 });
@@ -401,7 +436,6 @@ ipcMain.handle("get-programs", () => {
   });
 });
 
-
 ipcMain.handle("export-file", async (event, args = {}) => {
   const { fileId: rawFileId, type, id, format = 'pdf' } = args;
   console.log("Export requested - args:", args);
@@ -480,9 +514,12 @@ ipcMain.handle("export-file", async (event, args = {}) => {
 
     const dayOrder = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const timeSlots = [
-      '7:00 AM-8:00 AM', '8:00 AM-9:00 AM', '9:00 AM-10:00 AM', '10:00 AM-11:00 AM', '11:00 AM-12:00 PM',
-      '12:00 PM-1:00 PM', '1:00 PM-2:00 PM', '2:00 PM-3:00 PM', '3:00 PM-4:00 PM', '4:00 PM-5:00 PM',
-      '5:00 PM-6:00 PM', '6:00 PM-7:00 PM'
+      '7:00 AM-7:30 AM', '7:30 AM-8:00 AM', '8:00 AM-8:30 AM', '8:30 AM-9:00 AM',
+      '9:00 AM-9:30 AM', '9:30 AM-10:00 AM', '10:00 AM-10:30 AM', '10:30 AM-11:00 AM',
+      '11:00 AM-11:30 AM', '11:30 AM-12:00 PM', '12:00 PM-12:30 PM', '12:30 PM-1:00 PM',
+      '1:00 PM-1:30 PM', '1:30 PM-2:00 PM', '2:00 PM-2:30 PM', '2:30 PM-3:00 PM',
+      '3:00 PM-3:30 PM', '3:30 PM-4:00 PM', '4:00 PM-4:30 PM', '4:30 PM-5:00 PM',
+      '5:00 PM-5:30 PM', '5:30 PM-6:00 PM', '6:00 PM-6:30 PM', '6:30 PM-7:00 PM'
     ];
 
     const subjectMap = Object.fromEntries(subjects.map(s => [s.id, s]));
@@ -501,7 +538,7 @@ ipcMain.handle("export-file", async (event, args = {}) => {
           * { box-sizing: border-box; }
           body { 
             font-family: Arial, sans-serif; 
-            font-size: 9px; 
+            font-size: 8px; 
             margin: 0; 
             padding: 10px;
             background: white;
@@ -509,7 +546,7 @@ ipcMain.handle("export-file", async (event, args = {}) => {
           }
           h1 { 
             text-align: center; 
-            font-size: 12px; 
+            font-size: 11px; 
             margin: 6px 0; 
             color: #000;
           }
@@ -517,13 +554,13 @@ ipcMain.handle("export-file", async (event, args = {}) => {
             text-align: center; 
             font-weight: bold; 
             margin-bottom: 6px; 
-            font-size: 10px; 
+            font-size: 9px; 
             color: #000;
           }
           .year-level-title {
             text-align: center; 
             font-weight: bold; 
-            font-size: 11px; 
+            font-size: 10px; 
             margin: 15px 0 10px 0;
             color: #000;
           }
@@ -541,31 +578,31 @@ ipcMain.handle("export-file", async (event, args = {}) => {
           }
           th, td { 
             border: 1px solid #000; 
-            padding: 4px; 
+            padding: 3px; 
             vertical-align: top; 
             word-break: break-word; 
             background: white;
             color: #000;
-            font-size: 8px;
+            font-size: 7px;
           }
           th { 
             background: #f0f0f0 !important; 
-            font-size: 9px; 
+            font-size: 8px; 
             font-weight: bold;
             text-align: center;
           }
           .time-col { 
             width: 80px; 
-            font-size: 8px;
-            background: #fff !important;
+            font-size: 7px;
+            background: #e0e0e0 !important;
             color: #000 !important;
             white-space: nowrap;
             text-align: center;
             font-weight: bold;
           }
           .day-col {
-            width: 50px;
-            font-size: 8px;
+            width: 45px;
+            font-size: 7px;
             font-weight: bold;
             text-align: center;
           }
@@ -573,14 +610,15 @@ ipcMain.handle("export-file", async (event, args = {}) => {
             -webkit-print-color-adjust: exact !important;
             color-adjust: exact !important;
             print-color-adjust: exact !important;
-            padding: 3px; 
-            font-size: 8px; 
+            padding: 2px; 
+            font-size: 7px; 
             white-space: normal; 
             word-wrap: break-word; 
             overflow-wrap: break-word;
-            line-height: 1.2;
-            min-width: 120px;
+            line-height: 1.1;
+            min-width: 100px;
             text-align: center;
+            
           }
           .subject-name { 
             font-weight: bold; 
@@ -593,8 +631,7 @@ ipcMain.handle("export-file", async (event, args = {}) => {
           }
           .teacher-name { 
             display: block; 
-            font-size: 7px; 
-             
+            font-size: 6px; 
             color: #000;
             word-break: break-word;
             white-space: normal;
@@ -602,43 +639,45 @@ ipcMain.handle("export-file", async (event, args = {}) => {
           }
           .room-name {
             display: block; 
-            font-size: 7px; 
+            font-size: 6px; 
             color: #000;
             margin-top: 1px;
             text-align: center;
           }
           .sign-section {
-  width: 100%;
-  margin-top: 25px;
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  page-break-inside: avoid;
-}
-
-.sign-block {
-  display: inline-block;
-  text-align: center;
-}
-
-.sign-line {
-  width: 200px;
-  border-bottom: 1px solid #000;
-  margin: 30px auto 0 auto;
-}
+            width: 100%;
+            margin-top: 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            page-break-inside: avoid;
+          }
+          .sign-block {
+            display: inline-block;
+            text-align: center;
+          }
+          .sign-line {
+            width: 180px;
+            border-bottom: 1px solid #000;
+            margin: 25px auto 0 auto;
+          }
         </style>
       </head>
       <body>
     `;
 
     const calculateTimeSlotSpan = (assignment) => {
-      const startTime = assignment.timeSlot.split('-')[0].trim();
-      const startIndex = timeSlots.findIndex(slot => slot.startsWith(startTime));
-      if (startIndex === -1) return { startIndex: -1, span: 1 };
-
-      const durationHours = Math.ceil(assignment.duration / 60);
-      const span = Math.max(1, durationHours);
-
+      let startTime = assignment.timeSlot;
+      if (startTime.includes('-')) {
+        startTime = startTime.split('-')[0].trim(); // Extract start time (e.g., '1:00 PM')
+      }
+      const startIndex = timeSlots.findIndex(slot => slot.split('-')[0].trim() === startTime);
+      if (startIndex === -1) {
+        console.warn(`Invalid time slot for assignment ${assignment.id}: ${assignment.timeSlot}`);
+        return { startIndex: -1, span: 1 };
+      }
+      const durationSlots = Math.ceil((assignment.duration || 30) / 30);
+      const span = Math.max(1, durationSlots);
       return { startIndex, span };
     };
 
@@ -650,15 +689,13 @@ ipcMain.handle("export-file", async (event, args = {}) => {
         return { success: false, message: "Teacher not found." };
       }
 
-      // Filter assignments for this specific teacher
       const teacherTimeAssignments = timeAssignments.filter(a => parseInt(a.teacherId) === teacherId);
 
       html += `
         <div class="institution">COLLEGE OF ENGINEERING AND TECHNOLOGY</div>
         <h1>Teacher Schedule</h1>
-        <div style="text-align: center; font-size: 11px; margin-bottom: 15px;">${teacher.honorifics ? teacher.honorifics + ' ' : ''}${teacher.fullName}</div>`;
+        <div style="text-align: center; font-size: 10px; margin-bottom: 15px;">${teacher.honorifics ? teacher.honorifics + ' ' : ''}${teacher.fullName}</div>`;
 
-      // Create schedule grid for teacher
       const teacherGrid = {};
       dayOrder.forEach(day => {
         teacherGrid[day] = new Array(timeSlots.length).fill(null);
@@ -701,10 +738,8 @@ ipcMain.handle("export-file", async (event, args = {}) => {
           const cell = teacherGrid[day][timeIndex];
 
           if (!cell) {
-            // Empty slot
             html += `<td class="slot-cell"></td>`;
           } else if (cell.span > 0) {
-            // Start of assignment - remove background color for better print readability
             const assignment = cell.assignment;
             const subject = subjectMap[assignment.subjectId];
             const className = classMap[assignment.classId]?.name || 'Unknown';
@@ -716,14 +751,12 @@ ipcMain.handle("export-file", async (event, args = {}) => {
             );
             const roomName = roomAssignment ? (roomMap[roomAssignment.roomId]?.name || 'N/A') : 'N/A';
 
-            const teacherColor = teacher.color || '#f9f9f9';
-            html += `<td class="slot-cell" rowspan="${cell.span}" style="background-color: ${teacherColor}; border: 1px solid #000;">`;
+            html += `<td class="slot-cell" rowspan="${cell.span}">`;
             html += `<span class="subject-name">${subject?.name || 'Unknown'}</span>`;
             html += `<span class="teacher-name">Class: ${className}</span>`;
             html += `<span class="room-name">Room: ${roomName}</span>`;
             html += `</td>`;
           }
-          // Skip cells that are part of a span (cell.span === 0)
         });
 
         html += `</tr>`;
@@ -731,25 +764,23 @@ ipcMain.handle("export-file", async (event, args = {}) => {
 
       html += `</tbody></table>`;
 
-      // Add signatures for teacher schedule
       html += `
         <div class="sign-section">
-  <div class="sign-block">
-    Prepared by:
-    <div class="sign-line"></div>
-    <div style="margin-top: 5px; font-weight: bold;">
-      ENGR. REYNALDO C. DIMAYACYAC<br>Dean, College of Engineering Technology
-    </div>
-  </div>
-
-  <div class="sign-block">
-    Approved by:
-    <div class="sign-line"></div>
-    <div style="margin-top: 5px; font-weight: bold;">
-      DR. CRISTITA B. TAN<br>VPAA
-    </div>
-  </div>
-</div>`;
+          <div class="sign-block">
+            Prepared by:
+            <div class="sign-line"></div>
+            <div style="margin-top: 5px; font-weight: bold;">
+              ENGR. REYNALDO C. DIMAYACYAC<br>Dean, College of Engineering Technology
+            </div>
+          </div>
+          <div class="sign-block">
+            Approved by:
+            <div class="sign-line"></div>
+            <div style="margin-top: 5px; font-weight: bold;">
+              DR. CRISTITA B. TAN<br>VPAA
+            </div>
+          </div>
+        </div>`;
 
     } else if (type === 'program') {
       const programsToExport = (id === 'all') ? programs : programs.filter(p => p.id === parseInt(id));
@@ -758,7 +789,6 @@ ipcMain.handle("export-file", async (event, args = {}) => {
         return { success: false, message: "Program not found." };
       }
 
-      // Add header only once at the beginning
       html += `
         <div class="institution">COLLEGE OF ENGINEERING AND TECHNOLOGY</div>
         <h1>Program Schedule</h1>`;
@@ -766,14 +796,10 @@ ipcMain.handle("export-file", async (event, args = {}) => {
       let isFirstYearLevel = true;
 
       for (const program of programsToExport) {
-        // Filter classes for this specific program
         const programClasses = classes.filter(c => c.programId === program.id);
         const classIds = programClasses.map(c => c.id);
-
-        // Filter time assignments for this program's classes
         const programTimeAssignments = timeAssignments.filter(a => classIds.includes(a.classId));
 
-        // Group by year level
         const yearLevels = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
 
         for (const yearLevel of yearLevels) {
@@ -781,14 +807,12 @@ ipcMain.handle("export-file", async (event, args = {}) => {
           const yearClassIds = yearClasses.map(c => c.id);
           const yearAssignments = programTimeAssignments.filter(a => yearClassIds.includes(a.classId));
 
-          if (yearAssignments.length === 0) continue; // Skip if no assignments for this year
+          if (yearAssignments.length === 0) continue;
 
-          // Apply page break class conditionally
           const pageBreakClass = isFirstYearLevel ? 'first-page' : 'new-page';
           html += `<div class="year-level-title ${pageBreakClass}">${yearLevel} - ${program.name}</div>`;
           isFirstYearLevel = false;
 
-          // Create schedule grid for each day
           const scheduleGrid = {};
           dayOrder.forEach(day => {
             scheduleGrid[day] = new Array(timeSlots.length).fill(null);
@@ -828,18 +852,14 @@ ipcMain.handle("export-file", async (event, args = {}) => {
             html += `<td class="time-col">${timeSlot}</td>`;
 
             dayOrder.forEach(day => {
-              const dayAssignments = yearAssignments.filter(a => a.day === day);
               const cell = scheduleGrid[day][timeIndex];
 
               if (!cell) {
-                // Empty slot
                 html += `<td class="slot-cell"></td>`;
               } else if (cell.span > 0) {
-                // Start of assignment - remove background color for better print readability
                 const assignment = cell.assignment;
                 const subject = subjectMap[assignment.subjectId];
                 const teacher = teacherMap[assignment.teacherId];
-                const className = classMap[assignment.classId]?.name || 'Unknown';
                 const roomAssignment = roomAssignments.find(ra =>
                   ra.scheduleFileId === assignment.scheduleFileId &&
                   ra.subjectId === assignment.subjectId &&
@@ -848,15 +868,12 @@ ipcMain.handle("export-file", async (event, args = {}) => {
                 );
                 const roomName = roomAssignment ? (roomMap[roomAssignment.roomId]?.name || 'N/A') : 'N/A';
 
-                const teacherColor = teacher.color || '#f9f9f9';
-                html += `<td class="slot-cell" rowspan="${cell.span}" style="background-color: ${teacherColor}; border: 1px solid #000;">`;
+                html += `<td class="slot-cell" rowspan="${cell.span}">`;
                 html += `<span class="subject-name">${subject?.name || 'Unknown'}</span>`;
                 html += `<span class="teacher-name">${teacher?.honorifics ? teacher.honorifics + ' ' : ''}${teacher?.fullName || 'Unknown'}</span>`;
-                // html += `<span class="room-name">Class: ${className}</span>`;
                 html += `<span class="room-name">Room: ${roomName}</span>`;
                 html += `</td>`;
               }
-              // Skip cells that are part of a span (cell.span === 0)
             });
 
             html += `</tr>`;
@@ -864,25 +881,23 @@ ipcMain.handle("export-file", async (event, args = {}) => {
 
           html += `</tbody></table>`;
 
-          // Add signatures for each year level
           html += `
             <div class="sign-section">
-  <div class="sign-block">
-    Prepared by:
-    <div class="sign-line"></div>
-    <div style="margin-top: 5px; font-weight: bold;">
-      ENGR. REYNALDO C. DIMAYACYAC<br>Dean, College of Engineering Technology
-    </div>
-  </div>
-
-  <div class="sign-block">
-    Approved by:
-    <div class="sign-line"></div>
-    <div style="margin-top: 5px; font-weight: bold;">
-      DR. CRISTITA B. TAN<br>VPAA
-    </div>
-  </div>
-</div>`;
+              <div class="sign-block">
+                Prepared by:
+                <div class="sign-line"></div>
+                <div style="margin-top: 5px; font-weight: bold;">
+                  ENGR. REYNALDO C. DIMAYACYAC<br>Dean, College of Engineering Technology
+                </div>
+              </div>
+              <div class="sign-block">
+                Approved by:
+                <div class="sign-line"></div>
+                <div style="margin-top: 5px; font-weight: bold;">
+                  DR. CRISTITA B. TAN<br>VPAA
+                </div>
+              </div>
+            </div>`;
         }
       }
     } else {
@@ -902,7 +917,6 @@ ipcMain.handle("export-file", async (event, args = {}) => {
       return { success: false, message: "Export cancelled." };
     }
 
-    // Create export window with proper configuration
     const exportWindow = new BrowserWindow({
       show: false,
       webPreferences: {
@@ -913,12 +927,10 @@ ipcMain.handle("export-file", async (event, args = {}) => {
     });
 
     try {
-      // Load HTML directly
       const dataUri = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
       await exportWindow.loadURL(dataUri);
       console.log("Export window loaded HTML content");
 
-      // Wait for content to render
       await new Promise(resolve => setTimeout(resolve, 2000));
 
       console.log("Generating PDF...");
@@ -947,6 +959,7 @@ ipcMain.handle("export-file", async (event, args = {}) => {
     return { success: false, message: "Export failed: " + (err.message || err) };
   }
 });
+
 
 ipcMain.handle("print-file", async (event, args = {}) => {
   const { fileId: rawFileId, type, id } = args;
@@ -991,9 +1004,12 @@ ipcMain.handle("print-file", async (event, args = {}) => {
 
     const dayOrder = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const timeSlots = [
-      '7:00 AM-8:00 AM', '8:00 AM-9:00 AM', '9:00 AM-10:00 AM', '10:00 AM-11:00 AM', '11:00 AM-12:00 PM',
-      '12:00 PM-1:00 PM', '1:00 PM-2:00 PM', '2:00 PM-3:00 PM', '3:00 PM-4:00 PM', '4:00 PM-5:00 PM',
-      '5:00 PM-6:00 PM', '6:00 PM-7:00 PM'
+      '7:00 AM-7:30 AM', '7:30 AM-8:00 AM', '8:00 AM-8:30 AM', '8:30 AM-9:00 AM',
+      '9:00 AM-9:30 AM', '9:30 AM-10:00 AM', '10:00 AM-10:30 AM', '10:30 AM-11:00 AM',
+      '11:00 AM-11:30 AM', '11:30 AM-12:00 PM', '12:00 PM-12:30 PM', '12:30 PM-1:00 PM',
+      '1:00 PM-1:30 PM', '1:30 PM-2:00 PM', '2:00 PM-2:30 PM', '2:30 PM-3:00 PM',
+      '3:00 PM-3:30 PM', '3:30 PM-4:00 PM', '4:00 PM-4:30 PM', '4:30 PM-5:00 PM',
+      '5:00 PM-5:30 PM', '5:30 PM-6:00 PM', '6:00 PM-6:30 PM', '6:30 PM-7:00 PM',
     ];
 
     const subjectMap = Object.fromEntries(subjects.map(s => [s.id, s]));
@@ -1002,13 +1018,17 @@ ipcMain.handle("print-file", async (event, args = {}) => {
     const roomMap = Object.fromEntries(rooms.map(r => [r.id, r]));
 
     const calculateTimeSlotSpan = (assignment) => {
-      const startTime = assignment.timeSlot.split('-')[0].trim();
-      const startIndex = timeSlots.findIndex(slot => slot.startsWith(startTime));
-      if (startIndex === -1) return { startIndex: -1, span: 1 };
-
-      const durationHours = Math.ceil(assignment.duration / 60);
-      const span = Math.max(1, durationHours);
-
+      let startTime = assignment.timeSlot;
+      if (startTime.includes('-')) {
+        startTime = startTime.split('-')[0].trim();
+      }
+      const startIndex = timeSlots.findIndex(slot => slot.split('-')[0].trim() === startTime);
+      if (startIndex === -1) {
+        console.warn(`Invalid time slot for assignment ${assignment.id}: ${assignment.timeSlot}`);
+        return { startIndex: -1, span: 1 };
+      }
+      const durationSlots = Math.ceil((assignment.duration || 30) / 30);
+      const span = Math.max(1, durationSlots);
       return { startIndex, span };
     };
 
@@ -1022,7 +1042,7 @@ ipcMain.handle("print-file", async (event, args = {}) => {
           * { box-sizing: border-box; }
           body {
             font-family: Arial, sans-serif;
-            font-size: 9px;
+            font-size: 8px;
             margin: 0;
             padding: 10px;
             background: white;
@@ -1032,25 +1052,25 @@ ipcMain.handle("print-file", async (event, args = {}) => {
             text-align: center;
             font-weight: bold;
             margin-bottom: 6px;
-            font-size: 10px;
+            font-size: 9px;
             color: #000;
           }
           h1 {
             text-align: center;
-            font-size: 12px;
+            font-size: 11px;
             margin: 6px 0 15px 0;
             color: #000;
           }
           .teacher-name-header {
             text-align: center;
-            font-size: 11px;
+            font-size: 10px;
             margin-bottom: 15px;
             color: #000;
           }
           .year-level-title {
             text-align: center;
             font-weight: bold;
-            font-size: 11px;
+            font-size: 10px;
             margin: 15px 0 10px 0;
             color: #000;
             page-break-before: always;
@@ -1066,46 +1086,47 @@ ipcMain.handle("print-file", async (event, args = {}) => {
           }
           th, td {
             border: 1px solid #000;
-            padding: 4px;
+            padding: 3px;
             vertical-align: top;
             word-break: break-word;
             background: white;
             color: #000;
-            font-size: 8px;
+            font-size: 7px;
           }
           th {
             background: #f0f0f0 !important;
-            font-size: 9px;
+            font-size: 8px;
             font-weight: bold;
             text-align: center;
           }
           .time-col {
             width: 80px;
-            font-size: 8px;
-            background: #fff !important;
+            font-size: 7px;
+            background: #e0e0e0 !important;
             color: #000 !important;
             white-space: nowrap;
             text-align: center;
             font-weight: bold;
           }
           .day-col {
-            width: 50px;
-            font-size: 8px;
+            width: 45px;
+            font-size: 7px;
             font-weight: bold;
             text-align: center;
           }
           .slot-cell {
-           -webkit-print-color-adjust: exact !important;
+            -webkit-print-color-adjust: exact !important;
             color-adjust: exact !important;
             print-color-adjust: exact !important;
-            padding: 3px;
-            font-size: 8px;
+            padding: 2px;
+            font-size: 7px;
             white-space: normal;
             word-wrap: break-word;
             overflow-wrap: break-word;
-            line-height: 1.2;
-            min-width: 120px;
+            line-height: 1.1;
+            min-width: 100px;
             text-align: center;
+            
           }
           .subject-name {
             font-weight: bold;
@@ -1118,7 +1139,7 @@ ipcMain.handle("print-file", async (event, args = {}) => {
           }
           .teacher-name {
             display: block;
-            font-size: 7px;
+            font-size: 6px;
             text-align: center;
             color: #000;
             word-break: break-word;
@@ -1126,7 +1147,7 @@ ipcMain.handle("print-file", async (event, args = {}) => {
           }
           .room-name {
             display: block;
-            font-size: 7px;
+            font-size: 6px;
             color: #000;
             margin-top: 1px;
             text-align: center;
@@ -1141,13 +1162,13 @@ ipcMain.handle("print-file", async (event, args = {}) => {
           .sign-block {
             width: 45%;
             text-align: left;
-            font-size: 9px;
+            font-size: 8px;
             color: #000;
           }
           .sign-line {
-            margin-top: 30px;
+            margin-top: 25px;
             border-top: 1px solid #000;
-            width: 200px;
+            width: 180px;
           }
         </style>
       </head>
@@ -1163,13 +1184,11 @@ ipcMain.handle("print-file", async (event, args = {}) => {
         return { success: false, message: "Teacher not found." };
       }
 
-      // Filter assignments for this specific teacher
       const teacherTimeAssignments = timeAssignments.filter(a => parseInt(a.teacherId) === teacherId);
 
       html += `<h1>Teacher Schedule</h1>`;
       html += `<div class="teacher-name-header">${teacher.honorifics ? teacher.honorifics + ' ' : ''}${teacher.fullName}</div>`;
 
-      // Create schedule grid for teacher
       const teacherGrid = {};
       dayOrder.forEach(day => {
         teacherGrid[day] = new Array(timeSlots.length).fill(null);
@@ -1181,7 +1200,7 @@ ipcMain.handle("print-file", async (event, args = {}) => {
           for (let i = 0; i < span; i++) {
             const slotIndex = startIndex + i;
             if (slotIndex < timeSlots.length) {
-              teacherGrid[assignment.day][slotIndex] = {
+              teacherGrid[day][slotIndex] = {
                 assignment,
                 isStart: i === 0,
                 span: i === 0 ? span : 0
@@ -1212,10 +1231,8 @@ ipcMain.handle("print-file", async (event, args = {}) => {
           const cell = teacherGrid[day][timeIndex];
 
           if (!cell) {
-            // Empty slot
             html += `<td class="slot-cell"></td>`;
           } else if (cell.span > 0) {
-            // Start of assignment
             const assignment = cell.assignment;
             const subject = subjectMap[assignment.subjectId];
             const className = classMap[assignment.classId]?.name || 'Unknown';
@@ -1227,14 +1244,12 @@ ipcMain.handle("print-file", async (event, args = {}) => {
             );
             const roomName = roomAssignment ? (roomMap[roomAssignment.roomId]?.name || 'N/A') : 'N/A';
 
-            const teacherColor = teacher.color || '#f9f9f9';
-            html += `<td class="slot-cell" rowspan="${cell.span}" style="background-color: ${teacherColor}; border: 1px solid #000;">`;
+            html += `<td class="slot-cell" rowspan="${cell.span}">`;
             html += `<span class="subject-name">${subject?.name || 'Unknown'}</span>`;
             html += `<span class="teacher-name">Class: ${className}</span>`;
             html += `<span class="room-name">Room: ${roomName}</span>`;
             html += `</td>`;
           }
-          // Skip cells that are part of a span (cell.span === 0)
         });
 
         html += `</tr>`;
@@ -1242,25 +1257,23 @@ ipcMain.handle("print-file", async (event, args = {}) => {
 
       html += `</tbody></table>`;
 
-      // Add signatures for teacher schedule
       html += `
         <div class="sign-section">
-  <div class="sign-block">
-    Prepared by:
-    <div class="sign-line"></div>
-    <div style="margin-top: 5px; font-weight: bold;">
-      ENGR. REYNALDO C. DIMAYACYAC<br>Dean, College of Engineering Technology
-    </div>
-  </div>
-
-  <div class="sign-block">
-    Approved by:
-    <div class="sign-line"></div>
-    <div style="margin-top: 5px; font-weight: bold;">
-      DR. CRISTITA B. TAN<br>VPAA
-    </div>
-  </div>
-</div>`;
+          <div class="sign-block">
+            Prepared by:
+            <div class="sign-line"></div>
+            <div style="margin-top: 5px; font-weight: bold;">
+              ENGR. REYNALDO C. DIMAYACYAC<br>Dean, College of Engineering Technology
+            </div>
+          </div>
+          <div class="sign-block">
+            Approved by:
+            <div class="sign-line"></div>
+            <div style="margin-top: 5px; font-weight: bold;">
+              DR. CRISTITA B. TAN<br>VPAA
+            </div>
+          </div>
+        </div>`;
 
     } else if (type === 'program') {
       const programsToExport = (id === 'all') ? programs : programs.filter(p => p.id === parseInt(id));
@@ -1290,7 +1303,6 @@ ipcMain.handle("print-file", async (event, args = {}) => {
           html += `<div class="year-level-title ${isFirstYearLevel ? 'first-page' : ''}">${yearLevel} - ${program.name}</div>`;
           isFirstYearLevel = false;
 
-          // Create schedule grid
           const scheduleGrid = {};
           dayOrder.forEach(day => {
             scheduleGrid[day] = new Array(timeSlots.length).fill(null);
@@ -1302,7 +1314,7 @@ ipcMain.handle("print-file", async (event, args = {}) => {
               for (let i = 0; i < span; i++) {
                 const slotIndex = startIndex + i;
                 if (slotIndex < timeSlots.length) {
-                  scheduleGrid[assignment.day][slotIndex] = {
+                  scheduleGrid[day][slotIndex] = {
                     assignment,
                     isStart: i === 0,
                     span: i === 0 ? span : 0
@@ -1333,14 +1345,11 @@ ipcMain.handle("print-file", async (event, args = {}) => {
               const cell = scheduleGrid[day][timeIndex];
 
               if (!cell) {
-                // Empty slot
                 html += `<td class="slot-cell"></td>`;
               } else if (cell.span > 0) {
-                // Start of assignment
                 const assignment = cell.assignment;
                 const subject = subjectMap[assignment.subjectId];
                 const teacher = teacherMap[assignment.teacherId];
-                const className = classMap[assignment.classId]?.name || 'Unknown';
                 const roomAssignment = roomAssignments.find(ra =>
                   ra.scheduleFileId === assignment.scheduleFileId &&
                   ra.subjectId === assignment.subjectId &&
@@ -1349,15 +1358,12 @@ ipcMain.handle("print-file", async (event, args = {}) => {
                 );
                 const roomName = roomAssignment ? (roomMap[roomAssignment.roomId]?.name || 'N/A') : 'N/A';
 
-                const teacherColor = teacher.color || '#f9f9f9';
-                html += `<td class="slot-cell" rowspan="${cell.span}" style="background-color: ${teacherColor}; border: 1px solid #000;">`;
+                html += `<td class="slot-cell" rowspan="${cell.span}">`;
                 html += `<span class="subject-name">${subject?.name || 'Unknown'}</span>`;
                 html += `<span class="teacher-name">${teacher?.honorifics ? teacher.honorifics + ' ' : ''}${teacher?.fullName || 'Unknown'}</span>`;
-                // html += `<span class="room-name">Class: ${className}</span>`;
                 html += `<span class="room-name">Room: ${roomName}</span>`;
                 html += `</td>`;
               }
-              // Skip cells that are part of a span (cell.span === 0)
             });
 
             html += `</tr>`;
@@ -1365,25 +1371,23 @@ ipcMain.handle("print-file", async (event, args = {}) => {
 
           html += `</tbody></table>`;
 
-          // Add signatures for each year level
           html += `
             <div class="sign-section">
-  <div class="sign-block">
-    Prepared by:
-    <div class="sign-line"></div>
-    <div style="margin-top: 5px; font-weight: bold;">
-      ENGR. REYNALDO C. DIMAYACYAC<br>Dean, College of Engineering Technology
-    </div>
-  </div>
-
-  <div class="sign-block">
-    Approved by:
-    <div class="sign-line"></div>
-    <div style="margin-top: 5px; font-weight: bold;">
-      DR. CRISTITA B. TAN<br>VPAA
-    </div>
-  </div>
-</div>`;
+              <div class="sign-block">
+                Prepared by:
+                <div class="sign-line"></div>
+                <div style="margin-top: 5px; font-weight: bold;">
+                  ENGR. REYNALDO C. DIMAYACYAC<br>Dean, College of Engineering Technology
+                </div>
+              </div>
+              <div class="sign-block">
+                Approved by:
+                <div class="sign-line"></div>
+                <div style="margin-top: 5px; font-weight: bold;">
+                  DR. CRISTITA B. TAN<br>VPAA
+                </div>
+              </div>
+            </div>`;
         }
       }
     } else {
@@ -1393,7 +1397,6 @@ ipcMain.handle("print-file", async (event, args = {}) => {
 
     html += `</body></html>`;
 
-    // Create print window with proper configuration
     const printWindow = new BrowserWindow({
       show: false,
       webPreferences: {
@@ -1404,15 +1407,13 @@ ipcMain.handle("print-file", async (event, args = {}) => {
     });
 
     try {
-      // Load HTML directly
       const dataUri = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
       await printWindow.loadURL(dataUri);
       console.log("Print window loaded HTML content");
 
-      // Wait for content to render
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      console.log("Sending to prInter...");
+      console.log("Sending to printer...");
 
       return await new Promise((resolve, reject) => {
         printWindow.webContents.print({
@@ -1423,7 +1424,7 @@ ipcMain.handle("print-file", async (event, args = {}) => {
           console.log("Print operation result:", success ? "Success" : `Failed: ${failureReason}`);
           printWindow.close();
           if (success) {
-            resolve({ success: true, message: "File sent to prInter!" });
+            resolve({ success: true, message: "File sent to printer!" });
           } else {
             reject({ success: false, message: "Print failed: " + (failureReason || "Unknown error") });
           }
@@ -1961,14 +1962,19 @@ ipcMain.handle("update-room-assignment", (event, data) => {
 
 ipcMain.handle("reload-window", () => {
   if (mainWindow) {
+    const isDev = !app.isPackaged; // 👈 add this line
     const startUrl = isDev
       ? "http://localhost:5173/#/"
       : `file://${path.join(__dirname, "../dist/index.html")}#/`;
+
+    console.log("isDev:", isDev);
+    console.log("startUrl:", startUrl);
     mainWindow.loadURL(startUrl);
     return { success: true, message: "Window reloaded" };
   }
   return { success: false, message: "No main window available" };
 });
+
 
 ipcMain.handle("generate-preview", async (event, args = {}) => {
   const { fileId: rawFileId, type, id } = args;
@@ -2017,9 +2023,12 @@ ipcMain.handle("generate-preview", async (event, args = {}) => {
 
     const dayOrder = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const timeSlots = [
-      '7:00 AM-8:00 AM', '8:00 AM-9:00 AM', '9:00 AM-10:00 AM', '10:00 AM-11:00 AM', '11:00 AM-12:00 PM',
-      '12:00 PM-1:00 PM', '1:00 PM-2:00 PM', '2:00 PM-3:00 PM', '3:00 PM-4:00 PM', '4:00 PM-5:00 PM',
-      '5:00 PM-6:00 PM', '6:00 PM-7:00 PM'
+      '7:00 AM-7:30 AM', '7:30 AM-8:00 AM', '8:00 AM-8:30 AM', '8:30 AM-9:00 AM',
+      '9:00 AM-9:30 AM', '9:30 AM-10:00 AM', '10:00 AM-10:30 AM', '10:30 AM-11:00 AM',
+      '11:00 AM-11:30 AM', '11:30 AM-12:00 PM', '12:00 PM-12:30 PM', '12:30 PM-1:00 PM',
+      '1:00 PM-1:30 PM', '1:30 PM-2:00 PM', '2:00 PM-2:30 PM', '2:30 PM-3:00 PM',
+      '3:00 PM-3:30 PM', '3:30 PM-4:00 PM', '4:00 PM-4:30 PM', '4:30 PM-5:00 PM',
+      '5:00 PM-5:30 PM', '5:30 PM-6:00 PM', '6:00 PM-6:30 PM', '6:30 PM-7:00 PM'
     ];
 
     const subjectMap = Object.fromEntries(subjects.map(s => [s.id, s]));
@@ -2094,7 +2103,7 @@ ipcMain.handle("generate-preview", async (event, args = {}) => {
           .time-col { 
             width: 80px; 
             font-size: 8px;
-            background: #fff !important;
+            background: #e0e0e0 !important;
             color: #000 !important;
             white-space: nowrap;
             text-align: center;
@@ -2118,6 +2127,7 @@ ipcMain.handle("generate-preview", async (event, args = {}) => {
             line-height: 1.2;
             min-width: 120px;
             text-align: center;
+            
           }
           .subject-name { 
             font-weight: bold; 
@@ -2166,13 +2176,17 @@ ipcMain.handle("generate-preview", async (event, args = {}) => {
     `;
 
     const calculateTimeSlotSpan = (assignment) => {
-      const startTime = assignment.timeSlot.split('-')[0].trim();
-      const startIndex = timeSlots.findIndex(slot => slot.startsWith(startTime));
-      if (startIndex === -1) return { startIndex: -1, span: 1 };
-
-      const durationHours = Math.ceil(assignment.duration / 60);
-      const span = Math.max(1, durationHours);
-
+      let startTime = assignment.timeSlot;
+      if (startTime.includes('-')) {
+        startTime = startTime.split('-')[0].trim();
+      }
+      const startIndex = timeSlots.findIndex(slot => slot.split('-')[0].trim() === startTime);
+      if (startIndex === -1) {
+        console.warn(`Invalid time slot for assignment ${assignment.id}: ${assignment.timeSlot}`);
+        return { startIndex: -1, span: 1 };
+      }
+      const durationSlots = Math.ceil((assignment.duration || 30) / 30);
+      const span = Math.max(1, durationSlots);
       return { startIndex, span };
     };
 
@@ -2241,13 +2255,12 @@ ipcMain.handle("generate-preview", async (event, args = {}) => {
             const roomAssignment = roomAssignments.find(ra =>
               ra.scheduleFileId === assignment.scheduleFileId &&
               ra.subjectId === assignment.subjectId &&
-              ra.teacherId === assignment.teacherId &&
+              ra.teacherId === approximation.teacherId &&
               ra.classId === assignment.classId
             );
             const roomName = roomAssignment ? (roomMap[roomAssignment.roomId]?.name || 'N/A') : 'N/A';
 
-            const teacherColor = teacher.color || '#f9f9f9';
-            html += `<td class="slot-cell" rowspan="${cell.span}" style="background-color: ${teacherColor}; border: 1px solid #000;">`;
+            html += `<td class="slot-cell" rowspan="${cell.span}">`;
             html += `<span class="subject-name">${subject?.name || 'Unknown'}</span>`;
             html += `<span class="teacher-name">Class: ${className}</span>`;
             html += `<span class="room-name">Room: ${roomName}</span>`;
@@ -2348,54 +2361,53 @@ ipcMain.handle("generate-preview", async (event, args = {}) => {
             html += `<td class="time-col">${timeSlot}</td>`;
 
             dayOrder.forEach(day => {
-            const cell = scheduleGrid[day][timeIndex];
+              const cell = scheduleGrid[day][timeIndex];
 
-            if (!cell) {
-              html += `<td class="slot-cell"></td>`;
-            } else if (cell.span > 0) {
-              const assignment = cell.assignment;
-              const subject = subjectMap[assignment.subjectId];
-              const teacher = teacherMap[assignment.teacherId];
-              const className = classMap[assignment.classId]?.name || 'Unknown';
-              const roomAssignment = roomAssignments.find(ra =>
-                ra.scheduleFileId === assignment.scheduleFileId &&
-                ra.subjectId === assignment.subjectId &&
-                ra.teacherId === assignment.teacherId &&
-                ra.classId === assignment.classId
-              );
-              const roomName = roomAssignment ? (roomMap[roomAssignment.roomId]?.name || 'N/A') : 'N/A';
+              if (!cell) {
+                html += `<td class="slot-cell"></td>`;
+              } else if (cell.span > 0) {
+                const assignment = cell.assignment;
+                const subject = subjectMap[assignment.subjectId];
+                const teacher = teacherMap[assignment.teacherId];
+                const className = classMap[assignment.classId]?.name || 'Unknown';
+                const roomAssignment = roomAssignments.find(ra =>
+                  ra.scheduleFileId === assignment.scheduleFileId &&
+                  ra.subjectId === assignment.subjectId &&
+                  ra.teacherId === assignment.teacherId &&
+                  ra.classId === assignment.classId
+                );
+                const roomName = roomAssignment ? (roomMap[roomAssignment.roomId]?.name || 'N/A') : 'N/A';
 
-              const teacherColor = teacher.color || '#f9f9f9';
-              html += `<td class="slot-cell" rowspan="${cell.span}" style="background-color: ${teacherColor}; border: 1px solid #000;">`;
-              html += `<span class="subject-name">${subject?.name || 'Unknown'}</span>`;
-              html += `<span class="teacher-name">${teacher?.honorifics ? teacher.honorifics + ' ' : ''}${teacher?.fullName || 'Unknown'}</span>`;
-              html += `<span class="room-name">Room: ${roomName}</span>`;
-              html += `</td>`;
-            }
+                html += `<td class="slot-cell" rowspan="${cell.span}">`;
+                html += `<span class="subject-name">${subject?.name || 'Unknown'}</span>`;
+                html += `<span class="teacher-name">${teacher?.honorifics ? teacher.honorifics + ' ' : ''}${teacher?.fullName || 'Unknown'}</span>`;
+                html += `<span class="room-name">Room: ${roomName}</span>`;
+                html += `</td>`;
+              }
+            });
+
+            html += `</tr>`;
           });
 
-          html += `</tr>`;
-        });
+          html += `</tbody></table>`;
 
-        html += `</tbody></table>`;
-
-        html += `
-          <div class="sign-section">
-            <div class="sign-block">
-              Prepared by:
-              <div class="sign-line"></div>
-              <div style="margin-top: 5px; font-weight: bold;">
-                ENGR. REYNALDO C. DIMAYACYAC<br>Dean, College of Engineering Technology
+          html += `
+            <div class="sign-section">
+              <div class="sign-block">
+                Prepared by:
+                <div class="sign-line"></div>
+                <div style="margin-top: 5px; font-weight: bold;">
+                  ENGR. REYNALDO C. DIMAYACYAC<br>Dean, College of Engineering Technology
+                </div>
               </div>
-            </div>
-            <div class="sign-block">
-              Approved by:
-              <div class="sign-line"></div>
-              <div style="margin-top: 5px; font-weight: bold;">
-                DR. CRISTITA B. TAN<br>VPAA
+              <div class="sign-block">
+                Approved by:
+                <div class="sign-line"></div>
+                <div style="margin-top: 5px; font-weight: bold;">
+                  DR. CRISTITA B. TAN<br>VPAA
+                </div>
               </div>
-            </div>
-          </div>`;
+            </div>`;
         }
       }
     } else {

@@ -104,7 +104,7 @@ export default function Help() {
                 <h2 className="text-2xl font-bold text-gray-800">User Manual</h2>
               </div>
               <a
-                href="/imgs/User_Manual.pdf"
+                href="./imgs/User_Manual.pdf"
                 download
                 className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors"
                 title="Download User Manual"
@@ -115,19 +115,14 @@ export default function Help() {
             </div>
 
             <div className="flex justify-center border border-gray-200 rounded-lg overflow-hidden">
-              <iframe
-                src="/imgs/User_Manual.pdf#view=FitH&toolbar=1&navpanes=0"
-                className="w-[800px] h-[600px]"
-                title="User Manual PDF"
-                frameBorder="0"
-              >
+              <iframe src="./imgs/User_Manual.pdf#view=FitH&toolbar=1&navpanes=0" className="w-[800px] h-[600px]" title="User Manual PDF" frameBorder="0" >
                 <div className="p-8 text-center bg-gray-50">
                   <FiFileText className="mx-auto mb-4 text-6xl text-gray-400" />
                   <p className="text-gray-600 mb-4">
                     Your browser doesn't support PDF viewing. Please download the file to view it.
                   </p>
                   <a
-                    href="/imgs/User_Manual.pdf"
+                    href="./imgs/User_Manual.pdf"
                     download
                     className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors"
                   >

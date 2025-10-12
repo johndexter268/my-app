@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { FiArchive, FiTrash2, FiFolder, FiFile, FiSearch, FiGrid, FiList } from "react-icons/fi";
+import { FiArchive, FiTrash2, FiFolder, FiFile, FiSearch, FiGrid, FiList, FiRefreshCw } from "react-icons/fi";
 
 export default function File() {
   const [scheduleFiles, setScheduleFiles] = useState([]);
@@ -9,6 +9,7 @@ export default function File() {
   const [viewMode, setViewMode] = useState('grid');
   const [searchTerm, setSearchTerm] = useState('');
   const navigate = useNavigate();
+  const userRole = localStorage.getItem('userRole') || 'user';
 
   useEffect(() => {
     const fetchScheduleFiles = async () => {
@@ -41,7 +42,7 @@ export default function File() {
       });
       window.dispatchEvent(fileSelectedEvent);
 
-      navigate("/assign");
+      navigate(userRole === 'user' ? "/home" : "/assign");
     } catch (error) {
       console.error("Error selecting file:", error);
       alert("Error opening file: " + (error.message || "Unknown error"));
@@ -69,6 +70,31 @@ export default function File() {
       } catch (error) {
         console.error("Error archiving file:", error);
         alert("Error archiving file: " + (error.message || "Unknown error"));
+      } finally {
+        setIsOperating(false);
+      }
+    }
+  };
+
+  const handleUnarchive = async (id) => {
+    if (window.confirm("Are you sure you want to unarchive this file?")) {
+      if (isOperating) return;
+
+      try {
+        setIsOperating(true);
+        const result = await window.api.unarchiveScheduleFile(id);
+        if (result.success) {
+          setScheduleFiles((prev) =>
+            prev.map((file) =>
+              file.id === id ? { ...file, status: "active" } : file
+            )
+          );
+        } else {
+          alert(result.message || "Failed to unarchive file.");
+        }
+      } catch (error) {
+        console.error("Error unarchiving file:", error);
+        alert("Error unarchiving file: " + (error.message || "Unknown error"));
       } finally {
         setIsOperating(false);
       }
@@ -129,13 +155,9 @@ export default function File() {
 
     return (
       <div className="w-full h-36 bg-gray-800 rounded-t-lg p-3 flex flex-col overflow-hidden relative">
-        {/* Calendar header */}
         <div className="flex justify-between items-center mb-2 z-10">
           <div className="text-white text-xs font-medium opacity-80">Schedule</div>
-          {/* <div className="text-white text-xs opacity-60">2024</div> */}
         </div>
-
-        {/* Calendar grid */}
         <div className="grid grid-cols-7 gap-0.5 h-full relative z-10">
           {calendarData.slice(0, 21).map((item, index) => (
             <div
@@ -149,8 +171,6 @@ export default function File() {
             </div>
           ))}
         </div>
-
-        {/* Topmost overlay */}
         <div className="absolute inset-0 bg-gray-900/80 rounded-t-lg pointer-events-none z-20"></div>
       </div>
     );
@@ -162,25 +182,40 @@ export default function File() {
         } ${isOperating ? 'opacity-50' : ''}`}
       onClick={() => !isArchived && !isOperating && handleSelectFile(file)}
     >
-      {/* Calendar Preview */}
       <CalendarPreview fileId={file.id} />
-
-      {/* Card Content */}
       <div className="p-4">
         <div className="flex items-start justify-between mb-3">
           <div className="bg-teal-50 p-2 rounded-lg flex-shrink-0">
             <FiFile className="w-4 h-4 text-teal-600" />
           </div>
           <div className="flex items-center space-x-1 ml-2 flex-shrink-0">
-            {!isArchived && (
+            {isArchived ? (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleUnarchive(file.id);
+                }}
+                className={`p-1.5 rounded-md transition-colors ${userRole === 'user' || isOperating
+                  ? 'text-gray-400 cursor-not-allowed'
+                  : 'text-gray-400 hover:text-green-600 hover:bg-green-50'
+                }`}
+                title="Unarchive"
+                disabled={userRole === 'user' || isOperating}
+              >
+                <FiRefreshCw className="w-3.5 h-3.5" />
+              </button>
+            ) : (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   handleArchive(file.id);
                 }}
-                className="p-1.5 text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-md transition-colors"
+                className={`p-1.5 rounded-md transition-colors ${userRole === 'user' || isOperating
+                  ? 'text-gray-400 cursor-not-allowed'
+                  : 'text-gray-400 hover:text-yellow-600 hover:bg-yellow-50'
+                }`}
                 title="Archive"
-                disabled={isOperating}
+                disabled={userRole === 'user' || isOperating}
               >
                 <FiArchive className="w-3.5 h-3.5" />
               </button>
@@ -190,15 +225,17 @@ export default function File() {
                 e.stopPropagation();
                 handleDelete(file.id);
               }}
-              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+              className={`p-1.5 rounded-md transition-colors ${userRole === 'user' || isOperating
+                ? 'text-gray-400 cursor-not-allowed'
+                : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
+              }`}
               title="Delete"
-              disabled={isOperating}
+              disabled={userRole === 'user' || isOperating}
             >
               <FiTrash2 className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
-
         <div className="min-w-0">
           <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2 break-words leading-tight">
             {file.name}
@@ -273,15 +310,33 @@ export default function File() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                   <div className="flex items-center space-x-2">
-                    {!isArchived && (
+                    {isArchived ? (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleUnarchive(file.id);
+                        }}
+                        className={`p-2 rounded-lg transition-colors ${userRole === 'user' || isOperating
+                          ? 'text-gray-400 cursor-not-allowed'
+                          : 'text-gray-400 hover:text-green-600 hover:bg-green-50'
+                        }`}
+                        title="Unarchive"
+                        disabled={userRole === 'user' || isOperating}
+                      >
+                        <FiRefreshCw className="w-4 h-4" />
+                      </button>
+                    ) : (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           handleArchive(file.id);
                         }}
-                        className="p-2 text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg transition-colors"
+                        className={`p-2 rounded-lg transition-colors ${userRole === 'user' || isOperating
+                          ? 'text-gray-400 cursor-not-allowed'
+                          : 'text-gray-400 hover:text-yellow-600 hover:bg-yellow-50'
+                        }`}
                         title="Archive"
-                        disabled={isOperating}
+                        disabled={userRole === 'user' || isOperating}
                       >
                         <FiArchive className="w-4 h-4" />
                       </button>
@@ -291,9 +346,12 @@ export default function File() {
                         e.stopPropagation();
                         handleDelete(file.id);
                       }}
-                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      className={`p-2 rounded-lg transition-colors ${userRole === 'user' || isOperating
+                        ? 'text-gray-400 cursor-not-allowed'
+                        : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
+                      }`}
                       title="Delete"
-                      disabled={isOperating}
+                      disabled={userRole === 'user' || isOperating}
                     >
                       <FiTrash2 className="w-4 h-4" />
                     </button>
@@ -310,7 +368,6 @@ export default function File() {
   return (
     <div className="min-h-60 bg-white p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
         <div className="mb-6">
           <div className="flex items-center space-x-3 mb-4">
             <div className="bg-teal-100 p-2 rounded-lg">
@@ -318,8 +375,6 @@ export default function File() {
             </div>
             <h1 className="text-2xl font-bold text-gray-900">Schedule Files</h1>
           </div>
-
-          {/* Controls */}
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
             <div className="flex items-center space-x-4">
               <button
@@ -332,8 +387,6 @@ export default function File() {
               >
                 {showArchived ? "Show Active Files" : "Show Archived Files"}
               </button>
-
-              {/* View Mode Toggle */}
               <div className="flex bg-white border border-gray-300 rounded-lg p-1">
                 <button
                   onClick={() => setViewMode('grid')}
@@ -357,8 +410,6 @@ export default function File() {
                 </button>
               </div>
             </div>
-
-            {/* Search */}
             <div className="relative">
               <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <input
@@ -371,8 +422,6 @@ export default function File() {
             </div>
           </div>
         </div>
-
-        {/* Content */}
         {showArchived ? (
           <>
             <div className="mb-4">

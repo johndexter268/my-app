@@ -6,12 +6,33 @@
   "scripts": {
     "dev": "concurrently \"vite\" \"cross-env ELECTRON_START_URL=http://localhost:5173 electron . --enable-logging\"",
     "build": "vite build && electron-builder",
-    "start": "electron ."
+    "start": "electron .",
+    "postinstall": "electron-builder install-app-deps"
   },
   "build": {
     "appId": "com.yourdomain.ggc-css",
     "productName": "Class Scheduling System",
-    "icon": "build/app-icon.png"
+    "icon": "build/app-icon.ico",
+    "asarUnpack": [
+      "node_modules/sqlite3/**"
+    ],
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "directories": {
+      "buildResources": "build"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "build/app-icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "Class Scheduling System"
+    }
   },
   "dependencies": {
     "electron-is-dev": "^3.0.1",
@@ -22,6 +43,7 @@
     "react-icons": "^5.5.0",
     "react-pageflip": "^2.0.3",
     "react-router-dom": "^7.8.2",
+    "sqlite3": "^5.1.7",
     "uuid": "^12.0.0"
   },
   "devDependencies": {
@@ -32,12 +54,10 @@
     "concurrently": "^9.2.1",
     "cross-env": "^10.0.0",
     "electron": "^38.0.0",
-    "electron-is-dev": "^3.0.1",
     "eslint": "^9.33.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^16.3.0",
-    "sqlite3": "^5.1.7",
     "vite": "^7.1.2"
   }
 }

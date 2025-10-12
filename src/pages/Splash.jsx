@@ -12,7 +12,7 @@ export default function Splash() {
   return (
     <div className="flex h-screen text-white bg-zinc-900">
       <div className="flex flex-col flex-1 p-8">
-        <img src="/imgs/app-icon.png" alt="Logo" className="w-24 mb-8" />
+        <img src="./imgs/app-icon.png" alt="Logo" className="w-24 mb-8" />
         <div className="flex flex-col justify-center flex-1">
           <h1 className="text-3xl font-bold mb-2">Golden Gate Colleges</h1>
           <h2 className="text-xl mb-6">College of Engineering and Technology</h2>
@@ -23,7 +23,7 @@ export default function Splash() {
       </div>
       <div
         className="flex-1 bg-cover bg-center"
-        style={{ backgroundImage: "url('/imgs/Online calendar-bro.png')" }}
+        style={{ backgroundImage: "url('./imgs/Online calendar-bro.png')" }}
       ></div>
     </div>
   );
