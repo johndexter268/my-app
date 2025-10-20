@@ -9,6 +9,7 @@ import {
   FiChevronUp,
   FiEye,
   FiLogOut,
+  FiUsers
 } from "react-icons/fi";
 import {
   TbLayoutSidebarLeftCollapse,
@@ -74,6 +75,12 @@ export default function Sidebar() {
           event.preventDefault();
           if (userRole === 'admin' || userRole === 'user') {
             toggleViewTools();
+          }
+          break;
+        case "6":
+          event.preventDefault();
+          if (userRole === "admin") {
+            handleNavigation("/accounts");
           }
           break;
         case 'h':
@@ -143,6 +150,7 @@ export default function Sidebar() {
         { name: "Assigning", path: "/assign", roles: ['admin'] },
       ],
     },
+    { name: "Accounts", icon: <FiUsers />, path: "/accounts", roles: ['admin'] },
     { name: "View", icon: <FiEye />, isButton: true, onClick: toggleViewTools, roles: ['admin', 'user'] },
     { name: "Help", icon: <FiHelpCircle />, path: "/help", roles: ['admin', 'user'] },
   ];

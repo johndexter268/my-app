@@ -139,12 +139,10 @@ export default function Home() {
 
     const handleScheduleByCourse = (event) => {
       setSelectedProgramId(event.detail.programId || null);
-      setSelectedYearLevel(null);
     };
 
     const handleYearLevelSchedule = (event) => {
       setSelectedYearLevel(event.detail.yearLevel || null);
-      setSelectedProgramId(null);
     };
 
     const handleFullScreen = () => {
@@ -186,8 +184,30 @@ export default function Home() {
         duration: null,
       }))
     );
+
+    // Add subjects without any assignments (no teacher assigned yet)
+    const subjectsWithoutAssignments = subjects.filter(
+      (subject) => !subjectAssignments.some((sa) => sa.subjectId === subject.id) &&
+        !timeAssignments.some((ta) => ta.subjectId === subject.id)
+    );
+
+    listAssignments.push(
+      ...subjectsWithoutAssignments.map((subject) => ({
+        id: `unassigned-subject-${subject.id}`,
+        subjectId: subject.id,
+        teacherId: null,
+        classId: null,
+        roomId: null,
+        timeSlot: null,
+        day: null,
+        duration: null,
+        type: "subject",
+        scheduleFileId: currentFile?.id,
+      }))
+    );
+
     setAssignments(listAssignments);
-  }, [timeAssignments, roomAssignments, subjectAssignments]);
+  }, [timeAssignments, roomAssignments, subjectAssignments, subjects, currentFile?.id]);
 
   useEffect(() => {
     if (!contentRef.current) return;
@@ -235,7 +255,8 @@ export default function Home() {
     '1:00 PM - 1:30 PM', '1:30 PM - 2:00 PM', '2:00 PM - 2:30 PM', '2:30 PM - 3:00 PM',
     '3:00 PM - 3:30 PM', '3:30 PM - 4:00 PM', '4:00 PM - 4:30 PM', '4:30 PM - 5:00 PM',
     '5:00 PM - 5:30 PM', '5:30 PM - 6:00 PM', '6:00 PM - 6:30 PM', '6:30 PM - 7:00 PM',
-    '7:00 PM - 7:30 PM'
+    '7:00 PM - 7:30 PM', '7:30 PM - 8:00 PM', '8:00 PM - 8:30 PM', '8:30 PM - 9:00 PM',
+    '9:30 PM - 10:00 PM',
   ];
 
   const parseTime = (timeStr) => {
@@ -330,7 +351,7 @@ export default function Home() {
 
   const getTeacherName = (teacherId) => {
     const teacher = teachers.find((t) => t.id === teacherId);
-    return teacher ? (teacher.honorifics ? `${teacher.honorifics} ${teacher.fullName}` : teacher.fullName) : "Unknown";
+    return teacher ? (teacher.honorifics ? `${teacher.honorifics} ${teacher.fullName}` : teacher.fullName) : "No Teacher";
   };
 
   const getTotalStudentsForMergedClasses = (assignment, day, timeSlot) => {
@@ -449,6 +470,45 @@ export default function Home() {
     return mergedGrid;
   };
 
+  // Create schedule grid with Day as columns and Time as rows
+  const createDayColumnScheduleGrid = (programId, yearLevel) => {
+    const grid = {};
+
+    timeSlots.forEach((timeSlot, timeIndex) => {
+      grid[timeIndex] = {};
+      days.forEach((day) => {
+        grid[timeIndex][day] = { occupied: false, assignment: null, span: 1 };
+      });
+    });
+
+    days.forEach((day) => {
+      const dayAssignments = getDayAssignments(day, selectedTeacherId, programId, yearLevel);
+
+      dayAssignments.forEach(({ start, span, assignment }) => {
+        const assYearLevel = getYearLevel(assignment.classId);
+        if (assYearLevel === yearLevel) {
+          grid[start][day] = {
+            occupied: true,
+            assignment: assignment,
+            span: span,
+          };
+
+          for (let i = 1; i < span; i++) {
+            if (grid[start + i]) {
+              grid[start + i][day] = {
+                occupied: true,
+                assignment: null,
+                span: 0,
+              };
+            }
+          }
+        }
+      });
+    });
+
+    return grid;
+  };
+
   const getAvailableSlotsForTeacher = (teacherId) => {
     if (!teacherId) return {};
     const available = {};
@@ -485,10 +545,18 @@ export default function Home() {
     let newRoomId;
 
     if (assignment.type === "time") {
+      const assYearLevel = getYearLevel(assignment.classId);
+      if (selectedProgramId && selectedYearLevel && assYearLevel !== yearLevel) {
+        setConflictModal({
+          open: true,
+          conflicts: ["Assignment year level does not match the selected year level."],
+        });
+        return;
+      }
       updatedAssignment = {
         ...assignment,
         day,
-        timeSlot: timeSlots[timeIndex].split('-')[0].trim(), // Use start time for assignment
+        timeSlot: timeSlots[timeIndex].split('-')[0].trim(),
       };
       newRoomId = getAssignmentRoom(assignment) !== "N/A" ? roomAssignments.find(
         (ra) =>
@@ -635,7 +703,10 @@ export default function Home() {
     }
 
     try {
-      const result = await window.api.assignTimeSlot(updatedAssignment);
+      const result = assignment.type === "time"
+        ? await window.api.updateTimeSlotAssignment(updatedAssignment)
+        : await window.api.assignTimeSlot(updatedAssignment);
+
       if (result.success) {
         if (newRoomId) {
           const existingRoomAssignment = roomAssignments.find(
@@ -665,12 +736,23 @@ export default function Home() {
             });
           }
         }
-        setTimeAssignments((prev) =>
-          prev.map((a) => (a.id === updatedAssignment.id ? updatedAssignment : a))
-        );
-        setAssignments((prev) =>
-          prev.map((a) => (a.id === updatedAssignment.id ? updatedAssignment : a))
-        );
+        // If it was a time assignment being moved, update it. If it was a new assignment, add it
+        if (assignment.type === "time") {
+          setTimeAssignments((prev) =>
+            prev.map((a) => (a.id === updatedAssignment.id ? updatedAssignment : a))
+          );
+          setAssignments((prev) =>
+            prev.map((a) => (a.id === updatedAssignment.id ? updatedAssignment : a))
+          );
+        } else {
+          setTimeAssignments((prev) => [...prev, updatedAssignment]);
+          setAssignments((prev) => {
+            const filtered = assignment.type === "room"
+              ? prev.filter((a) => a.id !== assignment.id)
+              : prev;
+            return [...filtered, updatedAssignment];
+          });
+        }
         setRoomAssignments((prev) => {
           const existing = prev.find(
             (ra) =>
@@ -980,12 +1062,21 @@ export default function Home() {
     ? programs.filter((p) => p.id === selectedProgramId)
     : programs;
 
-  const grids = programsToShow
-    .map((program) => {
-      const gridData = createScheduleGrid(program.id, selectedYearLevel);
-      return gridData ? { program, ...gridData } : null;
-    })
-    .filter(Boolean);
+  // Check if we should use day-column layout (specific program AND year level selected)
+  const useDayColumnLayout = selectedProgramId && selectedYearLevel;
+
+  const grids = useDayColumnLayout
+    ? [{
+      program: programs.find((p) => p.id === selectedProgramId),
+      grid: createDayColumnScheduleGrid(selectedProgramId, selectedYearLevel),
+      isDayColumn: true,
+    }]
+    : programsToShow
+      .map((program) => {
+        const gridData = createScheduleGrid(program.id, selectedYearLevel);
+        return gridData ? { program, ...gridData, isDayColumn: false } : null;
+      })
+      .filter(Boolean);
 
   const availableSlots = selectedTeacherId ? getAvailableSlotsForTeacher(selectedTeacherId) : {};
   const mergedGrid = fullScheduleActive ? createMergedScheduleGrid() : null;
@@ -1009,7 +1100,6 @@ export default function Home() {
                 Close
               </button>
             </div>
-
             <div className="space-y-8">
               {fullScheduleActive ? (
                 <div>
@@ -1025,7 +1115,7 @@ export default function Home() {
                       }}
                     >
                       <table className="w-full border-collapse text-sm">
-                        <thead className="bg-gray-50 sticky top-0 z-10">
+                        <thead className="bg-gray-50">
                           <tr className="bg-gray-50">
                             <th className="border p-2 text-md" style={{ width: "80px" }}>Program</th>
                             <th className="border p-2 text-center" style={{ width: "60px" }}>Day</th>
@@ -1061,7 +1151,7 @@ export default function Home() {
                                         minWidth: "80px",
                                         maxWidth: "80px",
                                         writingMode: "vertical-rl",
-                                        textOrientation: "mixed"
+                                        textOrientation: "mixed",
                                       }}
                                     >
                                       {program.name}
@@ -1116,17 +1206,25 @@ export default function Home() {
                                     row.push(
                                       <td
                                         key={`${program.id}-${day}-${timeIndex}-${level}`}
-                                        className="p-2 relative text-sm align-middle bg-transparent"
+                                        className={`p-2 relative text-sm align-middle bg-transparent ${userRole !== 'user' ? 'cursor-move' : ''
+                                          }`}
                                         style={{
                                           maxWidth: "100px",
                                           height: `${35 * levelData.span}px`,
                                           verticalAlign: "middle",
                                         }}
                                         rowSpan={levelData.span}
-                                        {...(userRole !== 'user' ? {
-                                          onDragOver: (e) => e.preventDefault(),
-                                          onDrop: (e) => handleDrop(e, day, timeIndex, level, program.id)
-                                        } : {})}
+                                        {...(userRole !== 'user'
+                                          ? {
+                                            draggable: true,
+                                            onDragStart: (e) => {
+                                              e.dataTransfer.setData("text/plain", assignment.id);
+                                              e.dataTransfer.effectAllowed = "move";
+                                            },
+                                            onDragOver: (e) => e.preventDefault(),
+                                            onDrop: (e) => handleDrop(e, day, timeIndex, level, program.id),
+                                          }
+                                          : {})}
                                       >
                                         <div className="flex items-center justify-start h-full px-1">
                                           <div className="relative group">
@@ -1138,125 +1236,48 @@ export default function Home() {
                                             ></div>
                                             <div
                                               className="absolute left-0 top-6 bg-gray-900 text-white text-xs rounded-lg p-3 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20 min-w-52 border border-gray-700"
-                                              style={{ zIndex: 20 }}
+                                              style={{ zIndex: 10500 }}
                                             >
-                                              {editingAssignment && editingAssignment.id === assignment.id && userRole !== 'user' ? (
-                                                <div className="space-y-2">
-                                                  <div className="font-bold text-white border-b border-gray-700 pb-1">
-                                                    {subjectName}
-                                                  </div>
-                                                  <div className="text-blue-200">{teacherName}</div>
-                                                  <div>
-                                                    <label className="block text-gray-300">Start Time</label>
-                                                    <select
-                                                      value={editingAssignment.startTime || ""}
-                                                      onChange={(e) =>
-                                                        setEditingAssignment({ ...editingAssignment, startTime: e.target.value })
-                                                      }
-                                                      className="w-full p-1 border bg-gray-800 text-white rounded-md"
-                                                    >
-                                                      <option value="">Select start time</option>
-                                                      {timeSlots.map((slot) => (
-                                                        <option key={slot} value={slot}>{slot}</option>
-                                                      ))}
-                                                    </select>
-                                                  </div>
-                                                  <div>
-                                                    <label className="block text-gray-300">Duration</label>
-                                                    <select
-                                                      value={editingAssignment.duration || ""}
-                                                      onChange={(e) =>
-                                                        setEditingAssignment({ ...editingAssignment, duration: e.target.value })
-                                                      }
-                                                      className="w-full p-1 border bg-gray-800 text-white rounded-md"
-                                                    >
-                                                      <option value="">Select duration</option>
-                                                      <option value="60">1 hour</option>
-                                                      <option value="120">2 hours</option>
-                                                      <option value="180">3 hours</option>
-                                                      <option value="240">4 hours</option>
-                                                    </select>
-                                                  </div>
-                                                  <div>
-                                                    <label className="block text-gray-300">Room</label>
-                                                    <select
-                                                      value={editingAssignment.roomId || ""}
-                                                      onChange={(e) =>
-                                                        setEditingAssignment({ ...editingAssignment, roomId: e.target.value })
-                                                      }
-                                                      className="w-full p-1 border bg-gray-800 text-white rounded-md"
-                                                    >
-                                                      <option value="">No Room</option>
-                                                      {rooms.map((room) => (
-                                                        <option key={room.id} value={room.id}>{room.name}</option>
-                                                      ))}
-                                                    </select>
-                                                  </div>
+                                              <div className="text-left space-y-1">
+                                                <div className="font-bold text-white border-b border-gray-700 pb-1">
+                                                  {subjectName}
+                                                </div>
+                                                <div className="text-blue-200">{teacherName}</div>
+                                                <div className="text-gray-300">{assignment.timeSlot} - {day}</div>
+                                                <div className="text-gray-300">Room: {room}</div>
+                                                <div className="text-gray-300">Program: {program.name}</div>
+                                                {userRole !== 'user' && (
                                                   <div className="flex gap-2">
                                                     <button
                                                       onClick={() =>
-                                                        handleSaveEdit(assignment.id, {
+                                                        setEditingAssignment({
                                                           ...assignment,
-                                                          startTime: editingAssignment.startTime,
-                                                          duration: editingAssignment.duration,
-                                                          roomId: editingAssignment.roomId,
+                                                          startTime: assignment.timeSlot.split('-')[0].trim(),
+                                                          duration: assignment.duration,
+                                                          roomId: roomAssignments.find(
+                                                            (ra) =>
+                                                              ra.scheduleFileId === assignment.scheduleFileId &&
+                                                              ra.subjectId === assignment.subjectId &&
+                                                              ra.teacherId === assignment.teacherId &&
+                                                              ra.classId === assignment.classId
+                                                          )?.roomId || '',
                                                         })
                                                       }
-                                                      className="px-2 py-1 bg-teal-600 text-white rounded-md hover:bg-teal-700"
+                                                      className="text-blue-500 hover:text-blue-300 text-xs"
+                                                      title="Edit"
                                                     >
-                                                      Save
+                                                      Edit
                                                     </button>
                                                     <button
-                                                      onClick={() => setEditingAssignment(null)}
-                                                      className="px-2 py-1 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+                                                      onClick={() => handleDelete(assignment.id)}
+                                                      className="text-red-500 hover:text-red-300 text-xs"
+                                                      title="Remove"
                                                     >
-                                                      Cancel
+                                                      <FiTrash2 />
                                                     </button>
                                                   </div>
-                                                </div>
-                                              ) : (
-                                                <div className="text-left space-y-1">
-                                                  <div className="font-bold text-white border-b border-gray-700 pb-1">
-                                                    {subjectName}
-                                                  </div>
-                                                  <div className="text-blue-200">{teacherName}</div>
-                                                  <div className="text-gray-300">{assignment.timeSlot} - {day}</div>
-                                                  <div className="text-gray-300">Room: {room}</div>
-                                                  <div className="text-gray-300">Program: {program.name}</div>
-                                                  {userRole !== 'user' && (
-                                                    <div className="flex gap-2">
-                                                      <button
-                                                        onClick={() =>
-                                                          setEditingAssignment({
-                                                            ...assignment,
-                                                            startTime: assignment.timeSlot.split('-')[0].trim(),
-                                                            duration: assignment.duration,
-                                                            roomId:
-                                                              roomAssignments.find(
-                                                                (ra) =>
-                                                                  ra.scheduleFileId === assignment.scheduleFileId &&
-                                                                  ra.subjectId === assignment.subjectId &&
-                                                                  ra.teacherId === assignment.teacherId &&
-                                                                  ra.classId === assignment.classId
-                                                              )?.roomId || '',
-                                                          })
-                                                        }
-                                                        className="text-blue-500 hover:text-blue-300 text-xs"
-                                                        title="Edit"
-                                                      >
-                                                        Edit
-                                                      </button>
-                                                      <button
-                                                        onClick={() => handleDelete(assignment.id)}
-                                                        className="text-red-500 hover:text-red-300 text-xs"
-                                                        title="Remove"
-                                                      >
-                                                        <FiTrash2 />
-                                                      </button>
-                                                    </div>
-                                                  )}
-                                                </div>
-                                              )}
+                                                )}
+                                              </div>
                                               <div className="absolute -top-2 left-3 w-0 h-0 border-l-4 border-r-4 border-b-4 border-l-transparent border-r-transparent border-b-gray-900"></div>
                                             </div>
                                           </div>
@@ -1276,10 +1297,12 @@ export default function Home() {
                                         key={`${program.id}-${day}-${timeIndex}-${level}`}
                                         className={`border p-1 relative text-sm text-center align-middle ${bgColor}`}
                                         style={{ minWidth: "140px", height: "35px" }}
-                                        {...(userRole !== 'user' ? {
-                                          onDragOver: (e) => e.preventDefault(),
-                                          onDrop: (e) => handleDrop(e, day, timeIndex, level, program.id)
-                                        } : {})}
+                                        {...(userRole !== 'user'
+                                          ? {
+                                            onDragOver: (e) => e.preventDefault(),
+                                            onDrop: (e) => handleDrop(e, day, timeIndex, level, program.id),
+                                          }
+                                          : {})}
                                       ></td>
                                     );
                                   }
@@ -1301,7 +1324,7 @@ export default function Home() {
                   </div>
                 </div>
               ) : (
-                grids.map(({ program, grid, levels }, progIndex) => (
+                grids.map(({ program, grid, levels, isDayColumn }, progIndex) => (
                   <div key={progIndex}>
                     {!selectedProgramId && <h2 className="text-xl font-bold mb-4">{program.name}</h2>}
                     <div className="bg-white rounded-lg shadow-sm border overflow-auto">
@@ -1315,171 +1338,321 @@ export default function Home() {
                         }}
                       >
                         <table className="w-full border-collapse text-sm">
-                          <thead className="bg-gray-50 sticky top-0 z-10">
-                            <tr className="bg-gray-50">
-                              <th className="border p-2 text-md" style={{ width: "60px" }}>
-                                {fullScheduleActive ? "All Schedules" : currentFile.name}
-                              </th>
-                              <th className="border p-2 text-center" style={{ width: "120px" }}>Time</th>
-                              {levels.map((level) => (
-                                <th key={level} className="border p-2 text-center">{level}</th>
-                              ))}
-                            </tr>
+                          <thead className="bg-gray-50">
+                            {isDayColumn ? (
+                              <tr className="bg-gray-50">
+                                <th className="border p-2 text-center" style={{ width: "120px" }}>Time</th>
+                                {days.map((day) => (
+                                  <th key={day} className="border p-2 text-center">{day}</th>
+                                ))}
+                              </tr>
+                            ) : (
+                              <tr className="bg-gray-50">
+                                <th className="border p-2 text-md" style={{ width: "60px" }}>
+                                  {fullScheduleActive ? "All Schedules" : currentFile.name}
+                                </th>
+                                <th className="border p-2 text-center" style={{ width: "120px" }}>Time</th>
+                                {levels.map((level) => (
+                                  <th key={level} className="border p-2 text-center">{level}</th>
+                                ))}
+                              </tr>
+                            )}
                           </thead>
                           <tbody>
-                            {days.map((day) => {
-                              const rows = [];
-                              let dayColumnRendered = false;
+                            {isDayColumn ? (
+                              timeSlots.map((timeSlot, timeIndex) => {
+                                const gridSlot = grid[timeIndex];
 
-                              timeSlots.forEach((timeSlot, timeIndex) => {
-                                const gridSlot = grid[day][timeIndex];
-                                const row = [];
-
-                                if (!dayColumnRendered) {
-                                  row.push(
+                                return (
+                                  <tr key={`time-${timeIndex}`}>
                                     <td
-                                      key={`${day}-day-column`}
-                                      className="border p-1 font-bold text-sm"
-                                      rowSpan={timeSlots.length}
-                                      style={{
-                                        verticalAlign: "middle",
-                                        textAlign: "center",
-                                        width: "60px",
-                                        minWidth: "60px",
-                                        maxWidth: "60px",
-                                      }}
+                                      className="border border-gray-300 p-1 text-xs bg-white text-zinc-900 font-semibold"
+                                      style={{ height: "35px", width: "120px" }}
                                     >
-                                      {day}
+                                      {timeSlot}
                                     </td>
-                                  );
-                                  dayColumnRendered = true;
-                                }
+                                    {days.map((day) => {
+                                      const dayData = gridSlot[day];
 
-                                const isAvailable = selectedTeacherId && availableSlots[day] && availableSlots[day][timeIndex];
+                                      if (dayData.span === 0) return null;
 
-                                row.push(
-                                  <td
-                                    key={`${day}-${timeIndex}-time`}
-                                    className="border border-gray-300 p-1 text-xs bg-white text-zinc-900"
-                                    style={{ height: "35px", width: "100px" }}
-                                  >
-                                    {timeSlot}
-                                  </td>
+                                      if (dayData.occupied && dayData.assignment) {
+                                        const assignment = dayData.assignment;
+                                        const subjectName = getSubjectName(assignment.subjectId);
+                                        const teacherName = getTeacherName(assignment.teacherId);
+                                        const room = getAssignmentRoom(assignment);
+
+                                        return (
+                                          <td
+                                            key={`${timeIndex}-${day}`}
+                                            className={`p-2 relative text-sm align-middle bg-transparent ${userRole !== 'user' ? 'cursor-move hover:cursor-grabbing' : ''
+                                              }`}
+                                            style={{
+                                              maxWidth: "140px",
+                                              height: `${35 * dayData.span}px`,
+                                              verticalAlign: "middle",
+                                            }}
+                                            rowSpan={dayData.span}
+                                            {...(userRole !== 'user'
+                                              ? {
+                                                draggable: true,
+                                                onDragStart: (e) => {
+                                                  e.dataTransfer.setData("text/plain", assignment.id);
+                                                  e.dataTransfer.effectAllowed = "move";
+                                                },
+                                                onDragOver: (e) => e.preventDefault(),
+                                                onDrop: (e) => handleDrop(e, day, timeIndex, selectedYearLevel, selectedProgramId),
+                                              }
+                                              : {})}
+                                          >
+                                            <div className="flex items-center justify-start h-full px-1">
+                                              <div className="relative group">
+                                                <div
+                                                  className="w-4 h-4 rounded-full mr-2 flex-shrink-0 cursor-pointer border border-gray-300"
+                                                  style={{
+                                                    backgroundColor: getTeacherColor(assignment.teacherId),
+                                                  }}
+                                                ></div>
+                                                <div
+                                                  className="absolute left-0 top-6 bg-gray-900 text-white text-xs rounded-lg p-3 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20 min-w-52 border border-gray-700"
+                                                  style={{ zIndex: 20 }}
+                                                >
+                                                  {editingAssignment && editingAssignment.id === assignment.id && userRole !== 'user' ? (
+                                                    <div className="space-y-2">
+                                                      <div className="font-bold text-white border-b border-gray-700 pb-1">
+                                                        {subjectName}
+                                                      </div>
+                                                      <div className="text-blue-200">{teacherName}</div>
+                                                      <div>
+                                                        <label className="block text-gray-300">Start Time</label>
+                                                        <select
+                                                          value={editingAssignment.startTime || ""}
+                                                          onChange={(e) =>
+                                                            setEditingAssignment({ ...editingAssignment, startTime: e.target.value })
+                                                          }
+                                                          className="w-full p-1 border bg-gray-800 text-white rounded-md"
+                                                        >
+                                                          <option value="">Select start time</option>
+                                                          {timeSlots.map((slot) => (
+                                                            <option key={slot} value={slot}>{slot}</option>
+                                                          ))}
+                                                        </select>
+                                                      </div>
+                                                      <div>
+                                                        <label className="block text-gray-300">Duration</label>
+                                                        <select
+                                                          value={editingAssignment.duration || ""}
+                                                          onChange={(e) =>
+                                                            setEditingAssignment({ ...editingAssignment, duration: e.target.value })
+                                                          }
+                                                          className="w-full p-1 border bg-gray-800 text-white rounded-md"
+                                                        >
+                                                          <option value="">Select duration</option>
+                                                          <option value="60">1 hour</option>
+                                                          <option value="120">2 hours</option>
+                                                          <option value="180">3 hours</option>
+                                                          <option value="240">4 hours</option>
+                                                        </select>
+                                                      </div>
+                                                      <div>
+                                                        <label className="block text-gray-300">Room</label>
+                                                        <select
+                                                          value={editingAssignment.roomId || ""}
+                                                          onChange={(e) =>
+                                                            setEditingAssignment({ ...editingAssignment, roomId: e.target.value })
+                                                          }
+                                                          className="w-full p-1 border bg-gray-800 text-white rounded-md"
+                                                        >
+                                                          <option value="">No Room</option>
+                                                          {rooms.map((room) => (
+                                                            <option key={room.id} value={room.id}>{room.name}</option>
+                                                          ))}
+                                                        </select>
+                                                      </div>
+                                                      <div className="flex gap-2">
+                                                        <button
+                                                          onClick={() =>
+                                                            handleSaveEdit(assignment.id, {
+                                                              ...assignment,
+                                                              startTime: editingAssignment.startTime,
+                                                              duration: editingAssignment.duration,
+                                                              roomId: editingAssignment.roomId,
+                                                            })
+                                                          }
+                                                          className="px-2 py-1 bg-teal-600 text-white rounded-md hover:bg-teal-700"
+                                                        >
+                                                          Save
+                                                        </button>
+                                                        <button
+                                                          onClick={() => setEditingAssignment(null)}
+                                                          className="px-2 py-1 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+                                                        >
+                                                          Cancel
+                                                        </button>
+                                                      </div>
+                                                    </div>
+                                                  ) : (
+                                                    <div className="text-left space-y-1">
+                                                      <div className="font-bold text-white border-b border-gray-700 pb-1">
+                                                        {subjectName}
+                                                      </div>
+                                                      <div className="text-blue-200">{teacherName}</div>
+                                                      <div className="text-gray-300">{assignment.timeSlot} - {day}</div>
+                                                      <div className="text-gray-300">Room: {room}</div>
+                                                      {userRole !== 'user' && (
+                                                        <div className="flex gap-2">
+                                                          <button
+                                                            onClick={() =>
+                                                              setEditingAssignment({
+                                                                ...assignment,
+                                                                startTime: assignment.timeSlot.split('-')[0].trim(),
+                                                                duration: assignment.duration,
+                                                                roomId: roomAssignments.find(
+                                                                  (ra) =>
+                                                                    ra.scheduleFileId === assignment.scheduleFileId &&
+                                                                    ra.subjectId === assignment.subjectId &&
+                                                                    ra.teacherId === assignment.teacherId &&
+                                                                    ra.classId === assignment.classId
+                                                                )?.roomId || '',
+                                                              })
+                                                            }
+                                                            className="text-blue-500 hover:text-blue-300 text-xs"
+                                                            title="Edit"
+                                                          >
+                                                            Edit
+                                                          </button>
+                                                          <button
+                                                            onClick={() => handleDelete(assignment.id)}
+                                                            className="text-red-500 hover:text-red-300 text-xs"
+                                                            title="Remove"
+                                                          >
+                                                            <FiTrash2 />
+                                                          </button>
+                                                        </div>
+                                                      )}
+                                                    </div>
+                                                  )}
+                                                  <div className="absolute -top-2 left-3 w-0 h-0 border-l-4 border-r-4 border-b-4 border-l-transparent border-r-transparent border-b-gray-900"></div>
+                                                </div>
+                                              </div>
+                                              <div className="flex-1 text-left overflow-hidden">
+                                                <div className="text-xs font-semibold leading-tight text-gray-800 truncate">
+                                                  {subjectName}
+                                                </div>
+                                                <div className="text-xs text-gray-600 leading-tight truncate">{teacherName}</div>
+                                              </div>
+                                            </div>
+                                          </td>
+                                        );
+                                      } else {
+                                        const isAvailable = selectedTeacherId && availableSlots[day] && availableSlots[day][timeIndex];
+                                        const bgColor = isAvailable ? "bg-teal-50" : "";
+
+                                        return (
+                                          <td
+                                            key={`${timeIndex}-${day}`}
+                                            className={`border p-1 relative text-sm text-center align-middle ${bgColor}`}
+                                            style={{ minWidth: "140px", height: "35px" }}
+                                            {...(userRole !== 'user'
+                                              ? {
+                                                onDragOver: (e) => e.preventDefault(),
+                                                onDrop: (e) => handleDrop(e, day, timeIndex, selectedYearLevel, selectedProgramId),
+                                              }
+                                              : {})}
+                                          ></td>
+                                        );
+                                      }
+                                    })}
+                                  </tr>
                                 );
+                              })
+                            ) : (
+                              days.map((day) => {
+                                const rows = [];
+                                let dayColumnRendered = false;
 
-                                levels.forEach((level) => {
-                                  const levelData = gridSlot.yearLevels[level];
+                                timeSlots.forEach((timeSlot, timeIndex) => {
+                                  const gridSlot = grid[day][timeIndex];
+                                  const row = [];
 
-                                  if (levelData.span === 0) return;
-
-                                  if (levelData.occupied && levelData.assignment) {
-                                    const assignment = levelData.assignment;
-                                    const subjectName = getSubjectName(assignment.subjectId);
-                                    const teacherName = getTeacherName(assignment.teacherId);
-                                    const room = getAssignmentRoom(assignment);
-
+                                  if (!dayColumnRendered) {
                                     row.push(
                                       <td
-                                        key={`${day}-${timeIndex}-${level}`}
-                                        className="p-2 relative text-sm align-middle bg-transparent"
+                                        key={`${day}-day-column`}
+                                        className="border p-1 font-bold text-sm"
+                                        rowSpan={timeSlots.length}
                                         style={{
-                                          maxWidth: "100px",
-                                          height: `${35 * levelData.span}px`,
                                           verticalAlign: "middle",
+                                          textAlign: "center",
+                                          width: "60px",
+                                          minWidth: "60px",
+                                          maxWidth: "60px",
                                         }}
-                                        rowSpan={levelData.span}
-                                        {...(userRole !== 'user' ? {
-                                          onDragOver: (e) => e.preventDefault(),
-                                          onDrop: (e) => handleDrop(e, day, timeIndex, level)
-                                        } : {})}
                                       >
-                                        <div className="flex items-center justify-start h-full px-1">
-                                          <div className="relative group">
-                                            <div
-                                              className="w-4 h-4 rounded-full mr-2 flex-shrink-0 cursor-pointer border border-gray-300"
-                                              style={{
-                                                backgroundColor: getTeacherColor(assignment.teacherId),
-                                              }}
-                                            ></div>
-                                            <div
-                                              className="absolute left-0 top-6 bg-gray-900 text-white text-xs rounded-lg p-3 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20 min-w-52 border border-gray-700"
-                                              style={{ zIndex: 20 }}
-                                            >
-                                              {editingAssignment && editingAssignment.id === assignment.id && userRole !== 'user' ? (
-                                                <div className="space-y-2">
-                                                  <div className="font-bold text-white border-b border-gray-700 pb-1">
-                                                    {subjectName}
-                                                  </div>
-                                                  <div className="text-blue-200">{teacherName}</div>
-                                                  <div>
-                                                    <label className="block text-gray-300">Start Time</label>
-                                                    <select
-                                                      value={editingAssignment.startTime || ""}
-                                                      onChange={(e) =>
-                                                        setEditingAssignment({ ...editingAssignment, startTime: e.target.value })
-                                                      }
-                                                      className="w-full p-1 border bg-gray-800 text-white rounded-md"
-                                                    >
-                                                      <option value="">Select start time</option>
-                                                      {timeSlots.map((slot) => (
-                                                        <option key={slot} value={slot}>{slot}</option>
-                                                      ))}
-                                                    </select>
-                                                  </div>
-                                                  <div>
-                                                    <label className="block text-gray-300">Duration</label>
-                                                    <select
-                                                      value={editingAssignment.duration || ""}
-                                                      onChange={(e) =>
-                                                        setEditingAssignment({ ...editingAssignment, duration: e.target.value })
-                                                      }
-                                                      className="w-full p-1 border bg-gray-800 text-white rounded-md"
-                                                    >
-                                                      <option value="">Select duration</option>
-                                                      <option value="60">1 hour</option>
-                                                      <option value="120">2 hours</option>
-                                                      <option value="180">3 hours</option>
-                                                      <option value="240">4 hours</option>
-                                                    </select>
-                                                  </div>
-                                                  <div>
-                                                    <label className="block text-gray-300">Room</label>
-                                                    <select
-                                                      value={editingAssignment.roomId || ""}
-                                                      onChange={(e) =>
-                                                        setEditingAssignment({ ...editingAssignment, roomId: e.target.value })
-                                                      }
-                                                      className="w-full p-1 border bg-gray-800 text-white rounded-md"
-                                                    >
-                                                      <option value="">No Room</option>
-                                                      {rooms.map((room) => (
-                                                        <option key={room.id} value={room.id}>{room.name}</option>
-                                                      ))}
-                                                    </select>
-                                                  </div>
-                                                  <div className="flex gap-2">
-                                                    <button
-                                                      onClick={() =>
-                                                        handleSaveEdit(assignment.id, {
-                                                          ...assignment,
-                                                          startTime: editingAssignment.startTime,
-                                                          duration: editingAssignment.duration,
-                                                          roomId: editingAssignment.roomId,
-                                                        })
-                                                      }
-                                                      className="px-2 py-1 bg-teal-600 text-white rounded-md hover:bg-teal-700"
-                                                    >
-                                                      Save
-                                                    </button>
-                                                    <button
-                                                      onClick={() => setEditingAssignment(null)}
-                                                      className="px-2 py-1 bg-gray-600 text-white rounded-md hover:bg-gray-700"
-                                                    >
-                                                      Cancel
-                                                    </button>
-                                                  </div>
-                                                </div>
-                                              ) : (
+                                        {day}
+                                      </td>
+                                    );
+                                    dayColumnRendered = true;
+                                  }
+
+                                  const isAvailable = selectedTeacherId && availableSlots[day] && availableSlots[day][timeIndex];
+
+                                  row.push(
+                                    <td
+                                      key={`${day}-${timeIndex}-time`}
+                                      className="border border-gray-300 p-1 text-xs bg-white text-zinc-900"
+                                      style={{ height: "35px", width: "100px" }}
+                                    >
+                                      {timeSlot}
+                                    </td>
+                                  );
+
+                                  levels.forEach((level) => {
+                                    const levelData = gridSlot.yearLevels[level];
+
+                                    if (levelData.span === 0) return;
+
+                                    if (levelData.occupied && levelData.assignment) {
+                                      const assignment = levelData.assignment;
+                                      const subjectName = getSubjectName(assignment.subjectId);
+                                      const teacherName = getTeacherName(assignment.teacherId);
+                                      const room = getAssignmentRoom(assignment);
+
+                                      row.push(
+                                        <td
+                                          key={`${day}-${timeIndex}-${level}`}
+                                          className={`p-2 relative text-sm align-middle bg-transparent ${userRole !== 'user' ? 'cursor-move hover:cursor-grabbing' : ''
+                                            }`}
+                                          style={{
+                                            maxWidth: "100px",
+                                            height: `${35 * levelData.span}px`,
+                                            verticalAlign: "middle",
+                                          }}
+                                          rowSpan={levelData.span}
+                                          {...(userRole !== 'user'
+                                            ? {
+                                              draggable: true,
+                                              onDragStart: (e) => {
+                                                e.dataTransfer.setData("text/plain", assignment.id);
+                                                e.dataTransfer.effectAllowed = "move";
+                                              },
+                                              onDragOver: (e) => e.preventDefault(),
+                                              onDrop: (e) => handleDrop(e, day, timeIndex, level),
+                                            }
+                                            : {})}
+                                        >
+                                          <div className="flex items-center justify-start h-full px-1">
+                                            <div className="relative group">
+                                              <div
+                                                className="w-4 h-4 rounded-full mr-2 flex-shrink-0 cursor-pointer border border-gray-300"
+                                                style={{
+                                                  backgroundColor: getTeacherColor(assignment.teacherId),
+                                                }}
+                                              ></div>
+                                              <div
+                                                className="absolute left-0 top-6 bg-gray-900 text-white text-xs rounded-lg p-3 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20 min-w-52 border border-gray-700"
+                                                style={{ zIndex: 20 }}
+                                              >
                                                 <div className="text-left space-y-1">
                                                   <div className="font-bold text-white border-b border-gray-700 pb-1">
                                                     {subjectName}
@@ -1487,9 +1660,6 @@ export default function Home() {
                                                   <div className="text-blue-200">{teacherName}</div>
                                                   <div className="text-gray-300">{assignment.timeSlot} - {day}</div>
                                                   <div className="text-gray-300">Room: {room}</div>
-                                                  {fullScheduleActive && (
-                                                    <div className="text-gray-300">Program: {program.name}</div>
-                                                  )}
                                                   {userRole !== 'user' && (
                                                     <div className="flex gap-2">
                                                       <button
@@ -1498,14 +1668,13 @@ export default function Home() {
                                                             ...assignment,
                                                             startTime: assignment.timeSlot.split('-')[0].trim(),
                                                             duration: assignment.duration,
-                                                            roomId:
-                                                              roomAssignments.find(
-                                                                (ra) =>
-                                                                  ra.scheduleFileId === assignment.scheduleFileId &&
-                                                                  ra.subjectId === assignment.subjectId &&
-                                                                  ra.teacherId === assignment.teacherId &&
-                                                                  ra.classId === assignment.classId
-                                                              )?.roomId || '',
+                                                            roomId: roomAssignments.find(
+                                                              (ra) =>
+                                                                ra.scheduleFileId === assignment.scheduleFileId &&
+                                                                ra.subjectId === assignment.subjectId &&
+                                                                ra.teacherId === assignment.teacherId &&
+                                                                ra.classId === assignment.classId
+                                                            )?.roomId || '',
                                                           })
                                                         }
                                                         className="text-blue-500 hover:text-blue-300 text-xs"
@@ -1523,44 +1692,46 @@ export default function Home() {
                                                     </div>
                                                   )}
                                                 </div>
-                                              )}
-                                              <div className="absolute -top-2 left-3 w-0 h-0 border-l-4 border-r-4 border-b-4 border-l-transparent border-r-transparent border-b-gray-900"></div>
+                                                <div className="absolute -top-2 left-3 w-0 h-0 border-l-4 border-r-4 border-b-4 border-l-transparent border-r-transparent border-b-gray-900"></div>
+                                              </div>
+                                            </div>
+                                            <div className="flex-1 text-left overflow-hidden">
+                                              <div className="text-xs font-semibold leading-tight text-gray-800 truncate">
+                                                {subjectName}
+                                              </div>
+                                              <div className="text-xs text-gray-600 leading-tight truncate">{teacherName}</div>
                                             </div>
                                           </div>
-                                          <div className="flex-1 text-left overflow-hidden">
-                                            <div className="text-xs font-semibold leading-tight text-gray-800 truncate">
-                                              {subjectName}
-                                            </div>
-                                            <div className="text-xs text-gray-600 leading-tight truncate">{teacherName}</div>
-                                          </div>
-                                        </div>
-                                      </td>
-                                    );
-                                  } else {
-                                    const bgColor = isAvailable ? "bg-teal-50" : "";
-                                    row.push(
-                                      <td
-                                        key={`${day}-${timeIndex}-${level}`}
-                                        className={`border p-1 relative text-sm text-center align-middle ${bgColor}`}
-                                        style={{ minWidth: "140px", height: "35px" }}
-                                        {...(userRole !== 'user' ? {
-                                          onDragOver: (e) => e.preventDefault(),
-                                          onDrop: (e) => handleDrop(e, day, timeIndex, level)
-                                        } : {})}
-                                      ></td>
-                                    );
-                                  }
+                                        </td>
+                                      );
+                                    } else {
+                                      const bgColor = isAvailable ? "bg-teal-50" : "";
+                                      row.push(
+                                        <td
+                                          key={`${day}-${timeIndex}-${level}`}
+                                          className={`border p-1 relative text-sm text-center align-middle ${bgColor}`}
+                                          style={{ minWidth: "140px", height: "35px" }}
+                                          {...(userRole !== 'user'
+                                            ? {
+                                              onDragOver: (e) => e.preventDefault(),
+                                              onDrop: (e) => handleDrop(e, day, timeIndex, level),
+                                            }
+                                            : {})}
+                                        ></td>
+                                      );
+                                    }
+                                  });
+
+                                  rows.push(
+                                    <tr key={`${day}-${timeIndex}`}>
+                                      {row}
+                                    </tr>
+                                  );
                                 });
 
-                                rows.push(
-                                  <tr key={`${day}-${timeIndex}`}>
-                                    {row}
-                                  </tr>
-                                );
-                              });
-
-                              return rows;
-                            })}
+                                return rows;
+                              })
+                            )}
                           </tbody>
                         </table>
                       </div>
@@ -1574,7 +1745,7 @@ export default function Home() {
       )}
 
       {!isFullScreen && (
-        <div className="p-4 flex flex-col lg:flex-row gap-4" style={{ zIndex: 10 }}>
+        <div className={`p-4 flex flex-col lg:flex-row gap-4 ${userRole !== 'user' ? 'pr-96' : ''}`} style={{ zIndex: 10 }}>
           <div className="bg-white rounded-lg mb-6 flex-1">
             <div className="bg-white rounded-lg mb-6">
               <h1 className="text-2xl font-bold mb-2">CET Class Schedule</h1>
@@ -1603,7 +1774,7 @@ export default function Home() {
                     }}
                   >
                     <table className="w-full border-collapse text-sm">
-                      <thead className="bg-gray-50 sticky top-0 z-10">
+                      <thead className="bg-gray-50">
                         <tr className="bg-gray-50">
                           <th className="border p-2 text-md" style={{ width: "80px" }}>Program</th>
                           <th className="border p-2 text-center" style={{ width: "60px" }}>Day</th>
@@ -1694,7 +1865,7 @@ export default function Home() {
                                   row.push(
                                     <td
                                       key={`${program.id}-${day}-${timeIndex}-${level}`}
-                                      className="p-2 relative text-sm align-middle bg-transparent"
+                                      className={`p-2 relative text-sm align-middle bg-transparent ${userRole !== 'user' ? 'cursor-move' : ''}`}
                                       style={{
                                         maxWidth: "100px",
                                         height: `${35 * levelData.span}px`,
@@ -1702,6 +1873,11 @@ export default function Home() {
                                       }}
                                       rowSpan={levelData.span}
                                       {...(userRole !== 'user' ? {
+                                        draggable: true,
+                                        onDragStart: (e) => {
+                                          e.dataTransfer.setData("text/plain", assignment.id);
+                                          e.dataTransfer.effectAllowed = "move";
+                                        },
                                         onDragOver: (e) => e.preventDefault(),
                                         onDrop: (e) => handleDrop(e, day, timeIndex, level, program.id)
                                       } : {})}
@@ -1803,283 +1979,510 @@ export default function Home() {
                 </div>
               </div>
             ) : (
-              grids.map(({ program, grid, levels }, progIndex) => (
-                <div key={progIndex}>
-                  {!selectedProgramId && <h2 className="text-xl font-bold mt-4 mb-4">{program.name}</h2>}
-                  <div
-                    className="bg-white rounded-lg shadow-sm border overflow-y-scroll"
-                    style={{
-                      maxHeight: 'calc(100vh - 200px)',
-                      zIndex: 10,
-                    }}
-                  >
+              grids.map((gridObj, progIndex) => {
+                const { program, grid, levels, isDayColumn } = gridObj;
+
+                return (
+                  <div key={progIndex}>
+                    {!selectedProgramId && <h2 className="text-xl font-bold mt-4 mb-4">{program.name}</h2>}
                     <div
-                      ref={contentRef}
-                      className="relative"
+                      className="bg-white rounded-lg shadow-sm border overflow-y-scroll"
                       style={{
-                        transform: `translate(${panX}px, ${panY}px) scale(${zoomLevel})`,
-                        transformOrigin: 'top left',
-                        cursor: zoomLevel > 1 ? 'grab' : 'default',
+                        maxHeight: 'calc(100vh - 200px)',
+                        zIndex: 10,
                       }}
                     >
-                      <table className="w-full border-collapse text-sm">
-                        <thead className="bg-gray-50 sticky top-0 z-10">
-                          <tr className="bg-gray-50">
-                            <th className="border p-2 text-md" style={{ width: "60px" }}>
-                              {fullScheduleActive ? "All Schedules" : currentFile.name}
-                            </th>
-                            <th className="border p-2 text-center" style={{ width: "120px" }}>Time</th>
-                            {levels.map((level) => (
-                              <th key={level} className="border p-2 text-center">{level}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {days.map((day) => {
-                            const rows = [];
-                            let dayColumnRendered = false;
+                      <div
+                        ref={contentRef}
+                        className="relative"
+                        style={{
+                          transform: `translate(${panX}px, ${panY}px) scale(${zoomLevel})`,
+                          transformOrigin: 'top left',
+                          cursor: zoomLevel > 1 ? 'grab' : 'default',
+                        }}
+                      >
+                        <table className="w-full border-collapse text-sm">
+                          <thead className="bg-gray-50 sticky top-0 z-10">
+                            {isDayColumn ? (
+                              // Day-column layout: Days as columns, Time as rows
+                              <tr className="bg-gray-50">
+                                <th className="border p-2 text-center" style={{ width: "120px" }}>Time</th>
+                                {days.map((day) => (
+                                  <th key={day} className="border p-2 text-center">{day}</th>
+                                ))}
+                              </tr>
+                            ) : (
+                              // Original layout: Day as row, Year levels as columns
+                              <tr className="bg-gray-50">
+                                <th className="border p-2 text-md" style={{ width: "60px" }}>
+                                  {fullScheduleActive ? "All Schedules" : currentFile.name}
+                                </th>
+                                <th className="border p-2 text-center" style={{ width: "120px" }}>Time</th>
+                                {levels.map((level) => (
+                                  <th key={level} className="border p-2 text-center">{level}</th>
+                                ))}
+                              </tr>
+                            )}
+                          </thead>
+                          <tbody>
+                            {isDayColumn ? (
+                              // Day-column layout body
+                              timeSlots.map((timeSlot, timeIndex) => {
+                                const gridSlot = grid[timeIndex];
 
-                            timeSlots.forEach((timeSlot, timeIndex) => {
-                              const gridSlot = grid[day][timeIndex];
-                              const row = [];
+                                return (
+                                  <tr key={`time-${timeIndex}`}>
+                                    <td
+                                      className="border border-gray-300 p-1 text-xs bg-white text-zinc-900 font-semibold"
+                                      style={{ height: "35px", width: "120px" }}
+                                    >
+                                      {timeSlot}
+                                    </td>
+                                    {days.map((day) => {
+                                      const dayData = gridSlot[day];
 
-                              if (!dayColumnRendered) {
-                                row.push(
-                                  <td
-                                    key={`${day}-day-column`}
-                                    className="border p-1 font-bold text-sm"
-                                    rowSpan={timeSlots.length}
-                                    style={{
-                                      verticalAlign: "middle",
-                                      textAlign: "center",
-                                      width: "60px",
-                                      minWidth: "60px",
-                                      maxWidth: "60px",
-                                    }}
-                                  >
-                                    {day}
-                                  </td>
+                                      if (dayData.span === 0) return null;
+
+                                      if (dayData.occupied && dayData.assignment) {
+                                        const assignment = dayData.assignment;
+                                        const subjectName = getSubjectName(assignment.subjectId);
+                                        const teacherName = getTeacherName(assignment.teacherId);
+                                        const room = getAssignmentRoom(assignment);
+
+                                        return (
+                                          <td
+                                            key={`${timeIndex}-${day}`}
+                                            className={`p-2 relative text-sm align-middle bg-transparent ${userRole !== 'user' ? 'cursor-move hover:cursor-grabbing' : ''}`}
+                                            style={{
+                                              maxWidth: "140px",
+                                              height: `${35 * dayData.span}px`,
+                                              verticalAlign: "middle",
+                                            }}
+                                            rowSpan={dayData.span}
+                                            {...(userRole !== 'user' ? {
+                                              draggable: true,
+                                              onDragStart: (e) => {
+                                                e.dataTransfer.setData("text/plain", assignment.id);
+                                                e.dataTransfer.effectAllowed = "move";
+                                              },
+                                              onDragOver: (e) => e.preventDefault(),
+                                              onDrop: (e) => handleDrop(e, day, timeIndex, selectedYearLevel, selectedProgramId)
+                                            } : {})}
+                                          >
+                                            <div className="flex items-center justify-start h-full px-1">
+                                              <div className="relative group">
+                                                <div
+                                                  className="w-4 h-4 rounded-full mr-2 flex-shrink-0 cursor-pointer border border-gray-300"
+                                                  style={{
+                                                    backgroundColor: getTeacherColor(assignment.teacherId),
+                                                  }}
+                                                ></div>
+                                                <div
+                                                  className="absolute left-0 top-6 bg-gray-900 text-white text-xs rounded-lg p-3 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20 min-w-52 border border-gray-700"
+                                                  style={{ zIndex: 20 }}
+                                                >
+                                                  {editingAssignment && editingAssignment.id === assignment.id && userRole !== 'user' ? (
+                                                    <div className="space-y-2">
+                                                      <div className="font-bold text-white border-b border-gray-700 pb-1">
+                                                        {subjectName}
+                                                      </div>
+                                                      <div className="text-blue-200">{teacherName}</div>
+                                                      <div>
+                                                        <label className="block text-gray-300">Start Time</label>
+                                                        <select
+                                                          value={editingAssignment.startTime || ""}
+                                                          onChange={(e) =>
+                                                            setEditingAssignment({ ...editingAssignment, startTime: e.target.value })
+                                                          }
+                                                          className="w-full p-1 border bg-gray-800 text-white rounded-md"
+                                                        >
+                                                          <option value="">Select start time</option>
+                                                          {timeSlots.map((slot) => (
+                                                            <option key={slot} value={slot}>{slot}</option>
+                                                          ))}
+                                                        </select>
+                                                      </div>
+                                                      <div>
+                                                        <label className="block text-gray-300">Duration</label>
+                                                        <select
+                                                          value={editingAssignment.duration || ""}
+                                                          onChange={(e) =>
+                                                            setEditingAssignment({ ...editingAssignment, duration: e.target.value })
+                                                          }
+                                                          className="w-full p-1 border bg-gray-800 text-white rounded-md"
+                                                        >
+                                                          <option value="">Select duration</option>
+                                                          <option value="60">1 hour</option>
+                                                          <option value="120">2 hours</option>
+                                                          <option value="180">3 hours</option>
+                                                          <option value="240">4 hours</option>
+                                                        </select>
+                                                      </div>
+                                                      <div>
+                                                        <label className="block text-gray-300">Room</label>
+                                                        <select
+                                                          value={editingAssignment.roomId || ""}
+                                                          onChange={(e) =>
+                                                            setEditingAssignment({ ...editingAssignment, roomId: e.target.value })
+                                                          }
+                                                          className="w-full p-1 border bg-gray-800 text-white rounded-md"
+                                                        >
+                                                          <option value="">No Room</option>
+                                                          {rooms.map((room) => (
+                                                            <option key={room.id} value={room.id}>{room.name}</option>
+                                                          ))}
+                                                        </select>
+                                                      </div>
+                                                      <div className="flex gap-2">
+                                                        <button
+                                                          onClick={() =>
+                                                            handleSaveEdit(assignment.id, {
+                                                              ...assignment,
+                                                              startTime: editingAssignment.startTime,
+                                                              duration: editingAssignment.duration,
+                                                              roomId: editingAssignment.roomId,
+                                                            })
+                                                          }
+                                                          className="px-2 py-1 bg-teal-600 text-white rounded-md hover:bg-teal-700"
+                                                        >
+                                                          Save
+                                                        </button>
+                                                        <button
+                                                          onClick={() => setEditingAssignment(null)}
+                                                          className="px-2 py-1 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+                                                        >
+                                                          Cancel
+                                                        </button>
+                                                      </div>
+                                                    </div>
+                                                  ) : (
+                                                    <div className="text-left space-y-1">
+                                                      <div className="font-bold text-white border-b border-gray-700 pb-1">
+                                                        {subjectName}
+                                                      </div>
+                                                      <div className="text-blue-200">{teacherName}</div>
+                                                      <div className="text-gray-300">{assignment.timeSlot} - {day}</div>
+                                                      <div className="text-gray-300">Room: {room}</div>
+                                                      {userRole !== 'user' && (
+                                                        <div className="flex gap-2">
+                                                          <button
+                                                            onClick={() =>
+                                                              setEditingAssignment({
+                                                                ...assignment,
+                                                                startTime: assignment.timeSlot.split('-')[0].trim(),
+                                                                duration: assignment.duration,
+                                                                roomId:
+                                                                  roomAssignments.find(
+                                                                    (ra) =>
+                                                                      ra.scheduleFileId === assignment.scheduleFileId &&
+                                                                      ra.subjectId === assignment.subjectId &&
+                                                                      ra.teacherId === assignment.teacherId &&
+                                                                      ra.classId === assignment.classId
+                                                                  )?.roomId || '',
+                                                              })
+                                                            }
+                                                            className="text-blue-500 hover:text-blue-300 text-xs"
+                                                            title="Edit"
+                                                          >
+                                                            Edit
+                                                          </button>
+                                                          <button
+                                                            onClick={() => handleDelete(assignment.id)}
+                                                            className="text-red-500 hover:text-red-300 text-xs"
+                                                            title="Remove"
+                                                          >
+                                                            <FiTrash2 />
+                                                          </button>
+                                                        </div>
+                                                      )}
+                                                    </div>
+                                                  )}
+                                                  <div className="absolute -top-2 left-3 w-0 h-0 border-l-4 border-r-4 border-b-4 border-l-transparent border-r-transparent border-b-gray-900"></div>
+                                                </div>
+                                              </div>
+                                              <div className="flex-1 text-left overflow-hidden">
+                                                <div className="text-xs font-semibold leading-tight text-gray-800 truncate">
+                                                  {subjectName}
+                                                </div>
+                                                <div className="text-xs text-gray-600 leading-tight truncate">{teacherName}</div>
+                                              </div>
+                                            </div>
+                                          </td>
+                                        );
+                                      } else {
+                                        const isAvailable = selectedTeacherId && availableSlots[day] && availableSlots[day][timeIndex];
+                                        const bgColor = isAvailable ? "bg-teal-50" : "";
+
+                                        return (
+                                          <td
+                                            key={`${timeIndex}-${day}`}
+                                            className={`border p-1 relative text-sm text-center align-middle ${bgColor}`}
+                                            style={{ minWidth: "140px", height: "35px" }}
+                                            {...(userRole !== 'user' ? {
+                                              onDragOver: (e) => e.preventDefault(),
+                                              onDrop: (e) => handleDrop(e, day, timeIndex, selectedYearLevel, selectedProgramId)
+                                            } : {})}
+                                          ></td>
+                                        );
+                                      }
+                                    })}
+                                  </tr>
                                 );
-                                dayColumnRendered = true;
-                              }
+                              })
+                            ) : (
+                              // Original layout body - KEEP YOUR EXISTING CODE
+                              days.map((day) => {
+                                const rows = [];
+                                let dayColumnRendered = false;
 
-                              const isAvailable = selectedTeacherId && availableSlots[day] && availableSlots[day][timeIndex];
+                                timeSlots.forEach((timeSlot, timeIndex) => {
+                                  const gridSlot = grid[day][timeIndex];
+                                  const row = [];
 
-                              row.push(
-                                <td
-                                  key={`${day}-${timeIndex}-time`}
-                                  className="border border-gray-300 p-1 text-xs bg-white text-zinc-900"
-                                  style={{ height: "35px", width: "100px" }}
-                                >
-                                  {timeSlot}
-                                </td>
-                              );
+                                  if (!dayColumnRendered) {
+                                    row.push(
+                                      <td
+                                        key={`${day}-day-column`}
+                                        className="border p-1 font-bold text-sm"
+                                        rowSpan={timeSlots.length}
+                                        style={{
+                                          verticalAlign: "middle",
+                                          textAlign: "center",
+                                          width: "60px",
+                                          minWidth: "60px",
+                                          maxWidth: "60px",
+                                        }}
+                                      >
+                                        {day}
+                                      </td>
+                                    );
+                                    dayColumnRendered = true;
+                                  }
 
-                              levels.forEach((level) => {
-                                const levelData = gridSlot.yearLevels[level];
-
-                                if (levelData.span === 0) return;
-
-                                if (levelData.occupied && levelData.assignment) {
-                                  const assignment = levelData.assignment;
-                                  const subjectName = getSubjectName(assignment.subjectId);
-                                  const teacherName = getTeacherName(assignment.teacherId);
-                                  const room = getAssignmentRoom(assignment);
+                                  const isAvailable = selectedTeacherId && availableSlots[day] && availableSlots[day][timeIndex];
 
                                   row.push(
                                     <td
-                                      key={`${day}-${timeIndex}-${level}`}
-                                      className="p-2 relative text-sm align-middle bg-transparent"
-                                      style={{
-                                        maxWidth: "100px",
-                                        height: `${35 * levelData.span}px`,
-                                        verticalAlign: "middle",
-                                      }}
-                                      rowSpan={levelData.span}
-                                      {...(userRole !== 'user' ? {
-                                        onDragOver: (e) => e.preventDefault(),
-                                        onDrop: (e) => handleDrop(e, day, timeIndex, level)
-                                      } : {})}
+                                      key={`${day}-${timeIndex}-time`}
+                                      className="border border-gray-300 p-1 text-xs bg-white text-zinc-900"
+                                      style={{ height: "35px", width: "100px" }}
                                     >
-                                      <div className="flex items-center justify-start h-full px-1">
-                                        <div className="relative group">
-                                          <div
-                                            className="w-4 h-4 rounded-full mr-2 flex-shrink-0 cursor-pointer border border-gray-300"
-                                            style={{
-                                              backgroundColor: getTeacherColor(assignment.teacherId),
-                                            }}
-                                          ></div>
-                                          <div
-                                            className="absolute left-0 top-6 bg-gray-900 text-white text-xs rounded-lg p-3 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20 min-w-52 border border-gray-700"
-                                            style={{ zIndex: 20 }}
-                                          >
-                                            {editingAssignment && editingAssignment.id === assignment.id && userRole !== 'user' ? (
-                                              <div className="space-y-2">
-                                                <div className="font-bold text-white border-b border-gray-700 pb-1">
-                                                  {subjectName}
-                                                </div>
-                                                <div className="text-blue-200">{teacherName}</div>
-                                                <div>
-                                                  <label className="block text-gray-300">Start Time</label>
-                                                  <select
-                                                    value={editingAssignment.startTime || ""}
-                                                    onChange={(e) =>
-                                                      setEditingAssignment({ ...editingAssignment, startTime: e.target.value })
-                                                    }
-                                                    className="w-full p-1 border bg-gray-800 text-white rounded-md"
-                                                  >
-                                                    <option value="">Select start time</option>
-                                                    {timeSlots.map((slot) => (
-                                                      <option key={slot} value={slot}>{slot}</option>
-                                                    ))}
-                                                  </select>
-                                                </div>
-                                                <div>
-                                                  <label className="block text-gray-300">Duration</label>
-                                                  <select
-                                                    value={editingAssignment.duration || ""}
-                                                    onChange={(e) =>
-                                                      setEditingAssignment({ ...editingAssignment, duration: e.target.value })
-                                                    }
-                                                    className="w-full p-1 border bg-gray-800 text-white rounded-md"
-                                                  >
-                                                    <option value="">Select duration</option>
-                                                    <option value="60">1 hour</option>
-                                                    <option value="120">2 hours</option>
-                                                    <option value="180">3 hours</option>
-                                                    <option value="240">4 hours</option>
-                                                  </select>
-                                                </div>
-                                                <div>
-                                                  <label className="block text-gray-300">Room</label>
-                                                  <select
-                                                    value={editingAssignment.roomId || ""}
-                                                    onChange={(e) =>
-                                                      setEditingAssignment({ ...editingAssignment, roomId: e.target.value })
-                                                    }
-                                                    className="w-full p-1 border bg-gray-800 text-white rounded-md"
-                                                  >
-                                                    <option value="">No Room</option>
-                                                    {rooms.map((room) => (
-                                                      <option key={room.id} value={room.id}>{room.name}</option>
-                                                    ))}
-                                                  </select>
-                                                </div>
-                                                <div className="flex gap-2">
-                                                  <button
-                                                    onClick={() =>
-                                                      handleSaveEdit(assignment.id, {
-                                                        ...assignment,
-                                                        startTime: editingAssignment.startTime,
-                                                        duration: editingAssignment.duration,
-                                                        roomId: editingAssignment.roomId,
-                                                      })
-                                                    }
-                                                    className="px-2 py-1 bg-teal-600 text-white rounded-md hover:bg-teal-700"
-                                                  >
-                                                    Save
-                                                  </button>
-                                                  <button
-                                                    onClick={() => setEditingAssignment(null)}
-                                                    className="px-2 py-1 bg-gray-600 text-white rounded-md hover:bg-gray-700"
-                                                  >
-                                                    Cancel
-                                                  </button>
-                                                </div>
-                                              </div>
-                                              ) : (
-                                                <div className="text-left space-y-1">
-                                                  <div className="font-bold text-white border-b border-gray-700 pb-1">
-                                                    {subjectName}
-                                                  </div>
-                                                  <div className="text-blue-200">{teacherName}</div>
-                                                  <div className="text-gray-300">{assignment.timeSlot} - {day}</div>
-                                                  <div className="text-gray-300">Room: {room}</div>
-                                                  {fullScheduleActive && (
-                                                    <div className="text-gray-300">Program: {program.name}</div>
-                                                  )}
-                                                  {userRole !== 'user' && (
+                                      {timeSlot}
+                                    </td>
+                                  );
+
+                                  levels.forEach((level) => {
+                                    const levelData = gridSlot.yearLevels[level];
+
+                                    if (levelData.span === 0) return;
+
+                                    if (levelData.occupied && levelData.assignment) {
+                                      const assignment = levelData.assignment;
+                                      const subjectName = getSubjectName(assignment.subjectId);
+                                      const teacherName = getTeacherName(assignment.teacherId);
+                                      const room = getAssignmentRoom(assignment);
+
+                                      row.push(
+                                        <td
+                                          key={`${day}-${timeIndex}-${level}`}
+                                          className={`p-2 relative text-sm align-middle bg-transparent ${userRole !== 'user' ? 'cursor-move hover:cursor-grabbing' : ''}`}
+                                          style={{
+                                            maxWidth: "100px",
+                                            height: `${35 * levelData.span}px`,
+                                            verticalAlign: "middle",
+                                          }}
+                                          rowSpan={levelData.span}
+                                          {...(userRole !== 'user' ? {
+                                            draggable: true,
+                                            onDragStart: (e) => {
+                                              e.dataTransfer.setData("text/plain", assignment.id);
+                                              e.dataTransfer.effectAllowed = "move";
+                                            },
+                                            onDragOver: (e) => e.preventDefault(),
+                                            onDrop: (e) => handleDrop(e, day, timeIndex, level)
+                                          } : {})}
+                                        >
+                                          <div className="flex items-center justify-start h-full px-1">
+                                            <div className="relative group">
+                                              <div
+                                                className="w-4 h-4 rounded-full mr-2 flex-shrink-0 cursor-pointer border border-gray-300"
+                                                style={{
+                                                  backgroundColor: getTeacherColor(assignment.teacherId),
+                                                }}
+                                              ></div>
+                                              <div
+                                                className="absolute left-0 top-6 bg-gray-900 text-white text-xs rounded-lg p-3 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20 min-w-52 border border-gray-700"
+                                                style={{ zIndex: 20 }}
+                                              >
+                                                {editingAssignment && editingAssignment.id === assignment.id && userRole !== 'user' ? (
+                                                  <div className="space-y-2">
+                                                    <div className="font-bold text-white border-b border-gray-700 pb-1">
+                                                      {subjectName}
+                                                    </div>
+                                                    <div className="text-blue-200">{teacherName}</div>
+                                                    <div>
+                                                      <label className="block text-gray-300">Start Time</label>
+                                                      <select
+                                                        value={editingAssignment.startTime || ""}
+                                                        onChange={(e) =>
+                                                          setEditingAssignment({ ...editingAssignment, startTime: e.target.value })
+                                                        }
+                                                        className="w-full p-1 border bg-gray-800 text-white rounded-md"
+                                                      >
+                                                        <option value="">Select start time</option>
+                                                        {timeSlots.map((slot) => (
+                                                          <option key={slot} value={slot.split('-')[0].trim()}>{slot}</option>
+                                                        ))}
+                                                      </select>
+                                                    </div>
+                                                    <div>
+                                                      <label className="block text-gray-300">Duration</label>
+                                                      <select
+                                                        value={editingAssignment.duration || ""}
+                                                        onChange={(e) =>
+                                                          setEditingAssignment({ ...editingAssignment, duration: e.target.value })
+                                                        }
+                                                        className="w-full p-1 border bg-gray-800 text-white rounded-md"
+                                                      >
+                                                        <option value="">Select duration</option>
+                                                        <option value="60">1 hour</option>
+                                                        <option value="120">2 hours</option>
+                                                        <option value="180">3 hours</option>
+                                                        <option value="240">4 hours</option>
+                                                      </select>
+                                                    </div>
+                                                    <div>
+                                                      <label className="block text-gray-300">Room</label>
+                                                      <select
+                                                        value={editingAssignment.roomId || ""}
+                                                        onChange={(e) =>
+                                                          setEditingAssignment({ ...editingAssignment, roomId: e.target.value })
+                                                        }
+                                                        className="w-full p-1 border bg-gray-800 text-white rounded-md"
+                                                      >
+                                                        <option value="">No Room</option>
+                                                        {rooms.map((room) => (
+                                                          <option key={room.id} value={room.id}>{room.name}</option>
+                                                        ))}
+                                                      </select>
+                                                    </div>
                                                     <div className="flex gap-2">
                                                       <button
                                                         onClick={() =>
-                                                          setEditingAssignment({
+                                                          handleSaveEdit(assignment.id, {
                                                             ...assignment,
-                                                            startTime: assignment.timeSlot.split('-')[0].trim(),
-                                                            duration: assignment.duration,
-                                                            roomId:
-                                                              roomAssignments.find(
-                                                                (ra) =>
-                                                                  ra.scheduleFileId === assignment.scheduleFileId &&
-                                                                  ra.subjectId === assignment.subjectId &&
-                                                                  ra.teacherId === assignment.teacherId &&
-                                                                  ra.classId === assignment.classId
-                                                              )?.roomId || '',
+                                                            startTime: editingAssignment.startTime,
+                                                            duration: editingAssignment.duration,
+                                                            roomId: editingAssignment.roomId,
                                                           })
                                                         }
-                                                        className="text-blue-500 hover:text-blue-300 text-xs"
-                                                        title="Edit"
+                                                        className="px-2 py-1 bg-teal-600 text-white rounded-md hover:bg-teal-700"
                                                       >
-                                                        Edit
+                                                        Save
                                                       </button>
                                                       <button
-                                                        onClick={() => handleDelete(assignment.id)}
-                                                        className="text-red-500 hover:text-red-300 text-xs"
-                                                        title="Remove"
+                                                        onClick={() => setEditingAssignment(null)}
+                                                        className="px-2 py-1 bg-gray-600 text-white rounded-md hover:bg-gray-700"
                                                       >
-                                                        <FiTrash2 />
+                                                        Cancel
                                                       </button>
                                                     </div>
-                                                  )}
-                                                </div>
-                                              )}
-                                              <div className="absolute -top-2 left-3 w-0 h-0 border-l-4 border-r-4 border-b-4 border-l-transparent border-r-transparent border-b-gray-900"></div>
+                                                  </div>
+                                                ) : (
+                                                  <div className="text-left space-y-1">
+                                                    <div className="font-bold text-white border-b border-gray-700 pb-1">
+                                                      {subjectName}
+                                                    </div>
+                                                    <div className="text-blue-200">{teacherName}</div>
+                                                    <div className="text-gray-300">{assignment.timeSlot} - {day}</div>
+                                                    <div className="text-gray-300">Room: {room}</div>
+                                                    {userRole !== 'user' && (
+                                                      <div className="flex gap-2">
+                                                        <button
+                                                          onClick={() =>
+                                                            setEditingAssignment({
+                                                              ...assignment,
+                                                              startTime: assignment.timeSlot.split('-')[0].trim(),
+                                                              duration: assignment.duration,
+                                                              roomId:
+                                                                roomAssignments.find(
+                                                                  (ra) =>
+                                                                    ra.scheduleFileId === assignment.scheduleFileId &&
+                                                                    ra.subjectId === assignment.subjectId &&
+                                                                    ra.teacherId === assignment.teacherId &&
+                                                                    ra.classId === assignment.classId
+                                                                )?.roomId || '',
+                                                            })
+                                                          }
+                                                          className="text-blue-500 hover:text-blue-300 text-xs"
+                                                          title="Edit"
+                                                        >
+                                                          Edit
+                                                        </button>
+                                                        <button
+                                                          onClick={() => handleDelete(assignment.id)}
+                                                          className="text-red-500 hover:text-red-300 text-xs"
+                                                          title="Remove"
+                                                        >
+                                                          <FiTrash2 />
+                                                        </button>
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                )}
+                                                <div className="absolute -top-2 left-3 w-0 h-0 border-l-4 border-r-4 border-b-4 border-l-transparent border-r-transparent border-b-gray-900"></div>
+                                              </div>
+                                            </div>
+                                            <div className="flex-1 text-left overflow-hidden">
+                                              <div className="text-xs font-semibold leading-tight text-gray-800 truncate">
+                                                {subjectName}
+                                              </div>
+                                              <div className="text-xs text-gray-600 leading-tight truncate">{teacherName}</div>
                                             </div>
                                           </div>
-                                          <div className="flex-1 text-left overflow-hidden">
-                                            <div className="text-xs font-semibold leading-tight text-gray-800 truncate">
-                                              {subjectName}
-                                            </div>
-                                            <div className="text-xs text-gray-600 leading-tight truncate">{teacherName}</div>
-                                          </div>
-                                        </div>
-                                      </td>
-                                    );
-                                  } else {
-                                    const bgColor = isAvailable ? "bg-teal-50" : "";
-                                    row.push(
-                                      <td
-                                        key={`${day}-${timeIndex}-${level}`}
-                                        className={`border p-1 relative text-sm text-center align-middle ${bgColor}`}
-                                        style={{ minWidth: "140px", height: "35px" }}
-                                        {...(userRole !== 'user' ? {
-                                          onDragOver: (e) => e.preventDefault(),
-                                          onDrop: (e) => handleDrop(e, day, timeIndex, level)
-                                        } : {})}
-                                      ></td>
-                                    );
-                                  }
+                                        </td>
+                                      );
+                                    } else {
+                                      const bgColor = isAvailable ? "bg-teal-50" : "";
+                                      row.push(
+                                        <td
+                                          key={`${day}-${timeIndex}-${level}`}
+                                          className={`border p-1 relative text-sm text-center align-middle ${bgColor}`}
+                                          style={{ minWidth: "140px", height: "35px" }}
+                                          {...(userRole !== 'user' ? {
+                                            onDragOver: (e) => e.preventDefault(),
+                                            onDrop: (e) => handleDrop(e, day, timeIndex, level)
+                                          } : {})}
+                                        ></td>
+                                      );
+                                    }
+                                  });
+
+                                  rows.push(
+                                    <tr key={`${day}-${timeIndex}`}>
+                                      {row}
+                                    </tr>
+                                  );
                                 });
 
-                                rows.push(
-                                  <tr key={`${day}-${timeIndex}`}>
-                                    {row}
-                                  </tr>
-                                );
-                              });
-
-                              return rows;
-                            })}
+                                return rows;
+                              })
+                            )}
                           </tbody>
                         </table>
                       </div>
                     </div>
                   </div>
-                ))
-              )}
+                );
+              })
+            )}
           </div>
 
           {userRole !== 'user' && (
-            <div className="w-80 bg-white rounded-lg shadow-sm border" style={{ zIndex: 10 }}>
+            <div
+              className="w-80 bg-white rounded-lg shadow-lg border fixed right-4 top-36 bottom-4 flex flex-col"
+              style={{ zIndex: 500 }}
+            >
               <div className="bg-zinc-900 rounded-t-lg p-4 text-white">
                 <h2 className="text-md font-semibold mb-4">Assignment List</h2>
                 <input
@@ -2126,7 +2529,7 @@ export default function Home() {
                   </label>
                 </div>
               </div>
-              <div className="space-y-2 h-[900px] overflow-y-auto p-4">
+              <div className="space-y-2 flex-1 overflow-y-auto p-4 scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200">
                 {filteredAssignments.map((assignment) => (
                   <div
                     key={assignment.id}

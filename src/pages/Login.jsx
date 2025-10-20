@@ -27,6 +27,15 @@ export default function Login() {
     }
   }
 
+  // Determine greeting based on time of day
+  const hour = new Date().getHours()
+  const greeting =
+    hour >= 6 && hour < 12
+      ? "Good Morning!"
+      : hour >= 12 && hour < 18
+      ? "Good Afternoon!"
+      : "Good Evening!"
+
   return (
     <div className="relative flex items-center justify-center min-h-screen bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 text-white overflow-hidden">
       <div className="absolute inset-0 opacity-5">
@@ -51,7 +60,7 @@ export default function Login() {
           className="text-3xl font-bold mb-2 text-center bg-gradient-to-r from-teal-400 to-cyan-400 bg-clip-text text-transparent opacity-0 animate-fadeIn"
           style={{ animationDelay: "0.3s", animationFillMode: "both" }}
         >
-          Welcome Back
+          {greeting}
         </h1>
 
         <p

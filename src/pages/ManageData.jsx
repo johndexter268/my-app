@@ -239,7 +239,11 @@ export default function ManageData() {
       }
     } catch (error) {
       console.error(`Error saving ${modalType.toLowerCase()}:`, error)
-      customAlert(`Error saving ${currentType.toLowerCase()}: ${error.message || "Unknown error"}`)
+      if (modalType.includes("Teacher") && error.message.includes("SQLITE_CONSTRAINT: UNIQUE constraint failed")) {
+        customAlert("A teacher with this name or color already exists.")
+      } else {
+        customAlert(`Error saving ${currentType.toLowerCase()}: ${error.message || "Unknown error"}`)
+      }
     } finally {
       setIsSaving(false)
     }

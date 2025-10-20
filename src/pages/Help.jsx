@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FiBook, FiInfo, FiZoomIn, FiZoomOut, FiMaximize, FiX, FiSave, FiFileText, FiPrinter, FiPlus, FiDownload, FiHome, FiFile, FiHelpCircle, FiEye, FiLogOut, FiSidebar } from "react-icons/fi";
+import { FiBook, FiInfo, FiZoomIn, FiZoomOut, FiMaximize, FiX, FiSave, FiFileText, FiPrinter, FiPlus, FiDownload, FiHome, FiFile, FiHelpCircle, FiEye, FiLogOut, FiSidebar, FiUser } from "react-icons/fi";
 import { FaRegKeyboard } from "react-icons/fa";
 
 export default function Help() {
@@ -32,6 +32,7 @@ export default function Help() {
         { key: "Ctrl+3", action: "Navigate to Manage Data (Scheduling)", icon: <FiBook /> },
         { key: "Ctrl+4", action: "Navigate to Assigning (Scheduling)", icon: <FiBook /> },
         { key: "Ctrl+5", action: "Toggle View Tools", icon: <FiEye /> },
+        { key: "Ctrl+6", action: "Navigate to Accounts page", icon: <FiUser /> },
         { key: "Ctrl+H", action: "Navigate to Help page", icon: <FiHelpCircle /> },
         { key: "Ctrl+L", action: "Logout / Navigate to Login", icon: <FiLogOut /> },
         { key: "Ctrl+B", action: "Toggle Sidebar collapse/expand", icon: <FiSidebar /> }

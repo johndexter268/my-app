@@ -45,5 +45,9 @@ contextBridge.exposeInMainWorld("api", {
   updateTimeSlotAssignment: (data) => ipcRenderer.invoke("update-time-slot-assignment", data),
   updateRoomAssignment: (data) => ipcRenderer.invoke("update-room-assignment", data),
 
+  getUsers: () => ipcRenderer.invoke("get-users"),
+  saveUser: (data) => ipcRenderer.invoke("save-user", data),
+  deleteUser: (id) => ipcRenderer.invoke("delete-user", id),
+
   reloadWindow: () => ipcRenderer.invoke("reload-window"),
 })

@@ -11,6 +11,7 @@ import Help from "./pages/Help";
 import ManageData from "./pages/ManageData";
 import Assigning from "./pages/Assigning";
 import "./index.css";
+import Accounts from "./pages/Accounts";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <HashRouter>
@@ -35,6 +36,14 @@ ReactDOM.createRoot(document.getElementById("root")).render(
       />
       <Route path="/manage" element={<Layout><ManageData /></Layout>} />
       <Route path="/assign" element={<Layout><Assigning /></Layout>} />
+      <Route
+        path="/accounts"
+        element={
+          <Layout>
+            <Accounts />
+          </Layout>
+        }
+      />
       <Route
         path="/view"
         element={

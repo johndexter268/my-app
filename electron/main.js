@@ -76,9 +76,9 @@ function initializeDatabase() {
 
     db.run(`CREATE TABLE IF NOT EXISTS teachers (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      fullName TEXT NOT NULL,
+      fullName TEXT NOT NULL UNIQUE,
       honorifics TEXT,
-      color TEXT NOT NULL
+      color TEXT NOT NULL UNIQUE
     )`);
 
     db.run(`CREATE TABLE IF NOT EXISTS programs (
@@ -519,7 +519,9 @@ ipcMain.handle("export-file", async (event, args = {}) => {
       '11:00 AM-11:30 AM', '11:30 AM-12:00 PM', '12:00 PM-12:30 PM', '12:30 PM-1:00 PM',
       '1:00 PM-1:30 PM', '1:30 PM-2:00 PM', '2:00 PM-2:30 PM', '2:30 PM-3:00 PM',
       '3:00 PM-3:30 PM', '3:30 PM-4:00 PM', '4:00 PM-4:30 PM', '4:30 PM-5:00 PM',
-      '5:00 PM-5:30 PM', '5:30 PM-6:00 PM', '6:00 PM-6:30 PM', '6:30 PM-7:00 PM'
+      '5:00 PM-5:30 PM', '5:30 PM-6:00 PM', '6:00 PM-6:30 PM', '6:30 PM-7:00 PM',
+      '7:00 PM-7:30 PM', '7:30 PM-8:00 PM', '8:00 PM-8:30 PM', '8:30 PM-9:00 PM',
+      '9:00 PM-9:30 PM', '9:30 PM-10:00 PM'
     ];
 
     const subjectMap = Object.fromEntries(subjects.map(s => [s.id, s]));
@@ -1010,6 +1012,8 @@ ipcMain.handle("print-file", async (event, args = {}) => {
       '1:00 PM-1:30 PM', '1:30 PM-2:00 PM', '2:00 PM-2:30 PM', '2:30 PM-3:00 PM',
       '3:00 PM-3:30 PM', '3:30 PM-4:00 PM', '4:00 PM-4:30 PM', '4:30 PM-5:00 PM',
       '5:00 PM-5:30 PM', '5:30 PM-6:00 PM', '6:00 PM-6:30 PM', '6:30 PM-7:00 PM',
+      '7:00 PM-7:30 PM', '7:30 PM-8:00 PM', '8:00 PM-8:30 PM', '8:30 PM-9:00 PM',
+      '9:00 PM-9:30 PM', '9:30 PM-10:00 PM'
     ];
 
     const subjectMap = Object.fromEntries(subjects.map(s => [s.id, s]));
@@ -2028,7 +2032,9 @@ ipcMain.handle("generate-preview", async (event, args = {}) => {
       '11:00 AM-11:30 AM', '11:30 AM-12:00 PM', '12:00 PM-12:30 PM', '12:30 PM-1:00 PM',
       '1:00 PM-1:30 PM', '1:30 PM-2:00 PM', '2:00 PM-2:30 PM', '2:30 PM-3:00 PM',
       '3:00 PM-3:30 PM', '3:30 PM-4:00 PM', '4:00 PM-4:30 PM', '4:30 PM-5:00 PM',
-      '5:00 PM-5:30 PM', '5:30 PM-6:00 PM', '6:00 PM-6:30 PM', '6:30 PM-7:00 PM'
+      '5:00 PM-5:30 PM', '5:30 PM-6:00 PM', '6:00 PM-6:30 PM', '6:30 PM-7:00 PM',
+      '7:00 PM-7:30 PM', '7:30 PM-8:00 PM', '8:00 PM-8:30 PM', '8:30 PM-9:00 PM',
+      '9:00 PM-9:30 PM', '9:30 PM-10:00 PM'
     ];
 
     const subjectMap = Object.fromEntries(subjects.map(s => [s.id, s]));
@@ -2423,6 +2429,83 @@ ipcMain.handle("generate-preview", async (event, args = {}) => {
     console.error("Preview error:", err.message || err);
     return { success: false, message: "Preview failed: " + (err.message || err) };
   }
+});
+
+ipcMain.handle("get-users", () => {
+  return new Promise((resolve, reject) => {
+    db.all(`SELECT id, username, role FROM users`, (err, rows) => {
+      if (err) {
+        console.error("Get users error:", err.message);
+        reject(err.message);
+      } else {
+        resolve(rows || []);
+      }
+    });
+  });
+});
+
+ipcMain.handle("save-user", (event, data) => {
+  return new Promise((resolve, reject) => {
+    if (!data.username || !data.password) {
+      resolve({ success: false, message: "Username and password are required" });
+      return;
+    }
+    if (data.id) {
+      db.run(
+        `UPDATE users SET username=?, password=?, role=? WHERE id=?`,
+        [data.username, data.password, data.role, data.id],
+        (err) => {
+          if (err) {
+            console.error("Update user error:", err.message);
+            reject(err.message);
+          } else {
+            resolve({ success: true });
+          }
+        }
+      );
+    } else {
+      db.get(
+        `SELECT * FROM users WHERE username=?`,
+        [data.username],
+        (err, row) => {
+          if (err) {
+            console.error("Check user error:", err.message);
+            reject(err.message);
+            return;
+          }
+          if (row) {
+            resolve({ success: false, message: "Username already exists" });
+            return;
+          }
+          db.run(
+            `INSERT INTO users (username, password, role) VALUES (?, ?, ?)`,
+            [data.username, data.password, data.role],
+            function (err) {
+              if (err) {
+                console.error("Insert user error:", err.message);
+                reject(err.message);
+              } else {
+                resolve({ success: true, id: this.lastID });
+              }
+            }
+          );
+        }
+      );
+    }
+  });
+});
+
+ipcMain.handle("delete-user", (event, id) => {
+  return new Promise((resolve, reject) => {
+    db.run(`DELETE FROM users WHERE id=?`, [id], (err) => {
+      if (err) {
+        console.error("Delete user error:", err.message);
+        reject(err.message);
+      } else {
+        resolve({ success: true });
+      }
+    });
+  });
 });
 
 // ---------------- APP INIT ----------------

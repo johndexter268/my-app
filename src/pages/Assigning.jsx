@@ -288,8 +288,7 @@ export default function Assigning() {
             if (assStart <= i && assStart + assSpan > i) {
               if (ass.teacherId === assignmentData.teacherId && ass.subjectId !== assignmentData.subjectId) {
                 conflicts.add(
-                  `Teacher ${teachers.find((t) => t.id === ass.teacherId)?.fullName || "Unknown"} is already assigned to ${
-                    subjects.find((s) => s.id === ass.subjectId)?.name || "Unknown"
+                  `Teacher ${teachers.find((t) => t.id === ass.teacherId)?.fullName || "Unknown"} is already assigned to ${subjects.find((s) => s.id === ass.subjectId)?.name || "Unknown"
                   } at this time.`
                 );
               }
@@ -431,20 +430,21 @@ export default function Assigning() {
   };
 
   const timeSlots = [
-    '7:00 AM - 7:30 AM', '7:30 AM - 8:00 AM', '8:00 AM - 8:30 AM', '8:30 AM - 9:00 AM',
-    '9:00 AM - 9:30 AM', '9:30 AM - 10:00 AM', '10:00 AM - 10:30 AM', '10:30 AM - 11:00 AM',
-    '11:00 AM - 11:30 AM', '11:30 AM - 12:00 PM', '12:00 PM - 12:30 PM', '12:30 PM - 1:00 PM',
-    '1:00 PM - 1:30 PM', '1:30 PM - 2:00 PM', '2:00 PM - 2:30 PM', '2:30 PM - 3:00 PM',
-    '3:00 PM - 3:30 PM', '3:30 PM - 4:00 PM', '4:00 PM - 4:30 PM', '4:30 PM - 5:00 PM',
-    '5:00 PM - 5:30 PM', '5:30 PM - 6:00 PM', '6:00 PM - 6:30 PM', '6:30 PM - 7:00 PM',
-    '7:00 PM - 7:30 PM'
+    '7:00 AM-7:30 AM', '7:30 AM-8:00 AM', '8:00 AM-8:30 AM', '8:30 AM-9:00 AM',
+    '9:00 AM-9:30 AM', '9:30 AM-10:00 AM', '10:00 AM-10:30 AM', '10:30 AM-11:00 AM',
+    '11:00 AM-11:30 AM', '11:30 AM-12:00 PM', '12:00 PM-12:30 PM', '12:30 PM-1:00 PM',
+    '1:00 PM-1:30 PM', '1:30 PM-2:00 PM', '2:00 PM-2:30 PM', '2:30 PM-3:00 PM',
+    '3:00 PM-3:30 PM', '3:30 PM-4:00 PM', '4:00 PM-4:30 PM', '4:30 PM-5:00 PM',
+    '5:00 PM-5:30 PM', '5:30 PM-6:00 PM', '6:00 PM-6:30 PM', '6:30 PM-7:00 PM',
+    '7:00 PM-7:30 PM', '7:30 PM-8:00 PM', '8:00 PM-8:30 PM', '8:30 PM-9:00 PM',
+    '9:00 PM-9:30 PM', '9:30 PM-10:00 PM'
   ];
 
   const startTimeArray = [
     "7:00 AM", "7:30 AM", "8:00 AM", "8:30 AM", "9:00 AM", "9:30 AM", "10:00 AM", "10:30 AM",
     "11:00 AM", "11:30 AM", "12:00 PM", "12:30 PM", "1:00 PM", "1:30 PM", "2:00 PM", "2:30 PM",
     "3:00 PM", "3:30 PM", "4:00 PM", "4:30 PM", "5:00 PM", "5:30 PM", "6:00 PM", "6:30 PM",
-    "7:00 PM"
+    "7:00 PM", "7:30 PM", "8:00 PM", "8:30 PM", "9:00 PM", "9:30 PM", "10:00 PM"
   ];
 
   const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -877,84 +877,83 @@ export default function Assigning() {
           </div>
 
           <div className="bg-white rounded-lg p-6 shadow-sm border">
-  <h2 className="text-lg font-semibold mb-4">Class Room Assignments</h2>
-  {selectedClassId ? (
-    <>
-      <div className="mb-6 pb-4 border-b">
-        <h3 className="text-md font-medium text-gray-900">
-          {classes.find((c) => c.id === selectedClassId)?.name}
-        </h3>
-        <p className="text-sm text-gray-500 mt-1">
-          {classes.find((c) => c.id === selectedClassId)?.students || 0} Students
-        </p>
-      </div>
-      <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
-        {assignments
-          .filter((a) => a.type === "room" && a.classId === selectedClassId)
-          .map((assignment) => {
-            const timeAssignment = assignments.find(
-              (t) => t.type === "time" && t.subjectId === assignment.subjectId && t.classId === assignment.classId && t.teacherId === assignment.teacherId
-            );
-            const subjectAssignment = assignments.find(
-              (s) => s.type === "subject" && s.subjectId === assignment.subjectId && s.teacherId === assignment.teacherId
-            );
-            const teacher = teachers.find((t) => t.id === assignment.teacherId)?.fullName || "No teacher";
-            const room = rooms.find((r) => r.id === assignment.roomId)?.name || "No room";
-            const schedule = timeAssignment
-              ? { time: timeAssignment.timeSlot, day: timeAssignment.day }
-              : null;
-            return (
-              <div
-                key={assignment.id}
-                className="p-4 hover:bg-gray-50 rounded-lg border border-gray-200 transition-colors"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <h4 className="font-medium text-gray-900 mb-2">
-                      {subjects.find((s) => s.id === assignment.subjectId)?.name || "Unknown"}
-                    </h4>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-600">
-                      <span>{teacher}</span>
-                      <span className="text-gray-300">•</span>
-                      <span>{room}</span>
-                      {schedule && (
-                        <>
-                          <span className="text-gray-300">•</span>
-                          <span>{schedule.day}</span>
-                          <span className="text-gray-300">•</span>
-                          <span>{schedule.time}</span>
-                        </>
-                      )}
-                      {!schedule && (
-                        <>
-                          <span className="text-gray-300">•</span>
-                          <span className="text-amber-600">No schedule</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleDelete(assignment.id, "Room")}
-                    disabled={isDeleting}
-                    className={`ml-3 p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors ${
-                      isDeleting ? "opacity-50 cursor-not-allowed" : ""
-                    }`}
-                    aria-label="Delete assignment"
-                  >
-                    <FiTrash2 size={18} />
-                  </button>
+            <h2 className="text-lg font-semibold mb-4">Class Room Assignments</h2>
+            {selectedClassId ? (
+              <>
+                <div className="mb-6 pb-4 border-b">
+                  <h3 className="text-md font-medium text-gray-900">
+                    {classes.find((c) => c.id === selectedClassId)?.name}
+                  </h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    {classes.find((c) => c.id === selectedClassId)?.students || 0} Students
+                  </p>
                 </div>
+                <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+                  {assignments
+                    .filter((a) => a.type === "room" && a.classId === selectedClassId)
+                    .map((assignment) => {
+                      const timeAssignment = assignments.find(
+                        (t) => t.type === "time" && t.subjectId === assignment.subjectId && t.classId === assignment.classId && t.teacherId === assignment.teacherId
+                      );
+                      const subjectAssignment = assignments.find(
+                        (s) => s.type === "subject" && s.subjectId === assignment.subjectId && s.teacherId === assignment.teacherId
+                      );
+                      const teacher = teachers.find((t) => t.id === assignment.teacherId)?.fullName || "No teacher";
+                      const room = rooms.find((r) => r.id === assignment.roomId)?.name || "No room";
+                      const schedule = timeAssignment
+                        ? { time: timeAssignment.timeSlot, day: timeAssignment.day }
+                        : null;
+                      return (
+                        <div
+                          key={assignment.id}
+                          className="p-4 hover:bg-gray-50 rounded-lg border border-gray-200 transition-colors"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <h4 className="font-medium text-gray-900 mb-2">
+                                {subjects.find((s) => s.id === assignment.subjectId)?.name || "Unknown"}
+                              </h4>
+                              <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-600">
+                                <span>{teacher}</span>
+                                <span className="text-gray-300">•</span>
+                                <span>{room}</span>
+                                {schedule && (
+                                  <>
+                                    <span className="text-gray-300">•</span>
+                                    <span>{schedule.day}</span>
+                                    <span className="text-gray-300">•</span>
+                                    <span>{schedule.time}</span>
+                                  </>
+                                )}
+                                {!schedule && (
+                                  <>
+                                    <span className="text-gray-300">•</span>
+                                    <span className="text-amber-600">No schedule</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => handleDelete(assignment.id, "Room")}
+                              disabled={isDeleting}
+                              className={`ml-3 p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors ${isDeleting ? "opacity-50 cursor-not-allowed" : ""
+                                }`}
+                              aria-label="Delete assignment"
+                            >
+                              <FiTrash2 size={18} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-gray-400">Select a class to view room assignments</p>
               </div>
-            );
-          })}
-      </div>
-    </>
-  ) : (
-    <div className="text-center py-8">
-      <p className="text-gray-400">Select a class to view room assignments</p>
-    </div>
-  )}
-</div>
+            )}
+          </div>
 
           <div className="bg-white rounded-lg p-6 shadow-sm border">
             <h2 className="text-lg font-semibold mb-4">Rooms</h2>
