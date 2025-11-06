@@ -596,20 +596,20 @@ export default function Toolbar() {
       shortcut: "Ctrl+N",
       disabled: userRole === 'user' || false
     },
-    { 
-      name: "Save", 
-      icon: <FiSave />, 
-      onClick: handleSave, 
-      disabled: userRole === 'user' || !activeFileId, 
-      shortcut: "Ctrl+S"
-    },
-    { 
-      name: "Save As", 
-      icon: <FiSave />, 
-      onClick: handleSaveAs, 
-      disabled: userRole === 'user' || !activeFileId, 
-      shortcut: "Ctrl+Shift+S"
-    },
+    // { 
+    //   name: "Save", 
+    //   icon: <FiSave />, 
+    //   onClick: handleSave, 
+    //   disabled: userRole === 'user' || !activeFileId, 
+    //   shortcut: "Ctrl+S"
+    // },
+    // { 
+    //   name: "Save As", 
+    //   icon: <FiSave />, 
+    //   onClick: handleSaveAs, 
+    //   disabled: userRole === 'user' || !activeFileId, 
+    //   shortcut: "Ctrl+Shift+S"
+    // },
     { 
       name: "Export", 
       icon: isExporting ? <FaSpinner className="animate-spin text-base" /> : <FiDownload />, 
@@ -658,7 +658,7 @@ export default function Toolbar() {
 
   return (
     <>
-      <div className="bg-gray-800 border-b border-gray-600 shadow-sm">
+      <div className="bg-[#1e2947] border-b border-gray-600 shadow-sm">
         <div className="px-1 py-1">
           <div className="flex items-center justify-between">
             <div className="flex items-center">

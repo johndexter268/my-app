@@ -1,4 +1,6 @@
-import React, { useEffect } from "react";
+"use client"
+
+import { useEffect } from "react"
 
 export default function Modal({
   title,
@@ -15,19 +17,19 @@ export default function Modal({
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === "Escape") {
-        onClose();
+        onClose()
       }
-    };
+    }
 
-    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("keydown", handleKeyDown)
     return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [onClose]);
+      document.removeEventListener("keydown", handleKeyDown)
+    }
+  }, [onClose])
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-10501">
-      <div className="bg-white rounded-lg p-6 w-96 max-w-md mx-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999]">
+      <div className="bg-white rounded-lg p-6 w-96 max-w-md mx-4 relative z-[100000]">
         <h2 className="text-xl font-bold mb-4">{title}</h2>
         {type === "alert" || type === "confirm" ? (
           <p className="mb-4">{message}</p>
@@ -47,13 +49,7 @@ export default function Modal({
                 </button>
               )}
               <button
-                onClick={
-                  type === "alert"
-                    ? onClose
-                    : type === "confirm"
-                    ? onConfirm
-                    : onSave
-                }
+                onClick={type === "alert" ? onClose : type === "confirm" ? onConfirm : onSave}
                 disabled={isSaving}
                 className="flex items-center px-4 py-2 text-white bg-teal-600 rounded-md hover:bg-teal-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -62,14 +58,16 @@ export default function Modal({
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                     Saving...
                   </>
-                ) : type === "alert" || type === "confirm"
-                  ? "OK"
-                  : saveText}
+                ) : type === "alert" || type === "confirm" ? (
+                  "OK"
+                ) : (
+                  saveText
+                )}
               </button>
             </>
           )}
         </div>
       </div>
     </div>
-  );
+  )
 }

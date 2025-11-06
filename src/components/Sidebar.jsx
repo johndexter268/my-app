@@ -9,15 +9,11 @@ import {
   FiChevronUp,
   FiEye,
   FiLogOut,
-  FiUsers
+  FiUsers,
+  FiMenu,
 } from "react-icons/fi";
-import {
-  TbLayoutSidebarLeftCollapse,
-  TbLayoutSidebarRightCollapse,
-} from "react-icons/tb";
 
 export default function Sidebar() {
-  // Initialize collapsed state from localStorage
   const [collapsed, setCollapsed] = useState(() => {
     const saved = localStorage.getItem('sidebarCollapsed');
     return saved ? JSON.parse(saved) : false;
@@ -28,7 +24,6 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const userRole = localStorage.getItem('userRole') || 'user';
 
-  // Save collapsed state to localStorage whenever it changes
   useEffect(() => {
     localStorage.setItem('sidebarCollapsed', JSON.stringify(collapsed));
   }, [collapsed]);
@@ -39,7 +34,6 @@ export default function Sidebar() {
     setSchedulingOpen(isSchedulingActive);
   }, [location.pathname]);
 
-  // Keyboard shortcuts for navigation
   useEffect(() => {
     const handleKeyDown = (event) => {
       if (!event.ctrlKey || ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) {
@@ -77,10 +71,10 @@ export default function Sidebar() {
             toggleViewTools();
           }
           break;
-        case "6":
+        case '6':
           event.preventDefault();
-          if (userRole === "admin") {
-            handleNavigation("/accounts");
+          if (userRole === 'admin') {
+            handleNavigation('/accounts');
           }
           break;
         case 'h':
@@ -146,14 +140,22 @@ export default function Sidebar() {
       isCollapsible: true,
       roles: ['admin'],
       submenu: [
-        { name: "Manage Data", path: "/manage", roles: ['admin'] },
-        { name: "Assigning", path: "/assign", roles: ['admin'] },
+        { name: "Data Management", path: "/manage", roles: ['admin'] },
+        { name: "Assign Management", path: "/assign", roles: ['admin'] },
       ],
     },
-    { name: "Accounts", icon: <FiUsers />, path: "/accounts", roles: ['admin'] },
     { name: "View", icon: <FiEye />, isButton: true, onClick: toggleViewTools, roles: ['admin', 'user'] },
+    { name: "Accounts", icon: <FiUsers />, path: "/accounts", roles: ['admin'] },
     { name: "Help", icon: <FiHelpCircle />, path: "/help", roles: ['admin', 'user'] },
+    { name: "Logout", icon: <FiLogOut />, isButton: true, onClick: handleLogout, roles: ['admin', 'user'] },
   ];
+
+  const topMenuItems = menuItems.filter(item =>
+    ['Files', 'Home', 'Scheduling Tool', 'View', 'Accounts'].includes(item.name)
+  );
+  const bottomMenuItems = menuItems.filter(item =>
+    ['Help', 'Logout'].includes(item.name)
+  );
 
   const isSchedulingActive =
     location.pathname === "/manage" || location.pathname === "/assign";
@@ -171,19 +173,17 @@ export default function Sidebar() {
         </div>
       )}
       <div
-        className={`h-screen transition-all duration-300 ease-out ${collapsed ? "w-16" : "w-72"
-          } flex flex-col border-r shadow-sm ${isLoading ? "opacity-50 poInter-events-none" : ""
-          }`}
+        className={`h-screen transition-all duration-300 ease-out ${collapsed ? "w-16" : "w-72"} flex flex-col shadow-sm ${isLoading ? "opacity-50 pointer-events-none" : ""}`}
         style={{
-          backgroundColor: "#1a2332",
-          borderColor: "#374151",
+          backgroundColor: "#1e2947",
           position: "relative",
           zIndex: 1000,
         }}
       >
-        <div className="flex items-center justify-between p-3 border-b" style={{ borderColor: "#374151" }}>
+        <div className="flex items-center justify-between p-3">
           {!collapsed && (
             <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full"><img src="/imgs/app-icon.png" alt="" /></div>
               <span className="text-white font-semibold text-lg">Menu</span>
             </div>
           )}
@@ -195,7 +195,7 @@ export default function Sidebar() {
                 disabled={isLoading}
                 title="Expand sidebar (Ctrl+B)"
               >
-                <TbLayoutSidebarRightCollapse className="w-5 h-5" />
+                <FiMenu className="w-5 h-5" />
               </button>
             </div>
           )}
@@ -206,13 +206,13 @@ export default function Sidebar() {
               disabled={isLoading}
               title="Collapse sidebar (Ctrl+B)"
             >
-              <TbLayoutSidebarLeftCollapse className="w-5 h-5" />
+              <FiMenu className="w-5 h-5" />
             </button>
           )}
         </div>
 
         <nav className="flex flex-col flex-1 p-3 gap-1">
-          {menuItems
+          {topMenuItems
             .filter((item) => item.roles.includes(userRole))
             .map((item, index) => (
               <div key={index}>
@@ -222,7 +222,7 @@ export default function Sidebar() {
                       onClick={collapsed ? () => handleNavigation("/manage") : toggleScheduling}
                       className={`
                       group w-full flex items-center px-4 py-3 text-sm font-medium 
-                      transition-all duration-200 cursor-poInter rounded-xl
+                      transition-all duration-200 cursor-pointer rounded-xl
                       ${isSchedulingActive
                           ? "text-white bg-teal-500 shadow-sm"
                           : "text-gray-300 hover:text-white hover:bg-gray-700/50"
@@ -239,8 +239,7 @@ export default function Sidebar() {
                             <span className="text-lg flex-shrink-0">{item.icon}</span>
                             <span className="truncate">{item.name}</span>
                           </div>
-                          <span className={`transition-transform duration-200 ${schedulingOpen ? "rotate-180" : ""
-                            }`}>
+                          <span className={`transition-transform duration-200 ${schedulingOpen ? "rotate-180" : ""}`}>
                             <FiChevronDown className="w-4 h-4" />
                           </span>
                         </>
@@ -264,7 +263,7 @@ export default function Sidebar() {
                               ${location.pathname === sub.path
                                     ? "text-white bg-gray-700/60 shadow-sm"
                                     : "text-gray-300 hover:text-white hover:bg-gray-700/30"
-                                  } ${isLoading ? "poInter-events-none" : ""}
+                                  } ${isLoading ? "pointer-events-none" : ""}
                             `}
                               >
                                 {sub.name}
@@ -283,7 +282,7 @@ export default function Sidebar() {
                       w-full flex items-center gap-3 px-4 py-3 text-sm font-medium 
                       transition-all duration-200 rounded-xl
                       text-gray-300 hover:text-white hover:bg-gray-700/50 active:scale-95
-                      ${isLoading ? "poInter-events-none" : ""}
+                      ${isLoading ? "pointer-events-none" : ""}
                       ${collapsed ? "justify-center" : ""}
                     `}
                       disabled={isLoading}
@@ -293,7 +292,7 @@ export default function Sidebar() {
                       {!collapsed && <span className="truncate">{item.name}</span>}
                     </button>
                     {collapsed && (
-                      <div className="absolute left-full top-1/2 transform -translate-y-1/2 ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity poInter-events-none whitespace-nowrap z-50">
+                      <div className="absolute left-full top-1/2 transform -translate-y-1/2 ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
                         {item.name}
                         <div className="absolute right-full top-1/2 transform -translate-y-1/2 border-4 border-transparent border-r-gray-900"></div>
                       </div>
@@ -313,7 +312,7 @@ export default function Sidebar() {
                       ${location.pathname === item.path
                           ? "text-white bg-teal-500 shadow-sm"
                           : "text-gray-300 hover:text-white hover:bg-gray-700/50"
-                        } ${isLoading ? "poInter-events-none" : ""}
+                        } ${isLoading ? "pointer-events-none" : ""}
                       ${collapsed ? "justify-center" : ""}
                     `}
                       title={collapsed ? item.name : undefined}
@@ -322,7 +321,7 @@ export default function Sidebar() {
                       {!collapsed && <span className="truncate">{item.name}</span>}
                     </Link>
                     {collapsed && (
-                      <div className="absolute left-full top-1/2 transform -translate-y-1/2 ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity poInter-events-none whitespace-nowrap z-50">
+                      <div className="absolute left-full top-1/2 transform -translate-y-1/2 ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
                         {item.name}
                         <div className="absolute right-full top-1/2 transform -translate-y-1/2 border-4 border-transparent border-r-gray-900"></div>
                       </div>
@@ -333,31 +332,58 @@ export default function Sidebar() {
             ))}
         </nav>
 
-        <div className="mt-auto p-3 border-t" style={{ borderColor: "#374151" }}>
-          <div className="relative group">
-            <button
-              onClick={handleLogout}
-              className={`
-                flex items-center gap-3 px-4 py-3 text-sm font-medium 
-                transition-all duration-200 rounded-xl active:scale-95
-                text-gray-300 hover:text-white hover:bg-gray-700/50
-                ${isLoading ? "poInter-events-none" : ""}
-                ${collapsed ? "justify-center" : ""}
-              `}
-              title={collapsed ? "Logout" : undefined}
-            >
-              <span className="text-lg flex-shrink-0">
-                <FiLogOut />
-              </span>
-              {!collapsed && <span className="truncate">Logout</span>}
-            </button>
-            {collapsed && (
-              <div className="absolute left-full top-1/2 transform -translate-y-1/2 ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity poInter-events-none whitespace-nowrap z-50">
-                Logout
-                <div className="absolute right-full top-1/2 transform -translate-y-1/2 border-4 border-transparent border-r-gray-900"></div>
+        <div className="mt-auto p-3">
+          {bottomMenuItems
+            .filter((item) => item.roles.includes(userRole))
+            .map((item, index) => (
+              <div key={index} className="relative group">
+                {item.path ? (
+                  <Link
+                    to={item.path}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleNavigation(item.path);
+                    }}
+                    className={`
+              flex items-center gap-3 px-4 py-3 text-sm font-medium 
+              transition-all duration-200 rounded-xl active:scale-95
+              ${location.pathname === item.path
+                        ? "text-white bg-teal-500 shadow-sm"
+                        : "text-gray-300 hover:text-white hover:bg-gray-700/50"
+                      }
+              ${isLoading ? "pointer-events-none" : ""}
+              ${collapsed ? "justify-center" : ""}
+            `}
+                    title={collapsed ? item.name : undefined}
+                  >
+                    <span className="text-lg flex-shrink-0">{item.icon}</span>
+                    {!collapsed && <span className="truncate">{item.name}</span>}
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={item.onClick}
+                    className={`
+              flex items-center gap-3 px-4 py-3 text-sm font-medium 
+              transition-all duration-200 rounded-xl active:scale-95
+              text-gray-300 hover:text-white hover:bg-gray-700/50
+              ${isLoading ? "pointer-events-none" : ""}
+              ${collapsed ? "justify-center" : ""}
+            `}
+                    title={collapsed ? item.name : undefined}
+                  >
+                    <span className="text-lg flex-shrink-0">{item.icon}</span>
+                    {!collapsed && <span className="truncate">{item.name}</span>}
+                  </button>
+                )}
+                {collapsed && (
+                  <div className="absolute left-full top-1/2 transform -translate-y-1/2 ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                    {item.name}
+                    <div className="absolute right-full top-1/2 transform -translate-y-1/2 border-4 border-transparent border-r-gray-900"></div>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            ))}
         </div>
       </div>
     </>

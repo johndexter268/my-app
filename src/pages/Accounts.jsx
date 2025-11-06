@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { FiUser, FiTrash2, FiEdit, FiSearch, FiList, FiGrid, FiPlus } from "react-icons/fi";
+import { FaTrash, FaArchive } from "react-icons/fa";
 import Modal from "../components/Modal";
+import { MdEditSquare } from "react-icons/md";
 
 export default function Accounts() {
   const [accounts, setAccounts] = useState([]);
@@ -111,7 +113,7 @@ export default function Accounts() {
               title="Edit"
               disabled={isOperating}
             >
-              <FiEdit className="w-3.5 h-3.5" />
+              <MdEditSquare className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => handleDeletePrompt(account.id)}
@@ -119,7 +121,7 @@ export default function Accounts() {
               title="Delete"
               disabled={isOperating}
             >
-              <FiTrash2 className="w-3.5 h-3.5" />
+              <FaTrash className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
@@ -138,18 +140,18 @@ export default function Accounts() {
   );
 
   const ListView = ({ accounts }) => (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+    <div className="bg-white rounded-lg overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead className="bg-gray-50 border-b border-gray-200">
+          <thead className="bg-[#4c4c4c] rounded-lg sticky top-0">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider rounded-bl-md">
                 Username
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
                 Role
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider rounded-br-md">
                 Actions
               </th>
             </tr>
@@ -179,7 +181,7 @@ export default function Accounts() {
                       title="Edit"
                       disabled={isOperating}
                     >
-                      <FiEdit className="w-4 h-4" />
+                      <MdEditSquare className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => handleDeletePrompt(account.id)}
@@ -187,7 +189,7 @@ export default function Accounts() {
                       title="Delete"
                       disabled={isOperating}
                     >
-                      <FiTrash2 className="w-4 h-4" />
+                      <FaTrash className="w-4 h-4" />
                     </button>
                   </div>
                 </td>
@@ -200,7 +202,7 @@ export default function Accounts() {
   );
 
   return (
-    <div className="min-h-60 bg-white p-6">
+    <div className="h-full bg-white p-6">
       <div className="max-w-7xl mx-auto">
         <div className="mb-6">
           <div className="flex items-center space-x-3 mb-4">

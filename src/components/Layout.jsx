@@ -12,7 +12,7 @@ export default function Layout({ children }) {
       <Sidebar />
       <div className={`flex-1 flex flex-col ${isHomePage ? 'overflow-hidden' : ''}`}>
         <Toolbar />
-        <div className={`flex-1 p-0 bg-white ${isHomePage ? 'overflow-x-hidden' : 'overflow-auto'}`}>
+        <div className={`flex-1 p-0 bg-[#f8f8f8] ${isHomePage ? 'overflow-x-hidden' : 'overflow-auto'}`}>
           {children}
         </div>
       </div>

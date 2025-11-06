@@ -50,4 +50,30 @@ contextBridge.exposeInMainWorld("api", {
   deleteUser: (id) => ipcRenderer.invoke("delete-user", id),
 
   reloadWindow: () => ipcRenderer.invoke("reload-window"),
+
+  // Expose utility functions
+  parseClockToMinutes: (clock) => parseClockToMinutes(clock),
+  minutesToClock: (mins) => minutesToClock(mins),
 })
+
+function parseClockToMinutes(clock) {
+  if (!clock) return null;
+  const m = clock.trim().match(/^(\d{1,2}):?(\d{2})?\s*([AaPp][Mm])$/);
+  if (!m) return null;
+  let hh = Number.parseInt(m[1], 10);
+  const mm = Number.parseInt(m[2] || "00", 10);
+  const ampm = m[3].toUpperCase();
+  if (hh === 12) hh = 0;
+  if (ampm === "PM") hh += 12;
+  return hh * 60 + mm;
+}
+
+function minutesToClock(mins) {
+  mins = ((mins % (24 * 60)) + 24 * 60) % (24 * 60);
+  let hh = Math.floor(mins / 60);
+  const mm = mins % 60;
+  const ampm = hh >= 12 ? "PM" : "AM";
+  if (hh === 0) hh = 12;
+  else if (hh > 12) hh -= 12;
+  return `${hh}:${mm.toString().padStart(2, "0")} ${ampm}`;
+}

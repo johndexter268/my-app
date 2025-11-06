@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { FiPlus, FiEdit, FiTrash2, FiFilter, FiChevronDown, FiChevronUp } from "react-icons/fi";
 import Modal from "../components/Modal";
+import { MdOutlineSort } from "react-icons/md";
 
 export default function Assigning() {
   const [currentFile, setCurrentFile] = useState(null);
@@ -37,9 +38,16 @@ export default function Assigning() {
   const [deleteModalData, setDeleteModalData] = useState({ assignment: null, type: "", mergedAssignments: [] });
   const [selectedClassesToDelete, setSelectedClassesToDelete] = useState([]);
 
+  const [teacherSearch, setTeacherSearch] = useState("");
+  const [teacherSortOrder, setTeacherSortOrder] = useState("A-Z");
+
   const navigate = useNavigate();
   const handleFileSelected = (e) => {
     setCurrentFile(e.detail);
+  };
+
+  const toggleTeacherSortOrder = () => {
+    setTeacherSortOrder((prev) => (prev === "A-Z" ? "Z-A" : "A-Z"));
   };
 
   useEffect(() => {
@@ -141,13 +149,14 @@ export default function Assigning() {
       setSelectedClassesToDelete(mergedAssignments.map((a) => a.classId));
       setShowDeleteModal(true);
     } else {
-      if (window.confirm(`Are you sure you want to delete this ${type.toLowerCase()} assignment?`)) {
+
+      if (window.confirm(`Are you sure you want to delete this assignment?`)) {
         setIsDeleting(true);
         window.api.deleteAssignment(assignment.id)
           .then((result) => {
             if (result.success) {
               setAssignments((prev) => prev.filter((a) => a.id !== assignment.id));
-              alert(`${type} assignment deleted successfully!`);
+              alert(`Assignment deleted successfully!`);
               const updatedFile = { ...currentFile, updatedAt: new Date().toISOString(), hasUnsavedChanges: true };
               window.api.setCurrentFile(updatedFile)
                 .then(() => setCurrentFile(updatedFile));
@@ -156,8 +165,8 @@ export default function Assigning() {
             }
           })
           .catch((error) => {
-            console.error(`Error deleting ${type.toLowerCase()} assignment:`, error);
-            alert(`Error deleting ${type.toLowerCase()} assignment: ${error.message}`);
+            console.error(`Error deleting assignment:`, error);
+            alert(`Error deleting assignment: ${error.message}`);
           })
           .finally(() => setIsDeleting(false));
       }
@@ -415,6 +424,21 @@ export default function Assigning() {
     return filteredSubjects;
   };
 
+  const getFilteredTeachers = () => {
+    let filteredTeachers = [...teachers];
+    if (teacherSearch) {
+      filteredTeachers = filteredTeachers.filter((teacher) =>
+        teacher.fullName.toLowerCase().includes(teacherSearch.toLowerCase())
+      );
+    }
+    if (teacherSortOrder === "A-Z") {
+      filteredTeachers.sort((a, b) => a.fullName.localeCompare(b.fullName));
+    } else {
+      filteredTeachers.sort((a, b) => b.fullName.localeCompare(a.fullName));
+    }
+    return filteredTeachers;
+  };
+
   const toggleProgram = (programId) => {
     setExpandedPrograms((prev) => ({
       ...prev,
@@ -517,31 +541,53 @@ export default function Assigning() {
   const tabs = ["Subject Assign", "Time & Date Assign", "Room Assign"];
 
   return (
-    <div className="p-4">
-      <div className="border-b border-gray-200 mb-4">
-        <nav className="flex space-x-6">
-          {tabs.map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`pb-2 px-1 text-sm font-medium transition-colors
+    <div className="p-4 h-[calc(100vh-80px)] overflow-hidden bg-[#f8f8f8]">
+      <div className="border-b border-gray-200">
+        <div className="-mx-4 -mt-4 px-4 py-3 bg-white shadow-sm">
+          <div className="flex items-center border-l-4 pl-4" style={{ borderColor: "#09153e" }}>
+            <h1 className="text-xl font-semibold text-gray-800">Assigning</h1>
+          </div>
+        </div>
+        <div className="-mx-4 px-4 bg-white border-b border-gray-200 mb-6">
+          <nav className="flex space-x-6">
+            {tabs.map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`pb-2 px-1 text-sm font-medium transition-colors
           ${activeTab === tab
-                  ? "text-teal-600 border-b-2 border-teal-600"
-                  : "text-gray-500 hover:text-gray-700"
-                }`}
-            >
-              {tab}
-            </button>
-          ))}
-        </nav>
+                    ? "text-[#031844] border-b-2 border-[#031844]"
+                    : "text-gray-500 hover:text-gray-700"
+                  }`}
+              >
+                {tab}
+              </button>
+            ))}
+          </nav>
+        </div>
       </div>
-
       {activeTab === "Subject Assign" && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="bg-white rounded-lg p-6 shadow-sm border">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 h-[calc(100vh-14rem)]">
+          <div className="bg-white rounded-lg p-6 shadow-sm border flex flex-col h-[calc(100vh-14rem)] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:#cfcfcf_transparent]">
             <h2 className="text-lg font-semibold mb-4">Teachers</h2>
-            <div className="space-y-2">
-              {teachers.map((teacher) => (
+            <div className="flex gap-2 mb-4">
+              <input
+                type="text"
+                value={teacherSearch}
+                onChange={(e) => setTeacherSearch(e.target.value)}
+                placeholder="Search teachers..."
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500"
+              />
+              <button
+                onClick={toggleTeacherSortOrder}
+                className="p-2 rounded-md hover:bg-gray-100 transition-colors"
+                title={`Sort ${teacherSortOrder === "A-Z" ? "Z-A" : "A-Z"}`}
+              >
+                <MdOutlineSort className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              {getFilteredTeachers().map((teacher) => (
                 <div
                   key={teacher.id}
                   onClick={() => setSelectedTeacherId(teacher.id)}
@@ -557,18 +603,18 @@ export default function Assigning() {
                     </span>
                   </div>
                   <span className="text-sm text-gray-500">
-                    {getTeacherSubjectCount(teacher.id)} subjects
+                    {getTeacherSubjectCount(teacher.id)}
                   </span>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="bg-white rounded-lg p-6 shadow-sm border">
+          <div className="bg-white rounded-lg p-6 shadow-sm border flex flex-col h-[calc(100vh-14rem)] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:#cfcfcf_transparent]">
             <h2 className="text-lg font-semibold mb-4">
               Assigned Subjects {selectedTeacherId && `for ${teachers.find((t) => t.id === selectedTeacherId)?.fullName}`}
             </h2>
-            <div className="space-y-2">
+            <div className="flex-1 overflow-y-auto">
               {selectedTeacherId ? (
                 assignments
                   .filter((a) => a.type === "subject" && a.teacherId === selectedTeacherId)
@@ -579,7 +625,7 @@ export default function Assigning() {
                     >
                       <span>{subjects.find((s) => s.id === assignment.subjectId)?.name || "Unknown"}</span>
                       <button
-                        onClick={() => handleDelete(assignment.id, "Subject")}
+                        onClick={() => handleDelete(assignment.id)}
                         disabled={isDeleting}
                         className={`text-red-500 hover:text-red-700 ${isDeleting ? "opacity-50 cursor-not-allowed" : ""}`}
                       >
@@ -593,7 +639,7 @@ export default function Assigning() {
             </div>
           </div>
 
-          <div className="bg-white rounded-lg p-6 shadow-sm border">
+          <div className="bg-white rounded-lg p-6 shadow-sm border flex flex-col h-[calc(100vh-14rem)] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:#cfcfcf_transparent]">
             <h2 className="text-lg font-semibold mb-4">Subjects</h2>
             <div className="flex gap-2 mb-4">
               <input
@@ -716,11 +762,27 @@ export default function Assigning() {
       )}
 
       {activeTab === "Time & Date Assign" && (
-        <div className="grid grid-cols-1 lg:grid-cols-[350px_1fr] gap-6">
-          <div className="bg-white rounded-lg p-6 shadow-sm border">
+        <div className="grid grid-cols-1 lg:grid-cols-[350px_1fr] gap-6 h-[calc(100vh-14rem)]">
+          <div className="bg-white rounded-lg p-6 shadow-sm border flex flex-col h-[calc(100vh-14rem)] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:#cfcfcf_transparent]">
             <h2 className="text-lg font-semibold mb-4">Teachers</h2>
-            <div className="space-y-2">
-              {teachers.map((teacher) => (
+            <div className="flex gap-2 mb-4">
+              <input
+                type="text"
+                value={teacherSearch}
+                onChange={(e) => setTeacherSearch(e.target.value)}
+                placeholder="Search teachers..."
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500"
+              />
+              <button
+                onClick={toggleTeacherSortOrder}
+                className="p-2 rounded-md hover:bg-gray-100 transition-colors"
+                title={`Sort ${teacherSortOrder === "A-Z" ? "Z-A" : "A-Z"}`}
+              >
+                <MdOutlineSort className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              {getFilteredTeachers().map((teacher) => (
                 <div
                   key={teacher.id}
                   onClick={() => setSelectedTeacherId(teacher.id)}
@@ -742,51 +804,61 @@ export default function Assigning() {
               ))}
             </div>
           </div>
-
-          <div className="bg-white rounded-lg p-6 shadow-sm border overflow-x-auto">
+          <div className="bg-white rounded-lg p-6 shadow-sm border flex flex-col h-[calc(100vh-14rem)] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:#cfcfcf_transparent]">
             <h2 className="text-lg font-semibold mb-4">
               Schedule {selectedTeacherId && `for ${teachers.find((t) => t.id === selectedTeacherId)?.fullName}`}
             </h2>
             <button
               onClick={() => handleAssign("Time & Date Assign")}
               disabled={isSaving || !selectedTeacherId}
-              className={`mt-4 flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700 mb-5 ${(isSaving || !selectedTeacherId) ? "opacity-50 cursor-not-allowed" : ""}`}
+              className={`mt-4  flex w-fit items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700 mb-5 ${(isSaving || !selectedTeacherId) ? "opacity-50 cursor-not-allowed" : ""}`}
             >
               <FiPlus /> Add Schedule
             </button>
             <div className="overflow-x-auto rounded-xl border border-gray-200">
               {selectedTeacherId ? (
-                <table className="w-full border-collapse">
+                <table className="w-full border-collapse table-fixed">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr className="bg-gray-50">
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
-                      {days.map(day => <th key={day} className="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider">{day}</th>)}
+                      <th className="w-[120px] px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Time
+                      </th>
+                      {days.map(day => (
+                        <th
+                          key={day}
+                          className="w-[150px] px-4 py-2 text-left text-xs font-medium text-gray-800 uppercase tracking-wider"
+                        >
+                          {day}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
+
                   <tbody>
                     {timeSlots.map((slot, rowIndex) => (
-                      <tr key={slot} className="px-6 py-3 text-left text-xs font-medium text-gray-700 tracking-wider">
+                      <tr key={slot} className="text-xs text-gray-700">
                         <td className="border p-2">{slot}</td>
                         {days.map(day => {
-                          const dayAss = getDayAssignments(selectedTeacherId)[day] || [];
+                          const dayAss = getDayAssignments(selectedTeacherId)[day] || []
                           for (let ass of dayAss) {
                             if (ass.start === rowIndex) {
-                              const subject = subjects.find(s => s.id === ass.assignment.subjectId)?.name || "Unknown";
-                              const teacher = teachers.find(t => t.id === ass.assignment.teacherId);
-                              const bgColor = teacher?.color || "#e0f7fa";
+                              const subject = subjects.find(s => s.id === ass.assignment.subjectId)?.name || "Unknown"
+                              const teacher = teachers.find(t => t.id === ass.assignment.teacherId)
+                              // const bgColor = teacher?.color || "#e0f7fa"
                               return (
                                 <td
                                   key={day}
                                   rowSpan={ass.span}
                                   className="border p-2 align-top whitespace-normal break-words text-sm leading-snug"
-                                  style={{ backgroundColor: bgColor, wordBreak: "break-word" }}
+                                  // style={{ backgroundColor: bgColor, wordBreak: "break-word" }}
+                                  style={{ wordBreak: "break-word" }}
                                 >
                                   <div className="p-2 flex flex-col h-full">
-                                    <span className="text-sm text-gray-200 break-words">
+                                    <span className="text-sm text-gray-900 text-center break-words">
                                       {subject} ({ass.assignment.classNames})
                                     </span>
-                                    <span className="text-sm text-gray-200">{ass.assignment.timeSlot}</span>
-                                    <div className="flex gap-1 mt-2">
+                                    <span className="text-xs text-gray-900 text-center">{ass.assignment.timeSlot}</span>
+                                    <div className="flex gap-1 mt-2 justify-center">
                                       <button
                                         onClick={() => handleEdit(ass.assignment, "Time & Date Assign")}
                                         className="text-blue-500 hover:text-blue-700"
@@ -803,17 +875,18 @@ export default function Assigning() {
                                     </div>
                                   </div>
                                 </td>
-                              );
+                              )
                             } else if (ass.start < rowIndex && ass.start + ass.span > rowIndex) {
-                              return null;
+                              return null
                             }
                           }
-                          return <td key={day} className="border p-2"></td>;
+                          return <td key={day} className="border p-2"></td>
                         })}
                       </tr>
                     ))}
                   </tbody>
                 </table>
+
               ) : (
                 <p className="text-gray-500 p-2">Select a teacher to view schedule</p>
               )}
@@ -823,10 +896,10 @@ export default function Assigning() {
       )}
 
       {activeTab === "Room Assign" && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="bg-white rounded-lg p-6 shadow-sm border">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-14rem)]">
+          <div className="bg-white rounded-lg p-6 shadow-sm border flex flex-col h-[calc(100vh-14rem)] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:#cfcfcf_transparent]">
             <h2 className="text-lg font-semibold mb-4">Programs & Classes</h2>
-            <div className="space-y-2">
+            <div className="flex-1 overflow-y-auto">
               {programs.map((program) => (
                 <div key={program.id}>
                   <div
@@ -876,7 +949,7 @@ export default function Assigning() {
             </div>
           </div>
 
-          <div className="bg-white rounded-lg p-6 shadow-sm border">
+          <div className="bg-white rounded-lg p-6 shadow-sm border flex flex-col h-[calc(100vh-14rem)] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:#cfcfcf_transparent]">
             <h2 className="text-lg font-semibold mb-4">Class Room Assignments</h2>
             {selectedClassId ? (
               <>
@@ -934,7 +1007,7 @@ export default function Assigning() {
                               </div>
                             </div>
                             <button
-                              onClick={() => handleDelete(assignment.id, "Room")}
+                              onClick={() => handleDelete(assignment.id)}
                               disabled={isDeleting}
                               className={`ml-3 p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors ${isDeleting ? "opacity-50 cursor-not-allowed" : ""
                                 }`}
@@ -955,9 +1028,9 @@ export default function Assigning() {
             )}
           </div>
 
-          <div className="bg-white rounded-lg p-6 shadow-sm border">
+          <div className="bg-white rounded-lg p-6 shadow-sm border flex flex-col h-[calc(100vh-14rem)] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:#cfcfcf_transparent]">
             <h2 className="text-lg font-semibold mb-4">Rooms</h2>
-            <div className="space-y-2">
+            <div className="flex-1 overflow-y-auto">
               {rooms.map((room) => (
                 <div
                   key={room.id}

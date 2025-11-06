@@ -539,10 +539,26 @@ export default function Home() {
     event.preventDefault();
     const assignmentId = event.dataTransfer.getData("text/plain");
     const assignment = assignments.find((a) => a.id === assignmentId);
-    if (!assignment) return;
+    if (!assignment) {
+      console.error("Assignment not found for ID:", assignmentId);
+      return;
+    }
 
     let updatedAssignment;
     let newRoomId;
+
+    // Determine the target class based on programId and yearLevel
+    const targetClass = programId
+      ? classes.find((c) => c.programId === programId && c.yearLevel === yearLevel)
+      : classes.find((c) => c.yearLevel === yearLevel);
+
+    if (!targetClass && (assignment.type === "subject" || assignment.type === "room")) {
+      setConflictModal({
+        open: true,
+        conflicts: ["No matching class found for the selected program and year level."],
+      });
+      return;
+    }
 
     if (assignment.type === "time") {
       const assYearLevel = getYearLevel(assignment.classId);
@@ -558,13 +574,15 @@ export default function Home() {
         day,
         timeSlot: timeSlots[timeIndex].split('-')[0].trim(),
       };
-      newRoomId = getAssignmentRoom(assignment) !== "N/A" ? roomAssignments.find(
-        (ra) =>
-          ra.scheduleFileId === assignment.scheduleFileId &&
-          ra.subjectId === assignment.subjectId &&
-          ra.teacherId === assignment.teacherId &&
-          ra.classId === assignment.classId
-      )?.roomId : null;
+      newRoomId = getAssignmentRoom(assignment) !== "N/A"
+        ? roomAssignments.find(
+          (ra) =>
+            ra.scheduleFileId === assignment.scheduleFileId &&
+            ra.subjectId === assignment.subjectId &&
+            ra.teacherId === assignment.teacherId &&
+            ra.classId === assignment.classId
+        )?.roomId
+        : null;
     } else if (assignment.type === "room") {
       if (getYearLevel(assignment.classId) !== yearLevel) {
         setConflictModal({
@@ -594,15 +612,11 @@ export default function Home() {
         });
         return;
       }
-      const targetClassId = programId
-        ? classes.find((c) => c.yearLevel === yearLevel && c.programId === programId)?.id
-        : classes.find((c) => c.yearLevel === yearLevel)?.id;
-
       updatedAssignment = {
         id: crypto.randomUUID(),
         subjectId: assignment.subjectId,
         teacherId: assignment.teacherId,
-        classId: targetClassId || "",
+        classId: targetClass?.id || "",
         day,
         timeSlot: timeSlots[timeIndex].split('-')[0].trim(),
         duration: 30,
@@ -615,9 +629,9 @@ export default function Home() {
     const dayAssignments = getDayAssignments(day, null);
     const conflictSet = new Set();
     const startSlot = timeSlots.findIndex((slot) => slot.split('-')[0].trim() === updatedAssignment.timeSlot);
-    const span = Math.round(updatedAssignment.duration / 30); // Calculate span for 30-minute intervals
+    const span = Math.round(updatedAssignment.duration / 30);
 
-    // Consolidated conflict detection
+    // Conflict detection
     const teacherConflicts = new Set();
     const classConflicts = new Set();
     const subjectConflicts = new Set();
@@ -664,17 +678,18 @@ export default function Home() {
           conflictSet.add(`Room ${room.name} capacity (${room.capacity}) exceeded. Total students: ${totalStudents}`);
         }
       }
-
       for (let i = startSlot; i < startSlot + span; i++) {
         dayAssignments.forEach(({ start, span: assSpan, assignment: ass }) => {
           if (start <= i && start + assSpan > i) {
-            const assRoomId = getAssignmentRoom(ass) !== "N/A" ? roomAssignments.find(
-              (ra) =>
-                ra.scheduleFileId === ass.scheduleFileId &&
-                ra.subjectId === ass.subjectId &&
-                ra.teacherId === ass.teacherId &&
-                ra.classId === ass.classId
-            )?.roomId : null;
+            const assRoomId = getAssignmentRoom(ass) !== "N/A"
+              ? roomAssignments.find(
+                (ra) =>
+                  ra.scheduleFileId === ass.scheduleFileId &&
+                  ra.subjectId === ass.subjectId &&
+                  ra.teacherId === ass.teacherId &&
+                  ra.classId === ass.classId
+              )?.roomId
+              : null;
             if (
               assRoomId &&
               newRoomId === assRoomId &&
@@ -716,7 +731,6 @@ export default function Home() {
               ra.teacherId === updatedAssignment.teacherId &&
               ra.classId === updatedAssignment.classId
           );
-
           if (existingRoomAssignment) {
             await window.api.updateRoomAssignment({
               id: existingRoomAssignment.id,
@@ -736,23 +750,15 @@ export default function Home() {
             });
           }
         }
-        // If it was a time assignment being moved, update it. If it was a new assignment, add it
-        if (assignment.type === "time") {
-          setTimeAssignments((prev) =>
-            prev.map((a) => (a.id === updatedAssignment.id ? updatedAssignment : a))
-          );
-          setAssignments((prev) =>
-            prev.map((a) => (a.id === updatedAssignment.id ? updatedAssignment : a))
-          );
-        } else {
-          setTimeAssignments((prev) => [...prev, updatedAssignment]);
-          setAssignments((prev) => {
-            const filtered = assignment.type === "room"
-              ? prev.filter((a) => a.id !== assignment.id)
-              : prev;
-            return [...filtered, updatedAssignment];
-          });
-        }
+
+        // Update state to ensure visibility
+        setTimeAssignments((prev) => {
+          if (assignment.type === "time") {
+            return prev.map((a) => (a.id === updatedAssignment.id ? updatedAssignment : a));
+          }
+          return [...prev, updatedAssignment];
+        });
+
         setRoomAssignments((prev) => {
           const existing = prev.find(
             (ra) =>
@@ -761,7 +767,7 @@ export default function Home() {
               ra.teacherId === updatedAssignment.teacherId &&
               ra.classId === updatedAssignment.classId
           );
-          if (existing) {
+          if (existing && newRoomId) {
             return prev.map((ra) =>
               ra.id === existing.id ? { ...ra, roomId: newRoomId } : ra
             );
@@ -781,17 +787,32 @@ export default function Home() {
           }
           return prev;
         });
+
+        setAssignments((prev) => {
+          if (assignment.type === "time") {
+            return prev.map((a) => (a.id === updatedAssignment.id ? updatedAssignment : a));
+          }
+          // Remove the original subject/room assignment and add the new time assignment
+          const filtered = prev.filter((a) => a.id !== assignment.id);
+          return [...filtered, updatedAssignment];
+        });
+
+        // Refresh assignments to ensure consistency
+        const data = await window.api.getAssignments(currentFile.id);
+        setTimeAssignments(data.filter((a) => a.type === "time") || []);
+        setRoomAssignments(data.filter((a) => a.type === "room") || []);
+        setSubjectAssignments(data.filter((a) => a.type === "subject") || []);
       } else {
         setConflictModal({
           open: true,
-          conflicts: ["Failed to assign time slot."],
+          conflicts: ["Failed to assign time slot: " + (result.message || "Unknown error")],
         });
       }
     } catch (error) {
       console.error("Error assigning time slot:", error);
       setConflictModal({
         open: true,
-        conflicts: ["An error occurred while assigning the time slot."],
+        conflicts: ["An error occurred while assigning the time slot: " + error.message],
       });
     }
   };
@@ -1047,7 +1068,24 @@ export default function Home() {
     const matchesTeacher = !filterOptions.teacherId || assignment.teacherId === filterOptions.teacherId;
     const matchesWithSchedule = filterOptions.showWithSchedule && hasSchedule;
     const matchesWithoutSchedule = filterOptions.showWithoutSchedule && !hasSchedule;
-    return matchesSearch && matchesTeacher && (matchesWithSchedule || matchesWithoutSchedule);
+
+    // Get class or subject data for filtering by program and year level
+    const classData = assignment.classId ? classes.find((c) => c.id === assignment.classId) : null;
+    const subjectData = subjects.find((s) => s.id === assignment.subjectId);
+    const programId = classData?.programId || subjectData?.programId || null;
+    const yearLevel = classData?.yearLevel || subjectData?.yearLevel || null;
+
+    // Apply program and year level filters
+    const matchesProgram = !selectedProgramId || programId === selectedProgramId;
+    const matchesYearLevel = !selectedYearLevel || yearLevel === selectedYearLevel;
+
+    return (
+      matchesSearch &&
+      matchesTeacher &&
+      (matchesWithSchedule || matchesWithoutSchedule) &&
+      matchesProgram &&
+      matchesYearLevel
+    );
   });
 
   if (isLoading) {
@@ -1745,7 +1783,7 @@ export default function Home() {
       )}
 
       {!isFullScreen && (
-        <div className={`p-4 flex flex-col lg:flex-row gap-4 ${userRole !== 'user' ? 'pr-96' : ''}`} style={{ zIndex: 10 }}>
+        <div className={`p-4 bg-white flex flex-col lg:flex-row gap-4 ${userRole !== 'user' ? 'pr-96' : ''}`} style={{ zIndex: 10 }}>
           <div className="bg-white rounded-lg mb-6 flex-1">
             <div className="bg-white rounded-lg mb-6">
               <h1 className="text-2xl font-bold mb-2">CET Class Schedule</h1>
@@ -2529,31 +2567,57 @@ export default function Home() {
                   </label>
                 </div>
               </div>
-              <div className="space-y-2 flex-1 overflow-y-auto p-4 scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200">
-                {filteredAssignments.map((assignment) => (
-                  <div
-                    key={assignment.id}
-                    {...(userRole !== 'user' ? {
-                      draggable: true,
-                      onDragStart: (e) => e.dataTransfer.setData("text/plain", assignment.id)
-                    } : {})}
-                    className="p-2 bg-gray-50 rounded-md cursor-move border border-gray-200 hover:bg-gray-100"
-                  >
-                    <div className="text-sm font-medium">{getSubjectName(assignment.subjectId)}</div>
-                    <div className="text-xs text-gray-600">{getTeacherName(assignment.teacherId)}</div>
-                    {assignment.timeSlot && (
-                      <div className="text-xs text-gray-500">
-                        {assignment.day} {assignment.timeSlot} ({getClassName(assignment.classId)})
-                      </div>
-                    )}
-                    {assignment.roomId && (
-                      <div className="text-xs text-gray-500">Room: {getRoomName(assignment.roomId)}</div>
-                    )}
-                    {!assignment.timeSlot && (
-                      <div className="text-xs text-orange-500">Unscheduled</div>
-                    )}
-                  </div>
-                ))}
+              <div className="space-y-2 flex-1 overflow-y-auto p-4 [scrollbar-width:thin] [scrollbar-color:#cfcfcf_transparent]">
+                {filteredAssignments.map((assignment) => {
+                  // Get class details for time and room assignments
+                  const classData = assignment.classId ? classes.find((c) => c.id === assignment.classId) : null;
+                  // Get subject details for subject assignments or fallback
+                  const subjectData = subjects.find((s) => s.id === assignment.subjectId);
+                  // Determine program and year level
+                  const programName = classData
+                    ? getProgramName(classData.programId)
+                    : subjectData?.programId
+                      ? getProgramName(subjectData.programId)
+                      : "N/A";
+                  const yearLevel = classData
+                    ? classData.yearLevel
+                    : subjectData?.yearLevel || "N/A";
+                  // Check if the assignment has no teacher
+                  const isNoTeacher = getTeacherName(assignment.teacherId) === "No Teacher";
+
+                  return (
+                    <div
+                      key={assignment.id}
+                      {...(userRole !== 'user' && !isNoTeacher
+                        ? {
+                          draggable: true,
+                          onDragStart: (e) => e.dataTransfer.setData("text/plain", assignment.id),
+                        }
+                        : {
+                          draggable: false,
+                        })}
+                      className={`p-2 bg-gray-50 rounded-md border border-gray-200 hover:bg-gray-100 ${isNoTeacher ? 'cursor-not-allowed opacity-75' : 'cursor-move'
+                        }`}
+                      title={isNoTeacher ? "A teacher must be assigned first." : ""}
+                    >
+                      <div className="text-sm font-medium">{getSubjectName(assignment.subjectId)}</div>
+                      <div className="text-xs text-gray-600">{getTeacherName(assignment.teacherId)}</div>
+                      {assignment.timeSlot && (
+                        <div className="text-xs text-gray-500">
+                          {assignment.day} {assignment.timeSlot} ({getClassName(assignment.classId)})
+                        </div>
+                      )}
+                      {assignment.roomId && (
+                        <div className="text-xs text-gray-500">Room: {getRoomName(assignment.roomId)}</div>
+                      )}
+                      <div className="text-xs text-gray-500">Course: {programName}</div>
+                      <div className="text-xs text-gray-500">Year: {yearLevel}</div>
+                      {!assignment.timeSlot && (
+                        <div className="text-xs text-orange-500">Unscheduled</div>
+                      )}
+                    </div>
+                  );
+                })}
                 {filteredAssignments.length === 0 && (
                   <div className="text-sm text-gray-500 italic">No assignments found.</div>
                 )}

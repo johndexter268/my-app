@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { FaTrash, FaArchive } from "react-icons/fa";
 import { FiArchive, FiTrash2, FiFolder, FiFile, FiSearch, FiGrid, FiList, FiRefreshCw } from "react-icons/fi";
 
 export default function File() {
@@ -217,7 +218,7 @@ export default function File() {
                 title="Archive"
                 disabled={userRole === 'user' || isOperating}
               >
-                <FiArchive className="w-3.5 h-3.5" />
+                <FaArchive className="w-3.5 h-3.5" />
               </button>
             )}
             <button
@@ -232,7 +233,7 @@ export default function File() {
               title="Delete"
               disabled={userRole === 'user' || isOperating}
             >
-              <FiTrash2 className="w-3.5 h-3.5" />
+              <FaTrash className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
@@ -260,24 +261,24 @@ export default function File() {
   );
 
   const ListView = ({ files, isArchived = false }) => (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+    <div className="bg-white max-h-full rounded-lg overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead className="bg-gray-50 border-b border-gray-200">
+          <thead className="bg-[#4c4c4c] rounded-lg sticky top-0">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider rounded-bl-md">
                 Name
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
                 Academic Year
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
                 Semester
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              {/* <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
                 Last Updated
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              </th> */}
+              <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider rounded-br-md">
                 Actions
               </th>
             </tr>
@@ -291,7 +292,7 @@ export default function File() {
                   }`}
                 onClick={() => !isArchived && !isOperating && handleSelectFile(file)}
               >
-                <td className="px-6 py-4 whitespace-nowrap">
+                <td className="px-6 py-4 whitespace-nowrap  border-b">
                   <div className="flex items-center">
                     <div className="bg-teal-50 p-2 rounded-lg mr-3">
                       <FiFile className="w-4 h-4 text-teal-600" />
@@ -299,16 +300,16 @@ export default function File() {
                     <div className="text-sm font-medium text-gray-900">{file.name}</div>
                   </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500  border-b">
                   {file.academic_year}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500  border-b">
                   {file.semester}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                {/* <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500  border-b">
                   {new Date(file.updatedAt || new Date()).toLocaleDateString()}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                </td> */}
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium  border-b">
                   <div className="flex items-center space-x-2">
                     {isArchived ? (
                       <button
@@ -338,7 +339,7 @@ export default function File() {
                         title="Archive"
                         disabled={userRole === 'user' || isOperating}
                       >
-                        <FiArchive className="w-4 h-4" />
+                        <FaArchive className="w-4 h-4" />
                       </button>
                     )}
                     <button
@@ -353,7 +354,7 @@ export default function File() {
                       title="Delete"
                       disabled={userRole === 'user' || isOperating}
                     >
-                      <FiTrash2 className="w-4 h-4" />
+                      <FaTrash className="w-4 h-4" />
                     </button>
                   </div>
                 </td>
@@ -366,7 +367,7 @@ export default function File() {
   );
 
   return (
-    <div className="min-h-60 bg-white p-6">
+    <div className="h-full bg-white p-6">
       <div className="max-w-7xl mx-auto">
         <div className="mb-6">
           <div className="flex items-center space-x-3 mb-4">
@@ -426,13 +427,13 @@ export default function File() {
           <>
             <div className="mb-4">
               <h2 className="text-lg font-semibold text-gray-800 flex items-center">
-                <FiArchive className="w-5 h-5 mr-2 text-gray-600" />
+                <FaArchive className="w-5 h-5 mr-2 text-gray-600" />
                 Archived Files ({archivedFiles.length})
               </h2>
             </div>
             {archivedFiles.length === 0 ? (
               <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
-                <FiArchive className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <FaArchive className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                 <p className="text-gray-500 text-lg">No archived files found</p>
                 <p className="text-gray-400 text-sm mt-1">Files you archive will appear here</p>
               </div>
