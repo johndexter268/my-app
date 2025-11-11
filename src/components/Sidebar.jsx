@@ -43,13 +43,13 @@ export default function Sidebar() {
       switch (event.key.toLowerCase()) {
         case '1':
           event.preventDefault();
-          if (userRole === 'admin' || userRole === 'user') {
+          if (['admin', 'user', 'view'].includes(userRole)) {
             handleNavigation('/file');
           }
           break;
         case '2':
           event.preventDefault();
-          if (userRole === 'admin' || userRole === 'user') {
+          if (['admin', 'user', 'view'].includes(userRole)) {
             handleNavigation('/home');
           }
           break;
@@ -61,13 +61,13 @@ export default function Sidebar() {
           break;
         case '4':
           event.preventDefault();
-          if (userRole === 'admin') {
+          if (['admin', 'user'].includes(userRole)) {
             handleNavigation('/assign');
           }
           break;
         case '5':
           event.preventDefault();
-          if (userRole === 'admin' || userRole === 'user') {
+          if (['admin', 'user', 'view'].includes(userRole)) {
             toggleViewTools();
           }
           break;
@@ -80,7 +80,7 @@ export default function Sidebar() {
         case 'h':
           if (!event.shiftKey) {
             event.preventDefault();
-            if (userRole === 'admin' || userRole === 'user') {
+            if (['admin', 'user', 'view'].includes(userRole)) {
               handleNavigation('/help');
             }
           }
@@ -105,7 +105,7 @@ export default function Sidebar() {
   };
 
   const toggleScheduling = () => {
-    if (!collapsed && userRole === 'admin') {
+    if (!collapsed && ['admin', 'user'].includes(userRole)) {
       setSchedulingOpen((prev) => !prev);
     }
   };
@@ -132,22 +132,22 @@ export default function Sidebar() {
   };
 
   const menuItems = [
-    { name: "Files", icon: <FiFile />, path: "/file", roles: ['admin', 'user'] },
-    { name: "Home", icon: <FiHome />, path: "/home", roles: ['admin', 'user'] },
+    { name: "Files", icon: <FiFile />, path: "/file", roles: ['admin', 'user', 'view'] },
+    { name: "Home", icon: <FiHome />, path: "/home", roles: ['admin', 'user', 'view'] },
     {
       name: "Scheduling Tool",
       icon: <FiBook />,
       isCollapsible: true,
-      roles: ['admin'],
+      roles: ['admin', 'user'],
       submenu: [
         { name: "Data Management", path: "/manage", roles: ['admin'] },
-        { name: "Assign Management", path: "/assign", roles: ['admin'] },
+        { name: "Assign Management", path: "/assign", roles: ['admin', 'user'] },
       ],
     },
-    { name: "View", icon: <FiEye />, isButton: true, onClick: toggleViewTools, roles: ['admin', 'user'] },
+    { name: "View", icon: <FiEye />, isButton: true, onClick: toggleViewTools, roles: ['admin', 'user', 'view'] },
     { name: "Accounts", icon: <FiUsers />, path: "/accounts", roles: ['admin'] },
-    { name: "Help", icon: <FiHelpCircle />, path: "/help", roles: ['admin', 'user'] },
-    { name: "Logout", icon: <FiLogOut />, isButton: true, onClick: handleLogout, roles: ['admin', 'user'] },
+    { name: "Help", icon: <FiHelpCircle />, path: "/help", roles: ['admin', 'user', 'view'] },
+    { name: "Logout", icon: <FiLogOut />, isButton: true, onClick: handleLogout, roles: ['admin', 'user', 'view'] },
   ];
 
   const topMenuItems = menuItems.filter(item =>

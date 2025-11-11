@@ -1,11 +1,37 @@
+/* eslint-disable no-undef */
 /* eslint-disable no-unused-vars */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { FiPlus, FiEdit, FiTrash2, FiFilter, FiChevronDown, FiChevronUp } from "react-icons/fi";
+import { FaTrash } from "react-icons/fa";
+import { FaPenToSquare } from "react-icons/fa6";
 import Modal from "../components/Modal";
 import { MdOutlineSort } from "react-icons/md";
 
 export default function Assigning() {
+  const teacherSearchRef = useRef(null);
+  const subjectSearchRef = useRef(null);
+  const navigate = useNavigate();
+
+  // State for alert and confirm modals
+  const [alertModal, setAlertModal] = useState({ show: false, message: "", onConfirm: null });
+  const [confirmModal, setConfirmModal] = useState({ show: false, message: "", onConfirm: null });
+
+  // Update modal onClose
+  const handleModalClose = () => {
+    setShowModal(false);
+    setFormData({});
+    setEditingId(null);
+    // Restore focus to the last used search input after a slight delay
+    setTimeout(() => {
+      if (activeTab === "Subject Assign") {
+        subjectSearchRef.current?.focus();
+      } else {
+        teacherSearchRef.current?.focus();
+      }
+    }, 100); // Single focus call with a delay to ensure DOM is ready
+  };
+
   const [currentFile, setCurrentFile] = useState(null);
   const [activeTab, setActiveTab] = useState("Subject Assign");
   const [teachers, setTeachers] = useState([]);
@@ -37,11 +63,9 @@ export default function Assigning() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteModalData, setDeleteModalData] = useState({ assignment: null, type: "", mergedAssignments: [] });
   const [selectedClassesToDelete, setSelectedClassesToDelete] = useState([]);
-
   const [teacherSearch, setTeacherSearch] = useState("");
   const [teacherSortOrder, setTeacherSortOrder] = useState("A-Z");
 
-  const navigate = useNavigate();
   const handleFileSelected = (e) => {
     setCurrentFile(e.detail);
   };
@@ -75,8 +99,11 @@ export default function Assigning() {
       try {
         const fileResponse = await window.api.getCurrentFile();
         if (!fileResponse.files || fileResponse.files.length === 0) {
-          alert("No active file selected. Please select a file first.");
-          navigate("/file");
+          setAlertModal({
+            show: true,
+            message: "No active file selected. Please select a file first.",
+            onConfirm: () => navigate("/file"),
+          });
         } else {
           setCurrentFile(fileResponse.files[0]);
           const [teachersData, subjectsData, roomsData, classesData, programsData, assignmentsData] = await Promise.all([
@@ -96,13 +123,18 @@ export default function Assigning() {
         }
       } catch (error) {
         console.error("Error checking current file:", error);
-        alert("Error loading data: " + error.message);
+        setAlertModal({ show: true, message: `Error loading data: ${error.message}` });
       } finally {
         setIsLoading(false);
       }
     };
     checkCurrentFile();
   }, [navigate]);
+
+  // useEffect(() => {
+  //   console.log("Teacher Search Ref:", teacherSearchRef.current);
+  //   console.log("Subject Search Ref:", subjectSearchRef.current);
+  // }, []);
 
   const handleAssign = (type) => {
     setModalType(type);
@@ -149,27 +181,35 @@ export default function Assigning() {
       setSelectedClassesToDelete(mergedAssignments.map((a) => a.classId));
       setShowDeleteModal(true);
     } else {
-
-      if (window.confirm(`Are you sure you want to delete this assignment?`)) {
-        setIsDeleting(true);
-        window.api.deleteAssignment(assignment.id)
-          .then((result) => {
+      setConfirmModal({
+        show: true,
+        message: `Are you sure you want to delete this ${type} assignment?`,
+        onConfirm: async () => {
+          setIsDeleting(true);
+          const tableMap = {
+            "Subject": "subject_assignments",
+            "Room": "room_assignments",
+          };
+          const table = tableMap[type] || "assignments";
+          try {
+            const result = await window.api.deleteAssignment(assignment.id, table);
             if (result.success) {
               setAssignments((prev) => prev.filter((a) => a.id !== assignment.id));
-              alert(`Assignment deleted successfully!`);
+              setAlertModal({ show: true, message: `Assignment deleted successfully!` });
               const updatedFile = { ...currentFile, updatedAt: new Date().toISOString(), hasUnsavedChanges: true };
-              window.api.setCurrentFile(updatedFile)
-                .then(() => setCurrentFile(updatedFile));
+              await window.api.setCurrentFile(updatedFile);
+              setCurrentFile(updatedFile);
             } else {
-              alert(result.message);
+              setAlertModal({ show: true, message: result.message });
             }
-          })
-          .catch((error) => {
-            console.error(`Error deleting assignment:`, error);
-            alert(`Error deleting assignment: ${error.message}`);
-          })
-          .finally(() => setIsDeleting(false));
-      }
+          } catch (error) {
+            console.error(`Error deleting ${type} assignment:`, error);
+            setAlertModal({ show: true, message: `Error deleting ${type} assignment: ${error.message}` });
+          } finally {
+            setIsDeleting(false);
+          }
+        },
+      });
     }
   };
 
@@ -184,20 +224,23 @@ export default function Assigning() {
       for (const assignment of assignmentsToDelete) {
         const result = await window.api.deleteAssignment(assignment.id);
         if (!result.success) {
-          alert(`Error deleting assignment for class ${classes.find((c) => c.id === assignment.classId)?.name || "Unknown"}: ${result.message}`);
+          setAlertModal({
+            show: true,
+            message: `Error deleting assignment for class ${classes.find((c) => c.id === assignment.classId)?.name || "Unknown"}: ${result.message}`,
+          });
           setIsDeleting(false);
           return;
         }
       }
 
       setAssignments((prev) => prev.filter((a) => !assignmentsToDelete.some((m) => m.id === a.id)));
-      alert(`Selected ${type} assignment(s) deleted successfully!`);
+      setAlertModal({ show: true, message: `Selected ${type} assignment(s) deleted successfully!` });
       const updatedFile = { ...currentFile, updatedAt: new Date().toISOString(), hasUnsavedChanges: true };
       await window.api.setCurrentFile(updatedFile);
       setCurrentFile(updatedFile);
     } catch (error) {
-      console.error(`Error deleting ${deleteModalData.type.toLowerCase()} assignments:`, error);
-      alert(`Error deleting ${deleteModalData.type.toLowerCase()} assignments: ${error.message}`);
+      console.error(`Error deleting ${type.toLowerCase()} assignments:`, error);
+      setAlertModal({ show: true, message: `Error deleting ${type.toLowerCase()} assignments: ${error.message}` });
     } finally {
       setIsDeleting(false);
       setShowDeleteModal(false);
@@ -234,19 +277,19 @@ export default function Assigning() {
     setIsSaving(true);
     try {
       if (!formData.subjectId) {
-        alert("Please select a subject.");
+        setAlertModal({ show: true, message: "Please select a subject." });
         return;
       }
       if (modalType === "Subject Assign" && !formData.teacherId) {
-        alert("Please select a teacher.");
+        setAlertModal({ show: true, message: "Please select a teacher." });
         return;
       }
       if (modalType === "Time & Date Assign" && (!formData.teacherId || !formData.classId || !formData.day || !formData.timeSlot || !formData.duration)) {
-        alert("Please fill in all fields, including teacher.");
+        setAlertModal({ show: true, message: "Please fill in all fields, including teacher." });
         return;
       }
       if (modalType === "Room Assign" && (!formData.teacherId || !formData.roomId || !formData.classId)) {
-        alert("Please select a teacher, room, and class.");
+        setAlertModal({ show: true, message: "Please select a teacher, room, and class." });
         return;
       }
 
@@ -254,11 +297,10 @@ export default function Assigning() {
       if (modalType === "Time & Date Assign") {
         assignmentData.timeSlot = getTimeSlotRange(formData.timeSlot, formData.duration);
         if (!assignmentData.timeSlot) {
-          alert("Invalid time slot or duration.");
+          setAlertModal({ show: true, message: "Invalid time slot or duration." });
           return;
         }
 
-        // Validation for merged classes: Check if other classes for the same subject, teacher, and day have the same start time and duration
         const existingAssignments = assignments.filter(
           (a) =>
             a.type === "time" &&
@@ -275,14 +317,14 @@ export default function Assigning() {
             referenceAssignment.timeSlot.split('-')[0].trim() !== formData.timeSlot ||
             referenceAssignment.duration !== parseInt(formData.duration)
           ) {
-            alert(
-              "Cannot save: Merged classes must have the same start time and duration for the same subject, teacher, and day."
-            );
+            setAlertModal({
+              show: true,
+              message: "Cannot save: Merged classes must have the same start time and duration for the same subject, teacher, and day.",
+            });
             return;
           }
         }
 
-        // Check for conflicts
         const startSlot = timeSlots.findIndex((slot) => slot.split('-')[0].trim() === formData.timeSlot);
         const span = Math.round(parseInt(formData.duration) / 30);
         const dayAssignments = assignments.filter(
@@ -297,8 +339,7 @@ export default function Assigning() {
             if (assStart <= i && assStart + assSpan > i) {
               if (ass.teacherId === assignmentData.teacherId && ass.subjectId !== assignmentData.subjectId) {
                 conflicts.add(
-                  `Teacher ${teachers.find((t) => t.id === ass.teacherId)?.fullName || "Unknown"} is already assigned to ${subjects.find((s) => s.id === ass.subjectId)?.name || "Unknown"
-                  } at this time.`
+                  `Teacher ${teachers.find((t) => t.id === ass.teacherId)?.fullName || "Unknown"} is already assigned to ${subjects.find((s) => s.id === ass.subjectId)?.name || "Unknown"} at this time.`
                 );
               }
               if (ass.classId === assignmentData.classId) {
@@ -311,7 +352,7 @@ export default function Assigning() {
         }
 
         if (conflicts.size > 0) {
-          alert([...conflicts].join("\n"));
+          setAlertModal({ show: true, message: [...conflicts].join("\n") });
           return;
         }
       }
@@ -338,13 +379,13 @@ export default function Assigning() {
           }
         }
         if (!result.success) {
-          alert(result.message);
+          setAlertModal({ show: true, message: result.message });
           return;
         }
         setAssignments((prev) =>
           prev.map((a) => (a.id === editingId ? updatedAssignment : a))
         );
-        alert(`${modalType} updated successfully!`);
+        setAlertModal({ show: true, message: `${modalType} updated successfully!` });
       } else {
         let result;
         let newAssignment;
@@ -365,11 +406,11 @@ export default function Assigning() {
           }
         }
         if (!result.success) {
-          alert(result.message);
+          setAlertModal({ show: true, message: result.message });
           return;
         }
         setAssignments((prev) => [...prev, newAssignment]);
-        alert(`${modalType} saved successfully!`);
+        setAlertModal({ show: true, message: `${modalType} saved successfully!` });
       }
 
       setShowModal(false);
@@ -380,7 +421,7 @@ export default function Assigning() {
       setCurrentFile(updatedFile);
     } catch (error) {
       console.error(`Error saving ${modalType.toLowerCase()}:`, error);
-      alert(`Error saving ${modalType.toLowerCase()}: ${error.message}`);
+      setAlertModal({ show: true, message: `Error saving ${modalType.toLowerCase()}: ${error.message}` });
     } finally {
       setIsSaving(false);
     }
@@ -541,8 +582,8 @@ export default function Assigning() {
   const tabs = ["Subject Assign", "Time & Date Assign", "Room Assign"];
 
   return (
-    <div className="p-4 h-[calc(100vh-80px)] overflow-hidden bg-[#f8f8f8]">
-      <div className="border-b border-gray-200">
+    <div className="p-4 h-[calc(100vh-80px)] overflow-hidden bg-[#f8f8f8] border-b border-gray-200">
+      <div className="">
         <div className="-mx-4 -mt-4 px-4 py-3 bg-white shadow-sm">
           <div className="flex items-center border-l-4 pl-4" style={{ borderColor: "#09153e" }}>
             <h1 className="text-xl font-semibold text-gray-800">Assigning</h1>
@@ -555,7 +596,7 @@ export default function Assigning() {
                 key={tab}
                 onClick={() => setActiveTab(tab)}
                 className={`pb-2 px-1 text-sm font-medium transition-colors
-          ${activeTab === tab
+                  ${activeTab === tab
                     ? "text-[#031844] border-b-2 border-[#031844]"
                     : "text-gray-500 hover:text-gray-700"
                   }`}
@@ -572,6 +613,7 @@ export default function Assigning() {
             <h2 className="text-lg font-semibold mb-4">Teachers</h2>
             <div className="flex gap-2 mb-4">
               <input
+                ref={teacherSearchRef}
                 type="text"
                 value={teacherSearch}
                 onChange={(e) => setTeacherSearch(e.target.value)}
@@ -625,11 +667,11 @@ export default function Assigning() {
                     >
                       <span>{subjects.find((s) => s.id === assignment.subjectId)?.name || "Unknown"}</span>
                       <button
-                        onClick={() => handleDelete(assignment.id)}
+                        onClick={() => handleDelete(assignment, "Subject")}
                         disabled={isDeleting}
-                        className={`text-red-500 hover:text-red-700 ${isDeleting ? "opacity-50 cursor-not-allowed" : ""}`}
+                        className={`text-zinc-500 hover:text-red-700 ${isDeleting ? "opacity-50 cursor-not-allowed" : ""}`}
                       >
-                        <FiTrash2 />
+                        <FaTrash />
                       </button>
                     </div>
                   ))
@@ -643,6 +685,7 @@ export default function Assigning() {
             <h2 className="text-lg font-semibold mb-4">Subjects</h2>
             <div className="flex gap-2 mb-4">
               <input
+                ref={subjectSearchRef}
                 type="text"
                 value={subjectSearch}
                 onChange={(e) => setSubjectSearch(e.target.value)}
@@ -767,6 +810,7 @@ export default function Assigning() {
             <h2 className="text-lg font-semibold mb-4">Teachers</h2>
             <div className="flex gap-2 mb-4">
               <input
+                ref={teacherSearchRef}
                 type="text"
                 value={teacherSearch}
                 onChange={(e) => setTeacherSearch(e.target.value)}
@@ -811,7 +855,7 @@ export default function Assigning() {
             <button
               onClick={() => handleAssign("Time & Date Assign")}
               disabled={isSaving || !selectedTeacherId}
-              className={`mt-4  flex w-fit items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700 mb-5 ${(isSaving || !selectedTeacherId) ? "opacity-50 cursor-not-allowed" : ""}`}
+              className={`mt-4 flex w-fit items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700 mb-5 ${(isSaving || !selectedTeacherId) ? "opacity-50 cursor-not-allowed" : ""}`}
             >
               <FiPlus /> Add Schedule
             </button>
@@ -843,14 +887,11 @@ export default function Assigning() {
                           for (let ass of dayAss) {
                             if (ass.start === rowIndex) {
                               const subject = subjects.find(s => s.id === ass.assignment.subjectId)?.name || "Unknown"
-                              const teacher = teachers.find(t => t.id === ass.assignment.teacherId)
-                              // const bgColor = teacher?.color || "#e0f7fa"
                               return (
                                 <td
                                   key={day}
                                   rowSpan={ass.span}
                                   className="border p-2 align-top whitespace-normal break-words text-sm leading-snug"
-                                  // style={{ backgroundColor: bgColor, wordBreak: "break-word" }}
                                   style={{ wordBreak: "break-word" }}
                                 >
                                   <div className="p-2 flex flex-col h-full">
@@ -863,14 +904,14 @@ export default function Assigning() {
                                         onClick={() => handleEdit(ass.assignment, "Time & Date Assign")}
                                         className="text-blue-500 hover:text-blue-700"
                                       >
-                                        <FiEdit />
+                                        <FaPenToSquare />
                                       </button>
                                       <button
-                                        onClick={() => handleDelete(ass.assignment, "Time")}
+                                        onClick={() => handleDelete(ass.assignment, "Time & Date Assign")}
                                         disabled={isDeleting}
-                                        className={`text-red-500 hover:text-red-700 ${isDeleting ? "opacity-50 cursor-not-allowed" : ""}`}
+                                        className={`text-zinc-500 hover:text-red-700 ${isDeleting ? "opacity-50 cursor-not-allowed" : ""}`}
                                       >
-                                        <FiTrash2 />
+                                        <FaTrash />
                                       </button>
                                     </div>
                                   </div>
@@ -886,7 +927,6 @@ export default function Assigning() {
                     ))}
                   </tbody>
                 </table>
-
               ) : (
                 <p className="text-gray-500 p-2">Select a teacher to view schedule</p>
               )}
@@ -922,7 +962,6 @@ export default function Assigning() {
                               <span>{year}</span>
                               {expandedYears[`${program.id}-${year}`] ? <FiChevronUp /> : <FiChevronDown />}
                             </div>
-
                             {expandedYears[`${program.id}-${year}`] && (
                               <div className="ml-4 space-y-2">
                                 {classes
@@ -931,8 +970,7 @@ export default function Assigning() {
                                     <div
                                       key={cls.id}
                                       onClick={() => setSelectedClassId(cls.id)}
-                                      className={`p-2 rounded-md cursor-pointer ${selectedClassId === cls.id ? "bg-teal-100" : "hover:bg-gray-100"
-                                        }`}
+                                      className={`p-2 rounded-md cursor-pointer ${selectedClassId === cls.id ? "bg-teal-100" : "hover:bg-gray-100"}`}
                                     >
                                       {cls.name}
                                     </div>
@@ -961,64 +999,100 @@ export default function Assigning() {
                     {classes.find((c) => c.id === selectedClassId)?.students || 0} Students
                   </p>
                 </div>
-                <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+                <div className="space-y-5 flex-1 overflow-y-auto p-4 [scrollbar-width:thin] [scrollbar-color:#cfcfcf_transparent]">
                   {assignments
                     .filter((a) => a.type === "room" && a.classId === selectedClassId)
                     .map((assignment) => {
                       const timeAssignment = assignments.find(
                         (t) => t.type === "time" && t.subjectId === assignment.subjectId && t.classId === assignment.classId && t.teacherId === assignment.teacherId
                       );
-                      const subjectAssignment = assignments.find(
-                        (s) => s.type === "subject" && s.subjectId === assignment.subjectId && s.teacherId === assignment.teacherId
-                      );
-                      const teacher = teachers.find((t) => t.id === assignment.teacherId)?.fullName || "No teacher";
-                      const room = rooms.find((r) => r.id === assignment.roomId)?.name || "No room";
-                      const schedule = timeAssignment
-                        ? { time: timeAssignment.timeSlot, day: timeAssignment.day }
-                        : null;
+                      const subjectData = subjects.find((s) => s.id === assignment.subjectId);
+                      const classData = classes.find((c) => c.id === assignment.classId);
+                      const programName = classData
+                        ? programs.find((p) => p.id === classData.programId)?.name || "N/A"
+                        : subjectData?.programId
+                          ? programs.find((p) => p.id === subjectData.programId)?.name || "N/A"
+                          : "N/A";
+                      const yearLevel = classData ? classData.yearLevel : subjectData?.yearLevel || "N/A";
+                      const isNoTeacher = !assignment.teacherId;
+                      const color = assignment.teacherId
+                        ? teachers.find((t) => t.id === assignment.teacherId)?.color || "#e0f7fa"
+                        : "#f0efeb";
+                      const lightBg = isNoTeacher ? "#f5f5f5" : `${color}20`;
                       return (
                         <div
                           key={assignment.id}
-                          className="p-4 hover:bg-gray-50 rounded-lg border border-gray-200 transition-colors"
+                          className="p-3 rounded-lg border-2 shadow-sm hover:shadow-md transition-all duration-200 cursor-default"
+                          style={{
+                            backgroundColor: lightBg,
+                            borderColor: isNoTeacher ? "#f0efeb" : `${color}40`,
+                          }}
                         >
-                          <div className="flex items-start justify-between">
+                          <div className="flex items-start justify-between mb-2">
                             <div className="flex-1">
-                              <h4 className="font-medium text-gray-900 mb-2">
-                                {subjects.find((s) => s.id === assignment.subjectId)?.name || "Unknown"}
-                              </h4>
-                              <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-600">
-                                <span>{teacher}</span>
-                                <span className="text-gray-300">•</span>
-                                <span>{room}</span>
-                                {schedule && (
-                                  <>
-                                    <span className="text-gray-300">•</span>
-                                    <span>{schedule.day}</span>
-                                    <span className="text-gray-300">•</span>
-                                    <span>{schedule.time}</span>
-                                  </>
-                                )}
-                                {!schedule && (
-                                  <>
-                                    <span className="text-gray-300">•</span>
-                                    <span className="text-amber-600">No schedule</span>
-                                  </>
-                                )}
+                              <div className="text-sm font-semibold text-gray-800 mb-1">
+                                {subjectData?.name || "Unknown"}
+                              </div>
+                              <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                                <span
+                                  className="inline-flex items-center px-2 py-0.5 rounded-full font-medium"
+                                  style={{ backgroundColor: `${color}20`, color }}
+                                >
+                                  {assignment.teacherId
+                                    ? teachers.find((t) => t.id === assignment.teacherId)?.fullName || "No teacher"
+                                    : "No Teacher"}
+                                </span>
                               </div>
                             </div>
+                            {!timeAssignment && (
+                              <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-orange-100 text-orange-700 border border-orange-200">
+                                Unscheduled
+                              </span>
+                            )}
                             <button
-                              onClick={() => handleDelete(assignment.id)}
+                              onClick={() => handleDelete(assignment, "Room")}
                               disabled={isDeleting}
-                              className={`ml-3 p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors ${isDeleting ? "opacity-50 cursor-not-allowed" : ""
-                                }`}
+                              className={`ml-3 p-2 text-zinc-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors ${isDeleting ? "opacity-50 cursor-not-allowed" : ""}`}
                               aria-label="Delete assignment"
                             >
-                              <FiTrash2 size={18} />
+                              <FaTrash size={18} />
                             </button>
+                          </div>
+                          <div className="space-y-1 mt-2 pt-2 border-t border-gray-200">
+                            {timeAssignment && (
+                              <div className="items-center gap-1.5 text-xs text-gray-600">
+
+                                <span className="font-medium mr-5">{timeAssignment.day}</span>
+                                <span className="font-medium mr-5">{timeAssignment.timeSlot}</span>
+                                <span className="text-gray-400"></span>
+                                <span>{classData?.name || "Unknown"}</span>
+                              </div>
+                            )}
+                            {assignment.roomId && (
+                              <div className="items-center gap-1.5 text-xs text-gray-600">
+
+                                <span>{rooms.find((r) => r.id === assignment.roomId)?.name || "No room"}</span>
+                              </div>
+                            )}
+                            <div className="flex items-center gap-3 text-xs text-gray-500">
+                              <div className="flex items-center gap-1">
+                                <span>{programName}</span>
+                              </div>
+                              <span className="text-gray-300">|</span>
+                            </div>
                           </div>
                         </div>
                       );
                     })}
+                  {assignments.filter((a) => a.type === "room" && a.classId === selectedClassId).length === 0 && (
+                    <div className="text-center py-12">
+                      <svg className="w-12 h-12 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <p className="text-sm text-gray-500 font-medium">No assignments found</p>
+                      <p className="text-xs text-gray-400 mt-1">Try assigning a room</p>
+                    </div>
+                  )}
                 </div>
               </>
             ) : (
@@ -1057,11 +1131,7 @@ export default function Assigning() {
       {showModal && (
         <Modal
           title={editingId ? `Edit ${modalType}` : modalType}
-          onClose={() => {
-            setShowModal(false);
-            setFormData({});
-            setEditingId(null);
-          }}
+          onClose={handleModalClose}
           onSave={handleSave}
           isSaving={isSaving}
         >
@@ -1124,11 +1194,37 @@ export default function Assigning() {
                   className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500"
                 >
                   <option value="">Select subject</option>
-                  {subjects.map((subject) => (
-                    <option key={subject.id} value={subject.id}>
-                      {subject.name}
-                    </option>
-                  ))}
+                  {subjects
+                    .filter((subject) => {
+                      if (!formData.teacherId) return true;
+                      const matchingAssignments = assignments.filter(
+                        (a) =>
+                          a.type === "subject" &&
+                          String(a.subjectId) === String(subject.id) &&
+                          String(a.teacherId) === String(formData.teacherId)
+                      );
+                      return matchingAssignments.length > 0;
+                    })
+                    .map((subject) => (
+                      <option key={subject.id} value={subject.id}>
+                        {subject.name}
+                      </option>
+                    ))}
+                  {formData.teacherId &&
+                    assignments.filter(
+                      (a) =>
+                        a.type === "subject" &&
+                        String(a.teacherId) === String(formData.teacherId)
+                    ).length === 0 && (
+                      <>
+                        <option disabled>--- No assigned subjects, showing all ---</option>
+                        {subjects.map((subject) => (
+                          <option key={subject.id} value={subject.id}>
+                            {subject.name} (Unassigned)
+                          </option>
+                        ))}
+                      </>
+                    )}
                 </select>
               </div>
               <div>
@@ -1236,11 +1332,37 @@ export default function Assigning() {
                   className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500"
                 >
                   <option value="">Select subject</option>
-                  {subjects.map((subject) => (
-                    <option key={subject.id} value={subject.id}>
-                      {subject.name}
-                    </option>
-                  ))}
+                  {subjects
+                    .filter((subject) => {
+                      if (!formData.teacherId) return true;
+                      const matchingAssignments = assignments.filter(
+                        (a) =>
+                          a.type === "subject" &&
+                          String(a.subjectId) === String(subject.id) &&
+                          String(a.teacherId) === String(formData.teacherId)
+                      );
+                      return matchingAssignments.length > 0;
+                    })
+                    .map((subject) => (
+                      <option key={subject.id} value={subject.id}>
+                        {subject.name}
+                      </option>
+                    ))}
+                  {formData.teacherId &&
+                    assignments.filter(
+                      (a) =>
+                        a.type === "subject" &&
+                        String(a.teacherId) === String(formData.teacherId)
+                    ).length === 0 && (
+                      <>
+                        <option disabled>--- No assigned subjects, showing all ---</option>
+                        {subjects.map((subject) => (
+                          <option key={subject.id} value={subject.id}>
+                            {subject.name} (Unassigned)
+                          </option>
+                        ))}
+                      </>
+                    )}
                 </select>
               </div>
               <div>
@@ -1315,6 +1437,31 @@ export default function Assigning() {
             </div>
           </div>
         </Modal>
+      )}
+
+      {alertModal.show && (
+        <Modal
+          title="Alert"
+          type="alert"
+          message={alertModal.message}
+          onClose={() => {
+            setAlertModal({ show: false, message: "", onConfirm: null });
+            if (alertModal.onConfirm) alertModal.onConfirm();
+          }}
+        />
+      )}
+
+      {confirmModal.show && (
+        <Modal
+          title="Confirm"
+          type="confirm"
+          message={confirmModal.message}
+          onClose={() => setConfirmModal({ show: false, message: "", onConfirm: null })}
+          onConfirm={() => {
+            confirmModal.onConfirm();
+            setConfirmModal({ show: false, message: "", onConfirm: null });
+          }}
+        />
       )}
     </div>
   );

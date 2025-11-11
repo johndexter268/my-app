@@ -5,7 +5,6 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { FiTrash2 } from "react-icons/fi";
 import { FaSpinner } from "react-icons/fa";
 import Modal from "../components/Modal"
-
 export default function Home() {
   const [currentFile, setCurrentFile] = useState(null);
   const [openFiles, setOpenFiles] = useState([]);
@@ -25,7 +24,7 @@ export default function Home() {
   const [deleteModal, setDeleteModal] = useState({ open: false, assignmentId: null });
   const [filterOptions, setFilterOptions] = useState({
     teacherId: "",
-    showWithSchedule: true,
+    showWithSchedule: false,
     showWithoutSchedule: true,
   });
   const [editingAssignment, setEditingAssignment] = useState(null);
@@ -42,8 +41,7 @@ export default function Home() {
   const contentRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
-  const userRole = localStorage.getItem('userRole') || 'user';
-
+  const userRole = localStorage.getItem('userRole') || 'view';
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -54,7 +52,6 @@ export default function Home() {
         }
         const activeFile = fileResponse.files.find((f) => f.id === window.activeFileId) || fileResponse.files[0];
         setCurrentFile(activeFile);
-
         const [teachersData, classesData, subjectsData, roomsData, programsData] = await Promise.all([
           window.api.getTeachers(),
           window.api.getClasses(),
@@ -67,7 +64,6 @@ export default function Home() {
         setSubjects(subjectsData || []);
         setRooms(roomsData || []);
         setPrograms(programsData || []);
-
         if (fullScheduleActive) {
           const allAssignments = await Promise.all(
             fileResponse.files.map(async (file) => {
@@ -92,7 +88,6 @@ export default function Home() {
       }
     };
     fetchData();
-
     const handleFileSelected = (event) => {
       const file = event.detail;
       if (file && !fullScheduleActive) {
@@ -104,11 +99,9 @@ export default function Home() {
         }).catch(console.error);
       }
     };
-
     const handleZoom = (event) => {
       setZoomLevel((prev) => event.detail.zoom === 'in' ? Math.min(prev + 0.1, 2) : Math.max(prev - 0.1, 0.5));
     };
-
     const handleFullSchedule = (event) => {
       setFullScheduleActive(event.detail.fullScheduleActive);
       if (event.detail.fullScheduleActive) {
@@ -136,19 +129,15 @@ export default function Home() {
         }
       }
     };
-
     const handleScheduleByCourse = (event) => {
       setSelectedProgramId(event.detail.programId || null);
     };
-
     const handleYearLevelSchedule = (event) => {
       setSelectedYearLevel(event.detail.yearLevel || null);
     };
-
     const handleFullScreen = () => {
       setIsFullScreen((prev) => !prev);
     };
-
     window.addEventListener("fileSelected", handleFileSelected);
     window.addEventListener("viewZoom", handleZoom);
     window.addEventListener("viewFullSchedule", handleFullSchedule);
@@ -164,7 +153,6 @@ export default function Home() {
       window.removeEventListener("viewFullScreen", handleFullScreen);
     };
   }, [navigate, fullScheduleActive, openFiles]);
-
   useEffect(() => {
     const listAssignments = [...timeAssignments];
     const unscheduledRooms = roomAssignments.filter(
@@ -184,13 +172,11 @@ export default function Home() {
         duration: null,
       }))
     );
-
     // Add subjects without any assignments (no teacher assigned yet)
     const subjectsWithoutAssignments = subjects.filter(
       (subject) => !subjectAssignments.some((sa) => sa.subjectId === subject.id) &&
         !timeAssignments.some((ta) => ta.subjectId === subject.id)
     );
-
     listAssignments.push(
       ...subjectsWithoutAssignments.map((subject) => ({
         id: `unassigned-subject-${subject.id}`,
@@ -205,13 +191,10 @@ export default function Home() {
         scheduleFileId: currentFile?.id,
       }))
     );
-
     setAssignments(listAssignments);
   }, [timeAssignments, roomAssignments, subjectAssignments, subjects, currentFile?.id]);
-
   useEffect(() => {
     if (!contentRef.current) return;
-
     const handleMouseDown = (e) => {
       // Only handle mousedown if the target is within contentRef
       if (!contentRef.current.contains(e.target)) return;
@@ -221,24 +204,20 @@ export default function Home() {
       setStartY(e.pageY - panY);
       contentRef.current.style.cursor = 'grabbing';
     };
-
     const handleMouseMove = (e) => {
       if (!isDragging) return;
       setPanX(e.pageX - startX);
       setPanY(e.pageY - startY);
     };
-
     const handleMouseUp = () => {
       setIsDragging(false);
       if (contentRef.current) {
         contentRef.current.style.cursor = zoomLevel > 1 ? 'grab' : 'default';
       }
     };
-
     contentRef.current.addEventListener('mousedown', handleMouseDown);
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-
     return () => {
       if (contentRef.current) {
         contentRef.current.removeEventListener('mousedown', handleMouseDown);
@@ -247,7 +226,6 @@ export default function Home() {
       document.removeEventListener('mouseup', handleMouseUp);
     };
   }, [isDragging, panX, panY, startX, startY, zoomLevel]);
-
   const timeSlots = [
     '7:00 AM - 7:30 AM', '7:30 AM - 8:00 AM', '8:00 AM - 8:30 AM', '8:30 AM - 9:00 AM',
     '9:00 AM - 9:30 AM', '9:30 AM - 10:00 AM', '10:00 AM - 10:30 AM', '10:30 AM - 11:00 AM',
@@ -258,7 +236,6 @@ export default function Home() {
     '7:00 PM - 7:30 PM', '7:30 PM - 8:00 PM', '8:00 PM - 8:30 PM', '8:30 PM - 9:00 PM',
     '9:30 PM - 10:00 PM',
   ];
-
   const parseTime = (timeStr) => {
     const [time, period] = timeStr.split(' ');
     let [hours, minutes] = time.split(':').map(Number);
@@ -266,7 +243,6 @@ export default function Home() {
     if (period === 'AM' && hours === 12) hours = 0;
     return hours * 60 + minutes;
   };
-
   const formatTime = (minutes) => {
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
@@ -274,40 +250,43 @@ export default function Home() {
     const displayHours = hours % 12 === 0 ? 12 : hours % 12;
     return `${displayHours}:${mins.toString().padStart(2, '0')} ${period}`;
   };
-
   // const startTimeArray = [
-  //   "7:00 AM", "8:00 AM", "9:00 AM", "10:00 AM", "11:00 AM",
-  //   "12:00 PM", "1:00 PM", "2:00 PM", "3:00 PM", "4:00 PM",
-  //   "5:00 PM", "6:00 PM"
+  // "7:00 AM", "8:00 AM", "9:00 AM", "10:00 AM", "11:00 AM",
+  // "12:00 PM", "1:00 PM", "2:00 PM", "3:00 PM", "4:00 PM",
+  // "5:00 PM", "6:00 PM"
   // ];
 
   const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const yearLevels = ["1st Year", "2nd Year", "3rd Year", "4th Year"];
-
   const getTeacherColor = (teacherId) => {
-    return teachers.find((t) => t.id === teacherId)?.color || "#000000";
-  };
-
+    return teachers.find((t) => t.id === teacherId)?.color || "#e5e7eb"
+  }
+  const getLightBackgroundColor = (hexColor) => {
+    if (!hexColor || hexColor === "#e5e7eb") return "rgba(229, 231, 235, 0.5)" // light gray
+    // Convert hex to RGB
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hexColor)
+    if (!result) return "rgba(229, 231, 235, 0.5)"
+    const r = Number.parseInt(result[1], 16)
+    const g = Number.parseInt(result[2], 16)
+    const b = Number.parseInt(result[3], 16)
+    // Return light version with low opacity
+    return `rgba(${r}, ${g}, ${b}, 0.15)`
+  }
   const getYearLevel = (classId) => {
     return classes.find((c) => c.id === classId)?.yearLevel || null;
   };
-
   const getClassName = (classId) => {
     return classes.find((c) => c.id === classId)?.name || "Unknown";
   };
-
   const getRoomName = (roomId) => {
     return rooms.find((r) => r.id === roomId)?.name || "N/A";
   };
-
   const getProgramId = (classId) => {
     return classes.find((c) => c.id === classId)?.programId || null;
   };
-
   const getProgramName = (programId) => {
     return programs.find((p) => p.id === programId)?.name || "Unknown";
   };
-
   const getAssignmentRoom = (assignment) => {
     const roomAssignment = roomAssignments.find(
       (ra) =>
@@ -318,7 +297,6 @@ export default function Home() {
     );
     return roomAssignment ? getRoomName(roomAssignment.roomId) : "N/A";
   };
-
   const getDayAssignments = (day, teacherId = null, programId = null, yearLevel = null) => {
     let filtered = timeAssignments.filter((a) => a.day === day);
     if (teacherId) {
@@ -344,16 +322,13 @@ export default function Home() {
       .filter((a) => a.start !== -1)
       .sort((a, b) => a.start - b.start);
   };
-
   const getSubjectName = (subjectId) => {
     return subjects.find((s) => s.id === subjectId)?.name || "Unknown";
   };
-
   const getTeacherName = (teacherId) => {
     const teacher = teachers.find((t) => t.id === teacherId);
     return teacher ? (teacher.honorifics ? `${teacher.honorifics} ${teacher.fullName}` : teacher.fullName) : "No Teacher";
   };
-
   const getTotalStudentsForMergedClasses = (assignment, day, timeSlot) => {
     const matchingAssignments = timeAssignments.filter(
       (a) =>
@@ -363,35 +338,27 @@ export default function Home() {
         a.timeSlot === timeSlot &&
         a.id !== assignment.id
     );
-
     const classIds = [assignment.classId, ...matchingAssignments.map((a) => a.classId)];
     return classIds.reduce((total, classId) => {
       const classData = classes.find((c) => c.id === classId);
       return total + (classData?.numStudents || 0); // Fixed to use numStudents
     }, 0);
   };
-
   const createScheduleGrid = (programId = null, yearLevel = null) => {
     const grid = {};
     const allYearLevels = ["1st Year", "2nd Year", "3rd Year", "4th Year"];
-
     const progClasses = classes.filter((c) => !programId || c.programId === programId);
-
     const levels = yearLevel ? allYearLevels.filter((l) => l === yearLevel) : allYearLevels;
-
     if (levels.length === 0) return null;
-
     days.forEach((day) => {
       grid[day] = {};
       const dayAssignments = getDayAssignments(day, selectedTeacherId, programId, yearLevel);
-
       timeSlots.forEach((_, index) => {
         grid[day][index] = { yearLevels: {} };
         levels.forEach((level) => {
           grid[day][index].yearLevels[level] = { occupied: false, assignment: null, span: 1 };
         });
       });
-
       dayAssignments.forEach(({ start, span, assignment }) => {
         const assYearLevel = getYearLevel(assignment.classId);
         if (assYearLevel && grid[day][start] && levels.includes(assYearLevel)) {
@@ -401,7 +368,6 @@ export default function Home() {
             assignment: assignment,
             span: slotSpan,
           };
-
           for (let i = 1; i < slotSpan; i++) {
             if (grid[day][start + i]) {
               grid[day][start + i].yearLevels[assYearLevel] = {
@@ -414,23 +380,17 @@ export default function Home() {
         }
       });
     });
-
     return { grid, levels };
   };
-
   // Create merged schedule grid for full schedule
   const createMergedScheduleGrid = () => {
     const mergedGrid = {};
-
     days.forEach((day) => {
       mergedGrid[day] = {};
-
       timeSlots.forEach((_, timeIndex) => {
         mergedGrid[day][timeIndex] = { programs: {} };
-
         programs.forEach((program) => {
           mergedGrid[day][timeIndex].programs[program.id] = { yearLevels: {} };
-
           yearLevels.forEach((level) => {
             mergedGrid[day][timeIndex].programs[program.id].yearLevels[level] = {
               occupied: false,
@@ -440,12 +400,10 @@ export default function Home() {
           });
         });
       });
-
       const dayAssignments = getDayAssignments(day, selectedTeacherId);
       dayAssignments.forEach(({ start, span, assignment }) => {
         const programId = getProgramId(assignment.classId);
         const assYearLevel = getYearLevel(assignment.classId);
-
         if (programId && assYearLevel && mergedGrid[day][start]) {
           const slotSpan = Math.round(assignment.duration / 30); // Calculate span for rowspan (e.g., 180 min = 6 slots)
           mergedGrid[day][start].programs[programId].yearLevels[assYearLevel] = {
@@ -453,7 +411,6 @@ export default function Home() {
             assignment: assignment,
             span: slotSpan,
           };
-
           for (let i = 1; i < slotSpan; i++) {
             if (mergedGrid[day][start + i]) {
               mergedGrid[day][start + i].programs[programId].yearLevels[assYearLevel] = {
@@ -466,24 +423,19 @@ export default function Home() {
         }
       });
     });
-
     return mergedGrid;
   };
-
   // Create schedule grid with Day as columns and Time as rows
   const createDayColumnScheduleGrid = (programId, yearLevel) => {
     const grid = {};
-
     timeSlots.forEach((timeSlot, timeIndex) => {
       grid[timeIndex] = {};
       days.forEach((day) => {
         grid[timeIndex][day] = { occupied: false, assignment: null, span: 1 };
       });
     });
-
     days.forEach((day) => {
       const dayAssignments = getDayAssignments(day, selectedTeacherId, programId, yearLevel);
-
       dayAssignments.forEach(({ start, span, assignment }) => {
         const assYearLevel = getYearLevel(assignment.classId);
         if (assYearLevel === yearLevel) {
@@ -492,7 +444,6 @@ export default function Home() {
             assignment: assignment,
             span: span,
           };
-
           for (let i = 1; i < span; i++) {
             if (grid[start + i]) {
               grid[start + i][day] = {
@@ -505,10 +456,8 @@ export default function Home() {
         }
       });
     });
-
     return grid;
   };
-
   const getAvailableSlotsForTeacher = (teacherId) => {
     if (!teacherId) return {};
     const available = {};
@@ -526,7 +475,6 @@ export default function Home() {
     });
     return available;
   };
-
   const getTimeSlotRange = (startTime, duration) => {
     const startMinutes = parseTime(startTime);
     if (startMinutes === null) return "";
@@ -534,7 +482,6 @@ export default function Home() {
     const endTime = formatTime(endMinutes);
     return `${startTime}-${endTime}`;
   };
-
   const handleDrop = async (event, day, timeIndex, yearLevel, programId = null) => {
     event.preventDefault();
     const assignmentId = event.dataTransfer.getData("text/plain");
@@ -543,15 +490,12 @@ export default function Home() {
       console.error("Assignment not found for ID:", assignmentId);
       return;
     }
-
     let updatedAssignment;
     let newRoomId;
-
     // Determine the target class based on programId and yearLevel
     const targetClass = programId
       ? classes.find((c) => c.programId === programId && c.yearLevel === yearLevel)
       : classes.find((c) => c.yearLevel === yearLevel);
-
     if (!targetClass && (assignment.type === "subject" || assignment.type === "room")) {
       setConflictModal({
         open: true,
@@ -559,20 +503,15 @@ export default function Home() {
       });
       return;
     }
-
+    const startTime = timeSlots[timeIndex].split('-')[0].trim();
     if (assignment.type === "time") {
       const assYearLevel = getYearLevel(assignment.classId);
-      if (selectedProgramId && selectedYearLevel && assYearLevel !== yearLevel) {
-        setConflictModal({
-          open: true,
-          conflicts: ["Assignment year level does not match the selected year level."],
-        });
-        return;
-      }
+      // Removed unnecessary year level check as filtering ensures match
+      const timeSlot = getTimeSlotRange(startTime, assignment.duration);
       updatedAssignment = {
         ...assignment,
         day,
-        timeSlot: timeSlots[timeIndex].split('-')[0].trim(),
+        timeSlot,
       };
       newRoomId = getAssignmentRoom(assignment) !== "N/A"
         ? roomAssignments.find(
@@ -591,13 +530,14 @@ export default function Home() {
         });
         return;
       }
+      const timeSlot = getTimeSlotRange(startTime, 30);
       updatedAssignment = {
         id: crypto.randomUUID(),
         subjectId: assignment.subjectId,
         teacherId: assignment.teacherId,
         classId: assignment.classId,
         day,
-        timeSlot: timeSlots[timeIndex].split('-')[0].trim(),
+        timeSlot,
         duration: 30,
         type: "time",
         scheduleFileId: currentFile.id,
@@ -612,31 +552,32 @@ export default function Home() {
         });
         return;
       }
+      const timeSlot = getTimeSlotRange(startTime, 30);
       updatedAssignment = {
         id: crypto.randomUUID(),
         subjectId: assignment.subjectId,
         teacherId: assignment.teacherId,
         classId: targetClass?.id || "",
         day,
-        timeSlot: timeSlots[timeIndex].split('-')[0].trim(),
+        timeSlot,
         duration: 30,
         type: "time",
         scheduleFileId: currentFile.id,
       };
       newRoomId = null;
     }
-
-    const dayAssignments = getDayAssignments(day, null);
+    let dayAssignments = getDayAssignments(day, null);
+    if (assignment.type === "time") {
+      dayAssignments = dayAssignments.filter(({ assignment: ass }) => ass.id !== assignment.id);
+    }
     const conflictSet = new Set();
-    const startSlot = timeSlots.findIndex((slot) => slot.split('-')[0].trim() === updatedAssignment.timeSlot);
+    const startSlot = timeSlots.findIndex((slot) => slot.split('-')[0].trim() === updatedAssignment.timeSlot.split('-')[0].trim());
     const span = Math.round(updatedAssignment.duration / 30);
-
     // Conflict detection
     const teacherConflicts = new Set();
     const classConflicts = new Set();
     const subjectConflicts = new Set();
     const roomConflicts = new Set();
-
     for (let i = startSlot; i < startSlot + span; i++) {
       dayAssignments.forEach(({ start, span: assSpan, assignment: ass }) => {
         if (start <= i && start + assSpan > i) {
@@ -669,7 +610,6 @@ export default function Home() {
         }
       });
     }
-
     if (newRoomId) {
       const room = rooms.find((r) => r.id === newRoomId);
       if (room) {
@@ -708,7 +648,6 @@ export default function Home() {
         });
       }
     }
-
     if (conflictSet.size > 0) {
       setConflictModal({
         open: true,
@@ -716,12 +655,10 @@ export default function Home() {
       });
       return;
     }
-
     try {
       const result = assignment.type === "time"
         ? await window.api.updateTimeSlotAssignment(updatedAssignment)
         : await window.api.assignTimeSlot(updatedAssignment);
-
       if (result.success) {
         if (newRoomId) {
           const existingRoomAssignment = roomAssignments.find(
@@ -750,7 +687,6 @@ export default function Home() {
             });
           }
         }
-
         // Update state to ensure visibility
         setTimeAssignments((prev) => {
           if (assignment.type === "time") {
@@ -758,7 +694,6 @@ export default function Home() {
           }
           return [...prev, updatedAssignment];
         });
-
         setRoomAssignments((prev) => {
           const existing = prev.find(
             (ra) =>
@@ -787,7 +722,6 @@ export default function Home() {
           }
           return prev;
         });
-
         setAssignments((prev) => {
           if (assignment.type === "time") {
             return prev.map((a) => (a.id === updatedAssignment.id ? updatedAssignment : a));
@@ -796,7 +730,6 @@ export default function Home() {
           const filtered = prev.filter((a) => a.id !== assignment.id);
           return [...filtered, updatedAssignment];
         });
-
         // Refresh assignments to ensure consistency
         const data = await window.api.getAssignments(currentFile.id);
         setTimeAssignments(data.filter((a) => a.type === "time") || []);
@@ -816,7 +749,6 @@ export default function Home() {
       });
     }
   };
-
   const handleSaveEdit = async (assignmentId, updatedData) => {
     const newTimeSlot = getTimeSlotRange(updatedData.startTime, updatedData.duration);
     if (!newTimeSlot) {
@@ -826,24 +758,20 @@ export default function Home() {
       });
       return;
     }
-
     const newData = {
       ...updatedData,
       timeSlot: newTimeSlot,
       duration: parseInt(updatedData.duration),
     };
-
     const dayAssignments = getDayAssignments(newData.day, null).filter((ass) => ass.assignment.id !== assignmentId);
     const conflicts = new Set();
     const startSlot = timeSlots.findIndex((slot) => slot.split('-')[0].trim() === newData.timeSlot.split('-')[0].trim());
     const span = Math.round(newData.duration / 30);
-
     // Consolidated conflict detection
     const teacherConflicts = new Set();
     const classConflicts = new Set();
     const subjectConflicts = new Set();
     const roomConflicts = new Set();
-
     for (let i = startSlot; i < startSlot + span; i++) {
       dayAssignments.forEach(({ start, span: assSpan, assignment: ass }) => {
         if (start <= i && start + assSpan > i) {
@@ -876,7 +804,6 @@ export default function Home() {
         }
       });
     }
-
     if (newData.roomId) {
       const room = rooms.find((r) => r.id === newData.roomId);
       if (room) {
@@ -885,7 +812,6 @@ export default function Home() {
           conflicts.add(`Room ${room.name} capacity (${room.capacity}) exceeded. Total students: ${totalStudents}`);
         }
       }
-
       for (let i = startSlot; i < startSlot + span; i++) {
         dayAssignments.forEach(({ start, span: assSpan, assignment: ass }) => {
           if (start <= i && start + assSpan > i) {
@@ -914,7 +840,6 @@ export default function Home() {
         });
       }
     }
-
     if (conflicts.size > 0) {
       setConflictModal({
         open: true,
@@ -922,7 +847,6 @@ export default function Home() {
       });
       return;
     }
-
     try {
       const result = await window.api.updateTimeSlotAssignment(newData);
       if (!result.success) {
@@ -932,7 +856,6 @@ export default function Home() {
         });
         return;
       }
-
       const existingRoomAssignment = roomAssignments.find(
         (ra) =>
           ra.scheduleFileId === newData.scheduleFileId &&
@@ -940,7 +863,6 @@ export default function Home() {
           ra.teacherId === newData.teacherId &&
           ra.classId === newData.classId
       );
-
       if (newData.roomId) {
         if (existingRoomAssignment) {
           const roomResult = await window.api.updateRoomAssignment({
@@ -977,7 +899,6 @@ export default function Home() {
       } else if (existingRoomAssignment) {
         await window.api.deleteAssignment(existingRoomAssignment.id);
       }
-
       const data = await window.api.getAssignments(currentFile.id);
       setTimeAssignments(data.filter((a) => a.type === "time") || []);
       setRoomAssignments(data.filter((a) => a.type === "room") || []);
@@ -995,11 +916,9 @@ export default function Home() {
       });
     }
   };
-
   const handleDelete = async (assignmentId) => {
     setDeleteModal({ open: true, assignmentId }); // Show modal instead of confirm
   };
-
   const confirmDelete = async () => {
     const assignmentId = deleteModal.assignmentId;
     try {
@@ -1012,7 +931,6 @@ export default function Home() {
         setDeleteModal({ open: false, assignmentId: null });
         return;
       }
-
       const timeResult = await window.api.deleteAssignment(assignmentId);
       if (!timeResult.success) {
         setConflictModal({
@@ -1022,7 +940,6 @@ export default function Home() {
         setDeleteModal({ open: false, assignmentId: null });
         return;
       }
-
       const roomAssignment = roomAssignments.find(
         (ra) =>
           ra.scheduleFileId === timeAssignment.scheduleFileId &&
@@ -1041,7 +958,6 @@ export default function Home() {
           return;
         }
       }
-
       const data = await window.api.getAssignments(currentFile.id);
       setTimeAssignments(data.filter((a) => a.type === "time") || []);
       setRoomAssignments(data.filter((a) => a.type === "room") || []);
@@ -1059,7 +975,6 @@ export default function Home() {
     }
     setDeleteModal({ open: false, assignmentId: null });
   };
-
   const filteredAssignments = assignments.filter((assignment) => {
     const subjectName = getSubjectName(assignment.subjectId).toLowerCase();
     const teacherName = getTeacherName(assignment.teacherId).toLowerCase();
@@ -1068,17 +983,14 @@ export default function Home() {
     const matchesTeacher = !filterOptions.teacherId || assignment.teacherId === filterOptions.teacherId;
     const matchesWithSchedule = filterOptions.showWithSchedule && hasSchedule;
     const matchesWithoutSchedule = filterOptions.showWithoutSchedule && !hasSchedule;
-
     // Get class or subject data for filtering by program and year level
     const classData = assignment.classId ? classes.find((c) => c.id === assignment.classId) : null;
     const subjectData = subjects.find((s) => s.id === assignment.subjectId);
     const programId = classData?.programId || subjectData?.programId || null;
     const yearLevel = classData?.yearLevel || subjectData?.yearLevel || null;
-
     // Apply program and year level filters
     const matchesProgram = !selectedProgramId || programId === selectedProgramId;
     const matchesYearLevel = !selectedYearLevel || yearLevel === selectedYearLevel;
-
     return (
       matchesSearch &&
       matchesTeacher &&
@@ -1087,22 +999,17 @@ export default function Home() {
       matchesYearLevel
     );
   });
-
   if (isLoading) {
     return <div className="p-4">Loading...</div>;
   }
-
   if (!currentFile && !fullScheduleActive) {
     return <div className="p-4">No file selected.</div>;
   }
-
   const programsToShow = selectedProgramId
     ? programs.filter((p) => p.id === selectedProgramId)
     : programs;
-
   // Check if we should use day-column layout (specific program AND year level selected)
   const useDayColumnLayout = selectedProgramId && selectedYearLevel;
-
   const grids = useDayColumnLayout
     ? [{
       program: programs.find((p) => p.id === selectedProgramId),
@@ -1115,10 +1022,8 @@ export default function Home() {
         return gridData ? { program, ...gridData, isDayColumn: false } : null;
       })
       .filter(Boolean);
-
   const availableSlots = selectedTeacherId ? getAvailableSlotsForTeacher(selectedTeacherId) : {};
   const mergedGrid = fullScheduleActive ? createMergedScheduleGrid() : null;
-
   return (
     <>
       {isFullScreen && (
@@ -1126,7 +1031,7 @@ export default function Home() {
           <div className="p-4">
             <div className="flex justify-between items-center mb-4">
               <div>
-                <h1 className="text-2xl font-bold">CET Class Schedule</h1>
+                {/* <h1 className="text-2xl font-bold">CET Class Schedule</h1> */}
                 <div className="text-sm text-gray-600">
                   {fullScheduleActive ? "All Schedules" : `${currentFile.semester} | S.Y. ${currentFile.academic_year}`}
                 </div>
@@ -1153,13 +1058,13 @@ export default function Home() {
                       }}
                     >
                       <table className="w-full border-collapse text-sm">
-                        <thead className="bg-gray-50">
+                        <thead className="bg-gradient-to-r from-slate-800 to-slate-900 sticky top-0 z-10">
                           <tr className="bg-gray-50">
-                            <th className="border p-2 text-md" style={{ width: "80px" }}>Program</th>
-                            <th className="border p-2 text-center" style={{ width: "60px" }}>Day</th>
-                            <th className="border p-2 text-center" style={{ width: "120px" }}>Time</th>
+                            <th className="border p-3 text-center text-zinc-900 font-semibold" style={{ width: "80px" }}>Program</th>
+                            <th className="border p-3 text-center text-zinc-900 font-semibold" style={{ width: "60px" }}>Day</th>
+                            <th className="border p-3 text-center text-zinc-900 font-semibold" style={{ width: "120px" }}>Time</th>
                             {yearLevels.map((level) => (
-                              <th key={level} className="border p-2 text-center">{level}</th>
+                              <th key={level} className="border p-3 text-center text-zinc-900 font-semibold">{level}</th>
                             ))}
                           </tr>
                         </thead>
@@ -1167,14 +1072,11 @@ export default function Home() {
                           {programs.map((program, progIndex) => {
                             const rows = [];
                             let programRowRendered = false;
-
                             days.forEach((day) => {
                               let dayColumnRendered = false;
-
                               timeSlots.forEach((timeSlot, timeIndex) => {
                                 const gridSlot = mergedGrid[day][timeIndex];
                                 const row = [];
-
                                 if (!programRowRendered) {
                                   const totalRows = days.length * timeSlots.length;
                                   row.push(
@@ -1197,7 +1099,6 @@ export default function Home() {
                                   );
                                   programRowRendered = true;
                                 }
-
                                 if (!dayColumnRendered) {
                                   row.push(
                                     <td
@@ -1217,9 +1118,7 @@ export default function Home() {
                                   );
                                   dayColumnRendered = true;
                                 }
-
                                 const isAvailable = selectedTeacherId && availableSlots[day] && availableSlots[day][timeIndex];
-
                                 row.push(
                                   <td
                                     key={`${day}-${timeIndex}-time`}
@@ -1229,30 +1128,31 @@ export default function Home() {
                                     {timeSlot}
                                   </td>
                                 );
-
                                 yearLevels.forEach((level) => {
                                   const levelData = gridSlot.programs[program.id].yearLevels[level];
-
                                   if (levelData.span === 0) return;
-
                                   if (levelData.occupied && levelData.assignment) {
                                     const assignment = levelData.assignment;
                                     const subjectName = getSubjectName(assignment.subjectId);
                                     const teacherName = getTeacherName(assignment.teacherId);
                                     const room = getAssignmentRoom(assignment);
-
+                                    const color = getTeacherColor(assignment.teacherId);
+                                    const lightBg = getLightBackgroundColor(color);
                                     row.push(
                                       <td
                                         key={`${program.id}-${day}-${timeIndex}-${level}`}
-                                        className={`p-2 relative text-sm align-middle bg-transparent ${userRole !== 'user' ? 'cursor-move' : ''
+                                        className={`p-2 relative text-sm align-middle ${userRole !== 'view' ? 'cursor-move' : ''
                                           }`}
                                         style={{
                                           maxWidth: "100px",
                                           height: `${35 * levelData.span}px`,
                                           verticalAlign: "middle",
+                                          backgroundColor: lightBg,
+                                          borderColor: color,
+                                          boxShadow: `inset 0 0 0 2px ${color}`,
                                         }}
                                         rowSpan={levelData.span}
-                                        {...(userRole !== 'user'
+                                        {...(userRole !== 'view'
                                           ? {
                                             draggable: true,
                                             onDragStart: (e) => {
@@ -1264,17 +1164,18 @@ export default function Home() {
                                           }
                                           : {})}
                                       >
-                                        <div className="flex items-center justify-start h-full px-1">
+                                        <div className="flex items-center justify-start h-full px-3 py-2">
                                           <div className="relative group">
                                             <div
-                                              className="w-4 h-4 rounded-full mr-2 flex-shrink-0 cursor-pointer border border-gray-300"
+                                              className="w-5 h-5 rounded-lg mr-2.5 flex-shrink-0 cursor-pointer border-2 border-white shadow-sm"
                                               style={{
-                                                backgroundColor: getTeacherColor(assignment.teacherId),
+                                                backgroundColor: color,
+                                                boxShadow: `inset 0 0 0 2px ${color}`,
                                               }}
                                             ></div>
                                             <div
                                               className="absolute left-0 top-6 bg-gray-900 text-white text-xs rounded-lg p-3 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20 min-w-52 border border-gray-700"
-                                              style={{ zIndex: 10500 }}
+                                              style={{ zIndex: 1000 }}
                                             >
                                               <div className="text-left space-y-1">
                                                 <div className="font-bold text-white border-b border-gray-700 pb-1">
@@ -1284,7 +1185,7 @@ export default function Home() {
                                                 <div className="text-gray-300">{assignment.timeSlot} - {day}</div>
                                                 <div className="text-gray-300">Room: {room}</div>
                                                 <div className="text-gray-300">Program: {program.name}</div>
-                                                {userRole !== 'user' && (
+                                                {userRole !== 'view' && (
                                                   <div className="flex gap-2">
                                                     <button
                                                       onClick={() =>
@@ -1320,10 +1221,10 @@ export default function Home() {
                                             </div>
                                           </div>
                                           <div className="flex-1 text-left overflow-hidden">
-                                            <div className="text-xs font-semibold leading-tight text-gray-800 truncate">
+                                            <div className="text-sm font-bold leading-tight text-slate-900 truncate mb-0.5">
                                               {subjectName}
                                             </div>
-                                            <div className="text-xs text-gray-600 leading-tight truncate">{teacherName}</div>
+                                            <div className="text-xs text-slate-600 leading-tight truncate font-medium">{teacherName}</div>
                                           </div>
                                         </div>
                                       </td>
@@ -1335,7 +1236,7 @@ export default function Home() {
                                         key={`${program.id}-${day}-${timeIndex}-${level}`}
                                         className={`border p-1 relative text-sm text-center align-middle ${bgColor}`}
                                         style={{ minWidth: "140px", height: "35px" }}
-                                        {...(userRole !== 'user'
+                                        {...(userRole !== 'view'
                                           ? {
                                             onDragOver: (e) => e.preventDefault(),
                                             onDrop: (e) => handleDrop(e, day, timeIndex, level, program.id),
@@ -1345,7 +1246,6 @@ export default function Home() {
                                     );
                                   }
                                 });
-
                                 rows.push(
                                   <tr key={`${program.id}-${day}-${timeIndex}`}>
                                     {row}
@@ -1353,7 +1253,6 @@ export default function Home() {
                                 );
                               });
                             });
-
                             return rows;
                           })}
                         </tbody>
@@ -1365,7 +1264,7 @@ export default function Home() {
                 grids.map(({ program, grid, levels, isDayColumn }, progIndex) => (
                   <div key={progIndex}>
                     {!selectedProgramId && <h2 className="text-xl font-bold mb-4">{program.name}</h2>}
-                    <div className="bg-white rounded-lg shadow-sm border overflow-auto">
+                    <div className="bg-white rounded-lg shadow-sm border overflow-x-auto overflow-y-auto isolate">
                       <div
                         ref={contentRef}
                         className="relative"
@@ -1376,22 +1275,22 @@ export default function Home() {
                         }}
                       >
                         <table className="w-full border-collapse text-sm">
-                          <thead className="bg-gray-50">
+                          <thead className="bg-gradient-to-r from-slate-800 to-slate-900 sticky top-0 z-10">
                             {isDayColumn ? (
                               <tr className="bg-gray-50">
-                                <th className="border p-2 text-center" style={{ width: "120px" }}>Time</th>
+                                <th className="border p-3 text-center text-zinc-900 font-semibold" style={{ width: "120px" }}>Time</th>
                                 {days.map((day) => (
-                                  <th key={day} className="border p-2 text-center">{day}</th>
+                                  <th key={day} className="border p-3 text-center text-zinc-900 font-semibold">{day}</th>
                                 ))}
                               </tr>
                             ) : (
                               <tr className="bg-gray-50">
-                                <th className="border p-2 text-md" style={{ width: "60px" }}>
-                                  {fullScheduleActive ? "All Schedules" : currentFile.name}
+                                <th className="border p-3 text-center text-zinc-900 font-semibold" style={{ width: "60px" }}>
+                                  {fullScheduleActive ? "All Schedules" : ""}
                                 </th>
-                                <th className="border p-2 text-center" style={{ width: "120px" }}>Time</th>
+                                <th className="border p-3 text-center text-zinc-900 font-semibold" style={{ width: "120px" }}>Time</th>
                                 {levels.map((level) => (
-                                  <th key={level} className="border p-2 text-center">{level}</th>
+                                  <th key={level} className="border p-3 text-center text-zinc-900 font-semibold">{level}</th>
                                 ))}
                               </tr>
                             )}
@@ -1400,7 +1299,6 @@ export default function Home() {
                             {isDayColumn ? (
                               timeSlots.map((timeSlot, timeIndex) => {
                                 const gridSlot = grid[timeIndex];
-
                                 return (
                                   <tr key={`time-${timeIndex}`}>
                                     <td
@@ -1411,27 +1309,29 @@ export default function Home() {
                                     </td>
                                     {days.map((day) => {
                                       const dayData = gridSlot[day];
-
                                       if (dayData.span === 0) return null;
-
                                       if (dayData.occupied && dayData.assignment) {
                                         const assignment = dayData.assignment;
                                         const subjectName = getSubjectName(assignment.subjectId);
                                         const teacherName = getTeacherName(assignment.teacherId);
                                         const room = getAssignmentRoom(assignment);
-
+                                        const color = getTeacherColor(assignment.teacherId);
+                                        const lightBg = getLightBackgroundColor(color);
                                         return (
                                           <td
                                             key={`${timeIndex}-${day}`}
-                                            className={`p-2 relative text-sm align-middle bg-transparent ${userRole !== 'user' ? 'cursor-move hover:cursor-grabbing' : ''
+                                            className={`p-2 relative text-sm align-middle ${userRole !== 'view' ? 'cursor-move hover:cursor-grabbing' : ''
                                               }`}
                                             style={{
                                               maxWidth: "140px",
                                               height: `${35 * dayData.span}px`,
                                               verticalAlign: "middle",
+                                              backgroundColor: lightBg,
+                                              borderColor: color,
+                                              boxShadow: `inset 0 0 0 2px ${color}`,
                                             }}
                                             rowSpan={dayData.span}
-                                            {...(userRole !== 'user'
+                                            {...(userRole !== 'view'
                                               ? {
                                                 draggable: true,
                                                 onDragStart: (e) => {
@@ -1443,19 +1343,20 @@ export default function Home() {
                                               }
                                               : {})}
                                           >
-                                            <div className="flex items-center justify-start h-full px-1">
+                                            <div className="flex items-center justify-start h-full px-3 py-2">
                                               <div className="relative group">
                                                 <div
-                                                  className="w-4 h-4 rounded-full mr-2 flex-shrink-0 cursor-pointer border border-gray-300"
+                                                  className="w-5 h-5 rounded-lg mr-2.5 flex-shrink-0 cursor-pointer border-2 border-white shadow-sm"
                                                   style={{
-                                                    backgroundColor: getTeacherColor(assignment.teacherId),
+                                                    backgroundColor: color,
+                                                    boxShadow: `inset 0 0 0 2px ${color}`,
                                                   }}
                                                 ></div>
                                                 <div
                                                   className="absolute left-0 top-6 bg-gray-900 text-white text-xs rounded-lg p-3 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20 min-w-52 border border-gray-700"
-                                                  style={{ zIndex: 20 }}
+                                                  style={{ zIndex: 1000 }}
                                                 >
-                                                  {editingAssignment && editingAssignment.id === assignment.id && userRole !== 'user' ? (
+                                                  {editingAssignment && editingAssignment.id === assignment.id && userRole !== 'view' ? (
                                                     <div className="space-y-2">
                                                       <div className="font-bold text-white border-b border-gray-700 pb-1">
                                                         {subjectName}
@@ -1472,7 +1373,7 @@ export default function Home() {
                                                         >
                                                           <option value="">Select start time</option>
                                                           {timeSlots.map((slot) => (
-                                                            <option key={slot} value={slot}>{slot}</option>
+                                                            <option key={slot} value={slot.split('-')[0].trim()}>{slot}</option>
                                                           ))}
                                                         </select>
                                                       </div>
@@ -1537,7 +1438,7 @@ export default function Home() {
                                                       <div className="text-blue-200">{teacherName}</div>
                                                       <div className="text-gray-300">{assignment.timeSlot} - {day}</div>
                                                       <div className="text-gray-300">Room: {room}</div>
-                                                      {userRole !== 'user' && (
+                                                      {userRole !== 'view' && (
                                                         <div className="flex gap-2">
                                                           <button
                                                             onClick={() =>
@@ -1574,10 +1475,10 @@ export default function Home() {
                                                 </div>
                                               </div>
                                               <div className="flex-1 text-left overflow-hidden">
-                                                <div className="text-xs font-semibold leading-tight text-gray-800 truncate">
+                                                <div className="text-sm font-bold leading-tight text-slate-900 truncate mb-0.5">
                                                   {subjectName}
                                                 </div>
-                                                <div className="text-xs text-gray-600 leading-tight truncate">{teacherName}</div>
+                                                <div className="text-xs text-slate-600 leading-tight truncate font-medium">{teacherName}</div>
                                               </div>
                                             </div>
                                           </td>
@@ -1585,13 +1486,12 @@ export default function Home() {
                                       } else {
                                         const isAvailable = selectedTeacherId && availableSlots[day] && availableSlots[day][timeIndex];
                                         const bgColor = isAvailable ? "bg-teal-50" : "";
-
                                         return (
                                           <td
                                             key={`${timeIndex}-${day}`}
                                             className={`border p-1 relative text-sm text-center align-middle ${bgColor}`}
                                             style={{ minWidth: "140px", height: "35px" }}
-                                            {...(userRole !== 'user'
+                                            {...(userRole !== 'view'
                                               ? {
                                                 onDragOver: (e) => e.preventDefault(),
                                                 onDrop: (e) => handleDrop(e, day, timeIndex, selectedYearLevel, selectedProgramId),
@@ -1608,11 +1508,9 @@ export default function Home() {
                               days.map((day) => {
                                 const rows = [];
                                 let dayColumnRendered = false;
-
                                 timeSlots.forEach((timeSlot, timeIndex) => {
                                   const gridSlot = grid[day][timeIndex];
                                   const row = [];
-
                                   if (!dayColumnRendered) {
                                     row.push(
                                       <td
@@ -1632,9 +1530,7 @@ export default function Home() {
                                     );
                                     dayColumnRendered = true;
                                   }
-
                                   const isAvailable = selectedTeacherId && availableSlots[day] && availableSlots[day][timeIndex];
-
                                   row.push(
                                     <td
                                       key={`${day}-${timeIndex}-time`}
@@ -1644,30 +1540,31 @@ export default function Home() {
                                       {timeSlot}
                                     </td>
                                   );
-
                                   levels.forEach((level) => {
                                     const levelData = gridSlot.yearLevels[level];
-
                                     if (levelData.span === 0) return;
-
                                     if (levelData.occupied && levelData.assignment) {
                                       const assignment = levelData.assignment;
                                       const subjectName = getSubjectName(assignment.subjectId);
                                       const teacherName = getTeacherName(assignment.teacherId);
                                       const room = getAssignmentRoom(assignment);
-
+                                      const color = getTeacherColor(assignment.teacherId);
+                                      const lightBg = getLightBackgroundColor(color);
                                       row.push(
                                         <td
                                           key={`${day}-${timeIndex}-${level}`}
-                                          className={`p-2 relative text-sm align-middle bg-transparent ${userRole !== 'user' ? 'cursor-move hover:cursor-grabbing' : ''
+                                          className={`p-2 relative text-sm align-middle ${userRole !== 'view' ? 'cursor-move hover:cursor-grabbing' : ''
                                             }`}
                                           style={{
                                             maxWidth: "100px",
                                             height: `${35 * levelData.span}px`,
                                             verticalAlign: "middle",
+                                            backgroundColor: lightBg,
+                                            borderColor: color,
+                                            boxShadow: `inset 0 0 0 2px ${color}`,
                                           }}
                                           rowSpan={levelData.span}
-                                          {...(userRole !== 'user'
+                                          {...(userRole !== 'view'
                                             ? {
                                               draggable: true,
                                               onDragStart: (e) => {
@@ -1679,17 +1576,18 @@ export default function Home() {
                                             }
                                             : {})}
                                         >
-                                          <div className="flex items-center justify-start h-full px-1">
+                                          <div className="flex items-center justify-start h-full px-3 py-2">
                                             <div className="relative group">
                                               <div
-                                                className="w-4 h-4 rounded-full mr-2 flex-shrink-0 cursor-pointer border border-gray-300"
+                                                className="w-5 h-5 rounded-lg mr-2.5 flex-shrink-0 cursor-pointer border-2 border-white shadow-sm"
                                                 style={{
-                                                  backgroundColor: getTeacherColor(assignment.teacherId),
+                                                  backgroundColor: color,
+                                                  boxShadow: `inset 0 0 0 2px ${color}`,
                                                 }}
                                               ></div>
                                               <div
                                                 className="absolute left-0 top-6 bg-gray-900 text-white text-xs rounded-lg p-3 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20 min-w-52 border border-gray-700"
-                                                style={{ zIndex: 20 }}
+                                                style={{ zIndex: 1000 }}
                                               >
                                                 <div className="text-left space-y-1">
                                                   <div className="font-bold text-white border-b border-gray-700 pb-1">
@@ -1698,7 +1596,7 @@ export default function Home() {
                                                   <div className="text-blue-200">{teacherName}</div>
                                                   <div className="text-gray-300">{assignment.timeSlot} - {day}</div>
                                                   <div className="text-gray-300">Room: {room}</div>
-                                                  {userRole !== 'user' && (
+                                                  {userRole !== 'view' && (
                                                     <div className="flex gap-2">
                                                       <button
                                                         onClick={() =>
@@ -1734,10 +1632,10 @@ export default function Home() {
                                               </div>
                                             </div>
                                             <div className="flex-1 text-left overflow-hidden">
-                                              <div className="text-xs font-semibold leading-tight text-gray-800 truncate">
+                                              <div className="text-sm font-bold leading-tight text-slate-900 truncate mb-0.5">
                                                 {subjectName}
                                               </div>
-                                              <div className="text-xs text-gray-600 leading-tight truncate">{teacherName}</div>
+                                              <div className="text-xs text-slate-600 leading-tight truncate font-medium">{teacherName}</div>
                                             </div>
                                           </div>
                                         </td>
@@ -1749,7 +1647,7 @@ export default function Home() {
                                           key={`${day}-${timeIndex}-${level}`}
                                           className={`border p-1 relative text-sm text-center align-middle ${bgColor}`}
                                           style={{ minWidth: "140px", height: "35px" }}
-                                          {...(userRole !== 'user'
+                                          {...(userRole !== 'view'
                                             ? {
                                               onDragOver: (e) => e.preventDefault(),
                                               onDrop: (e) => handleDrop(e, day, timeIndex, level),
@@ -1759,14 +1657,12 @@ export default function Home() {
                                       );
                                     }
                                   });
-
                                   rows.push(
                                     <tr key={`${day}-${timeIndex}`}>
                                       {row}
                                     </tr>
                                   );
                                 });
-
                                 return rows;
                               })
                             )}
@@ -1781,22 +1677,20 @@ export default function Home() {
           </div>
         </div>
       )}
-
       {!isFullScreen && (
-        <div className={`p-4 bg-white flex flex-col lg:flex-row gap-4 ${userRole !== 'user' ? 'pr-96' : ''}`} style={{ zIndex: 10 }}>
+        <div className={`p-4 bg-white flex flex-col lg:flex-row gap-4 ${userRole !== 'view' ? 'pr-96' : ''}`} style={{ zIndex: 10 }}>
           <div className="bg-white rounded-lg mb-6 flex-1">
             <div className="bg-white rounded-lg mb-6">
-              <h1 className="text-2xl font-bold mb-2">CET Class Schedule</h1>
+              {/* <h1 className="text-2xl font-bold mb-2">CET Class Schedule</h1> */}
               <div className="text-sm text-gray-600">
                 {fullScheduleActive ? "All Schedules" : `${currentFile.semester} | S.Y. ${currentFile.academic_year}`}
               </div>
             </div>
-
             {fullScheduleActive ? (
               <div>
                 <h2 className="text-xl font-bold mt-4 mb-4">All Programs Schedule</h2>
                 <div
-                  className="bg-white rounded-lg shadow-sm border overflow-y-scroll"
+                  className="bg-white rounded-lg shadow-sm border overflow-x-auto overflow-y-auto isolate"
                   style={{
                     maxHeight: 'calc(100vh - 200px)',
                     zIndex: 10,
@@ -1812,13 +1706,13 @@ export default function Home() {
                     }}
                   >
                     <table className="w-full border-collapse text-sm">
-                      <thead className="bg-gray-50">
+                      <thead className="bg-gradient-to-r from-slate-800 to-slate-900 sticky top-0 z-10">
                         <tr className="bg-gray-50">
-                          <th className="border p-2 text-md" style={{ width: "80px" }}>Program</th>
-                          <th className="border p-2 text-center" style={{ width: "60px" }}>Day</th>
-                          <th className="border p-2 text-center" style={{ width: "120px" }}>Time</th>
+                          <th className="border p-3 text-center text-zinc-900 font-semibold" style={{ width: "80px" }}>Program</th>
+                          <th className="border p-3 text-center text-zinc-900 font-semibold" style={{ width: "60px" }}>Day</th>
+                          <th className="border p-3 text-center text-zinc-900 font-semibold" style={{ width: "120px" }}>Time</th>
                           {yearLevels.map((level) => (
-                            <th key={level} className="border p-2 text-center">{level}</th>
+                            <th key={level} className="border p-3 text-center text-zinc-900 font-semibold">{level}</th>
                           ))}
                         </tr>
                       </thead>
@@ -1826,14 +1720,11 @@ export default function Home() {
                         {programs.map((program, progIndex) => {
                           const rows = [];
                           let programRowRendered = false;
-
                           days.forEach((day) => {
                             let dayColumnRendered = false;
-
                             timeSlots.forEach((timeSlot, timeIndex) => {
                               const gridSlot = mergedGrid[day][timeIndex];
                               const row = [];
-
                               if (!programRowRendered) {
                                 const totalRows = days.length * timeSlots.length;
                                 row.push(
@@ -1856,7 +1747,6 @@ export default function Home() {
                                 );
                                 programRowRendered = true;
                               }
-
                               if (!dayColumnRendered) {
                                 row.push(
                                   <td
@@ -1876,9 +1766,7 @@ export default function Home() {
                                 );
                                 dayColumnRendered = true;
                               }
-
                               const isAvailable = selectedTeacherId && availableSlots[day] && availableSlots[day][timeIndex];
-
                               row.push(
                                 <td
                                   key={`${day}-${timeIndex}-time`}
@@ -1888,29 +1776,30 @@ export default function Home() {
                                   {timeSlot}
                                 </td>
                               );
-
                               yearLevels.forEach((level) => {
                                 const levelData = gridSlot.programs[program.id].yearLevels[level];
-
                                 if (levelData.span === 0) return;
-
                                 if (levelData.occupied && levelData.assignment) {
                                   const assignment = levelData.assignment;
                                   const subjectName = getSubjectName(assignment.subjectId);
                                   const teacherName = getTeacherName(assignment.teacherId);
                                   const room = getAssignmentRoom(assignment);
-
+                                  const color = getTeacherColor(assignment.teacherId);
+                                  const lightBg = getLightBackgroundColor(color);
                                   row.push(
                                     <td
                                       key={`${program.id}-${day}-${timeIndex}-${level}`}
-                                      className={`p-2 relative text-sm align-middle bg-transparent ${userRole !== 'user' ? 'cursor-move' : ''}`}
+                                      className={`p-2 relative text-sm align-middle ${userRole !== 'view' ? 'cursor-move' : ''}`}
                                       style={{
                                         maxWidth: "100px",
                                         height: `${35 * levelData.span}px`,
                                         verticalAlign: "middle",
+                                        backgroundColor: lightBg,
+                                        borderColor: color,
+                                        boxShadow: `inset 0 0 0 2px ${color}`,
                                       }}
                                       rowSpan={levelData.span}
-                                      {...(userRole !== 'user' ? {
+                                      {...(userRole !== 'view' ? {
                                         draggable: true,
                                         onDragStart: (e) => {
                                           e.dataTransfer.setData("text/plain", assignment.id);
@@ -1920,17 +1809,18 @@ export default function Home() {
                                         onDrop: (e) => handleDrop(e, day, timeIndex, level, program.id)
                                       } : {})}
                                     >
-                                      <div className="flex items-center justify-start h-full px-1">
+                                      <div className="flex items-center justify-start h-full px-3 py-2">
                                         <div className="relative group">
                                           <div
-                                            className="w-4 h-4 rounded-full mr-2 flex-shrink-0 cursor-pointer border border-gray-300"
+                                            className="w-5 h-5 rounded-lg mr-2.5 flex-shrink-0 cursor-pointer border-2 border-white shadow-sm"
                                             style={{
-                                              backgroundColor: getTeacherColor(assignment.teacherId),
+                                              backgroundColor: color,
+                                              boxShadow: `inset 0 0 0 2px ${color}`,
                                             }}
                                           ></div>
                                           <div
                                             className="absolute left-0 top-6 bg-gray-900 text-white text-xs rounded-lg p-3 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20 min-w-52 border border-gray-700"
-                                            style={{ zIndex: 20 }}
+                                            style={{ zIndex: 1000 }}
                                           >
                                             <div className="text-left space-y-1">
                                               <div className="font-bold text-white border-b border-gray-700 pb-1">
@@ -1940,7 +1830,7 @@ export default function Home() {
                                               <div className="text-gray-300">{assignment.timeSlot} - {day}</div>
                                               <div className="text-gray-300">Room: {room}</div>
                                               <div className="text-gray-300">Program: {program.name}</div>
-                                              {userRole !== 'user' && (
+                                              {userRole !== 'view' && (
                                                 <div className="flex gap-2">
                                                   <button
                                                     onClick={() =>
@@ -1977,10 +1867,10 @@ export default function Home() {
                                           </div>
                                         </div>
                                         <div className="flex-1 text-left overflow-hidden">
-                                          <div className="text-xs font-semibold leading-tight text-gray-800 truncate">
+                                          <div className="text-sm font-bold leading-tight text-slate-900 truncate mb-0.5">
                                             {subjectName}
                                           </div>
-                                          <div className="text-xs text-gray-600 leading-tight truncate">{teacherName}</div>
+                                          <div className="text-xs text-slate-600 leading-tight truncate font-medium">{teacherName}</div>
                                         </div>
                                       </div>
                                     </td>
@@ -1992,7 +1882,7 @@ export default function Home() {
                                       key={`${program.id}-${day}-${timeIndex}-${level}`}
                                       className={`border p-1 relative text-sm text-center align-middle ${bgColor}`}
                                       style={{ minWidth: "140px", height: "35px" }}
-                                      {...(userRole !== 'user' ? {
+                                      {...(userRole !== 'view' ? {
                                         onDragOver: (e) => e.preventDefault(),
                                         onDrop: (e) => handleDrop(e, day, timeIndex, level, program.id)
                                       } : {})}
@@ -2000,7 +1890,6 @@ export default function Home() {
                                   );
                                 }
                               });
-
                               rows.push(
                                 <tr key={`${program.id}-${day}-${timeIndex}`}>
                                   {row}
@@ -2008,7 +1897,6 @@ export default function Home() {
                               );
                             });
                           });
-
                           return rows;
                         })}
                       </tbody>
@@ -2019,12 +1907,11 @@ export default function Home() {
             ) : (
               grids.map((gridObj, progIndex) => {
                 const { program, grid, levels, isDayColumn } = gridObj;
-
                 return (
                   <div key={progIndex}>
                     {!selectedProgramId && <h2 className="text-xl font-bold mt-4 mb-4">{program.name}</h2>}
                     <div
-                      className="bg-white rounded-lg shadow-sm border overflow-y-scroll"
+                      className="bg-white rounded-lg shadow-sm border overflow-x-auto overflow-y-auto isolate"
                       style={{
                         maxHeight: 'calc(100vh - 200px)',
                         zIndex: 10,
@@ -2044,20 +1931,20 @@ export default function Home() {
                             {isDayColumn ? (
                               // Day-column layout: Days as columns, Time as rows
                               <tr className="bg-gray-50">
-                                <th className="border p-2 text-center" style={{ width: "120px" }}>Time</th>
+                                <th className="border p-3 text-center text-zinc-900 font-semibold" style={{ width: "120px" }}>Time</th>
                                 {days.map((day) => (
-                                  <th key={day} className="border p-2 text-center">{day}</th>
+                                  <th key={day} className="border p-3 text-center text-zinc-900 font-semibold">{day}</th>
                                 ))}
                               </tr>
                             ) : (
                               // Original layout: Day as row, Year levels as columns
                               <tr className="bg-gray-50">
-                                <th className="border p-2 text-md" style={{ width: "60px" }}>
-                                  {fullScheduleActive ? "All Schedules" : currentFile.name}
+                                <th className="border p-3 text-center text-zinc-900 font-semibold" style={{ width: "60px" }}>
+                                  {fullScheduleActive ? "All Schedules" : ""}
                                 </th>
-                                <th className="border p-2 text-center" style={{ width: "120px" }}>Time</th>
+                                <th className="border p-3 text-center text-zinc-900 font-semibold" style={{ width: "120px" }}>Time</th>
                                 {levels.map((level) => (
-                                  <th key={level} className="border p-2 text-center">{level}</th>
+                                  <th key={level} className="border p-3 text-center text-zinc-900 font-semibold">{level}</th>
                                 ))}
                               </tr>
                             )}
@@ -2067,7 +1954,6 @@ export default function Home() {
                               // Day-column layout body
                               timeSlots.map((timeSlot, timeIndex) => {
                                 const gridSlot = grid[timeIndex];
-
                                 return (
                                   <tr key={`time-${timeIndex}`}>
                                     <td
@@ -2078,26 +1964,28 @@ export default function Home() {
                                     </td>
                                     {days.map((day) => {
                                       const dayData = gridSlot[day];
-
                                       if (dayData.span === 0) return null;
-
                                       if (dayData.occupied && dayData.assignment) {
                                         const assignment = dayData.assignment;
                                         const subjectName = getSubjectName(assignment.subjectId);
                                         const teacherName = getTeacherName(assignment.teacherId);
                                         const room = getAssignmentRoom(assignment);
-
+                                        const color = getTeacherColor(assignment.teacherId);
+                                        const lightBg = getLightBackgroundColor(color);
                                         return (
                                           <td
                                             key={`${timeIndex}-${day}`}
-                                            className={`p-2 relative text-sm align-middle bg-transparent ${userRole !== 'user' ? 'cursor-move hover:cursor-grabbing' : ''}`}
+                                            className={`p-2 relative text-sm align-middle ${userRole !== 'view' ? 'cursor-move hover:cursor-grabbing' : ''}`}
                                             style={{
                                               maxWidth: "140px",
                                               height: `${35 * dayData.span}px`,
                                               verticalAlign: "middle",
+                                              backgroundColor: lightBg,
+                                              borderColor: color,
+                                              boxShadow: `inset 0 0 0 2px ${color}`,
                                             }}
                                             rowSpan={dayData.span}
-                                            {...(userRole !== 'user' ? {
+                                            {...(userRole !== 'view' ? {
                                               draggable: true,
                                               onDragStart: (e) => {
                                                 e.dataTransfer.setData("text/plain", assignment.id);
@@ -2107,19 +1995,20 @@ export default function Home() {
                                               onDrop: (e) => handleDrop(e, day, timeIndex, selectedYearLevel, selectedProgramId)
                                             } : {})}
                                           >
-                                            <div className="flex items-center justify-start h-full px-1">
+                                            <div className="flex items-center justify-start h-full px-3 py-2">
                                               <div className="relative group">
                                                 <div
-                                                  className="w-4 h-4 rounded-full mr-2 flex-shrink-0 cursor-pointer border border-gray-300"
+                                                  className="w-5 h-5 rounded-lg mr-2.5 flex-shrink-0 cursor-pointer border-2 border-white shadow-sm"
                                                   style={{
-                                                    backgroundColor: getTeacherColor(assignment.teacherId),
+                                                    backgroundColor: color,
+                                                    boxShadow: `inset 0 0 0 2px ${color}`,
                                                   }}
                                                 ></div>
                                                 <div
                                                   className="absolute left-0 top-6 bg-gray-900 text-white text-xs rounded-lg p-3 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20 min-w-52 border border-gray-700"
-                                                  style={{ zIndex: 20 }}
+                                                  style={{ zIndex: 1000 }}
                                                 >
-                                                  {editingAssignment && editingAssignment.id === assignment.id && userRole !== 'user' ? (
+                                                  {editingAssignment && editingAssignment.id === assignment.id && userRole !== 'view' ? (
                                                     <div className="space-y-2">
                                                       <div className="font-bold text-white border-b border-gray-700 pb-1">
                                                         {subjectName}
@@ -2136,7 +2025,7 @@ export default function Home() {
                                                         >
                                                           <option value="">Select start time</option>
                                                           {timeSlots.map((slot) => (
-                                                            <option key={slot} value={slot}>{slot}</option>
+                                                            <option key={slot} value={slot.split('-')[0].trim()}>{slot}</option>
                                                           ))}
                                                         </select>
                                                       </div>
@@ -2201,7 +2090,7 @@ export default function Home() {
                                                       <div className="text-blue-200">{teacherName}</div>
                                                       <div className="text-gray-300">{assignment.timeSlot} - {day}</div>
                                                       <div className="text-gray-300">Room: {room}</div>
-                                                      {userRole !== 'user' && (
+                                                      {userRole !== 'view' && (
                                                         <div className="flex gap-2">
                                                           <button
                                                             onClick={() =>
@@ -2239,10 +2128,10 @@ export default function Home() {
                                                 </div>
                                               </div>
                                               <div className="flex-1 text-left overflow-hidden">
-                                                <div className="text-xs font-semibold leading-tight text-gray-800 truncate">
+                                                <div className="text-sm font-bold leading-tight text-slate-900 truncate mb-0.5">
                                                   {subjectName}
                                                 </div>
-                                                <div className="text-xs text-gray-600 leading-tight truncate">{teacherName}</div>
+                                                <div className="text-xs text-slate-600 leading-tight truncate font-medium">{teacherName}</div>
                                               </div>
                                             </div>
                                           </td>
@@ -2250,13 +2139,12 @@ export default function Home() {
                                       } else {
                                         const isAvailable = selectedTeacherId && availableSlots[day] && availableSlots[day][timeIndex];
                                         const bgColor = isAvailable ? "bg-teal-50" : "";
-
                                         return (
                                           <td
                                             key={`${timeIndex}-${day}`}
                                             className={`border p-1 relative text-sm text-center align-middle ${bgColor}`}
                                             style={{ minWidth: "140px", height: "35px" }}
-                                            {...(userRole !== 'user' ? {
+                                            {...(userRole !== 'view' ? {
                                               onDragOver: (e) => e.preventDefault(),
                                               onDrop: (e) => handleDrop(e, day, timeIndex, selectedYearLevel, selectedProgramId)
                                             } : {})}
@@ -2272,11 +2160,9 @@ export default function Home() {
                               days.map((day) => {
                                 const rows = [];
                                 let dayColumnRendered = false;
-
                                 timeSlots.forEach((timeSlot, timeIndex) => {
                                   const gridSlot = grid[day][timeIndex];
                                   const row = [];
-
                                   if (!dayColumnRendered) {
                                     row.push(
                                       <td
@@ -2296,9 +2182,7 @@ export default function Home() {
                                     );
                                     dayColumnRendered = true;
                                   }
-
                                   const isAvailable = selectedTeacherId && availableSlots[day] && availableSlots[day][timeIndex];
-
                                   row.push(
                                     <td
                                       key={`${day}-${timeIndex}-time`}
@@ -2308,29 +2192,31 @@ export default function Home() {
                                       {timeSlot}
                                     </td>
                                   );
-
                                   levels.forEach((level) => {
                                     const levelData = gridSlot.yearLevels[level];
-
                                     if (levelData.span === 0) return;
-
                                     if (levelData.occupied && levelData.assignment) {
                                       const assignment = levelData.assignment;
                                       const subjectName = getSubjectName(assignment.subjectId);
                                       const teacherName = getTeacherName(assignment.teacherId);
                                       const room = getAssignmentRoom(assignment);
-
+                                      const color = getTeacherColor(assignment.teacherId);
+                                      const lightBg = getLightBackgroundColor(color);
                                       row.push(
                                         <td
                                           key={`${day}-${timeIndex}-${level}`}
-                                          className={`p-2 relative text-sm align-middle bg-transparent ${userRole !== 'user' ? 'cursor-move hover:cursor-grabbing' : ''}`}
+                                          className={`p-2 relative text-sm align-middle ${userRole !== 'view' ? 'cursor-move hover:cursor-grabbing' : ''
+                                            }`}
                                           style={{
                                             maxWidth: "100px",
                                             height: `${35 * levelData.span}px`,
                                             verticalAlign: "middle",
+                                            backgroundColor: lightBg,
+                                            borderColor: color,
+                                            boxShadow: `inset 0 0 0 2px ${color}`,
                                           }}
                                           rowSpan={levelData.span}
-                                          {...(userRole !== 'user' ? {
+                                          {...(userRole !== 'view' ? {
                                             draggable: true,
                                             onDragStart: (e) => {
                                               e.dataTransfer.setData("text/plain", assignment.id);
@@ -2340,19 +2226,20 @@ export default function Home() {
                                             onDrop: (e) => handleDrop(e, day, timeIndex, level)
                                           } : {})}
                                         >
-                                          <div className="flex items-center justify-start h-full px-1">
+                                          <div className="flex items-center justify-start h-full px-3 py-2">
                                             <div className="relative group">
                                               <div
-                                                className="w-4 h-4 rounded-full mr-2 flex-shrink-0 cursor-pointer border border-gray-300"
+                                                className="w-5 h-5 rounded-lg mr-2.5 flex-shrink-0 cursor-pointer border-2 border-white shadow-sm"
                                                 style={{
-                                                  backgroundColor: getTeacherColor(assignment.teacherId),
+                                                  backgroundColor: color,
+                                                  boxShadow: `inset 0 0 0 2px ${color}`,
                                                 }}
                                               ></div>
                                               <div
                                                 className="absolute left-0 top-6 bg-gray-900 text-white text-xs rounded-lg p-3 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20 min-w-52 border border-gray-700"
-                                                style={{ zIndex: 20 }}
+                                                style={{ zIndex: 1000 }}
                                               >
-                                                {editingAssignment && editingAssignment.id === assignment.id && userRole !== 'user' ? (
+                                                {editingAssignment && editingAssignment.id === assignment.id && userRole !== 'view' ? (
                                                   <div className="space-y-2">
                                                     <div className="font-bold text-white border-b border-gray-700 pb-1">
                                                       {subjectName}
@@ -2434,7 +2321,7 @@ export default function Home() {
                                                     <div className="text-blue-200">{teacherName}</div>
                                                     <div className="text-gray-300">{assignment.timeSlot} - {day}</div>
                                                     <div className="text-gray-300">Room: {room}</div>
-                                                    {userRole !== 'user' && (
+                                                    {userRole !== 'view' && (
                                                       <div className="flex gap-2">
                                                         <button
                                                           onClick={() =>
@@ -2472,10 +2359,10 @@ export default function Home() {
                                               </div>
                                             </div>
                                             <div className="flex-1 text-left overflow-hidden">
-                                              <div className="text-xs font-semibold leading-tight text-gray-800 truncate">
+                                              <div className="text-sm font-bold leading-tight text-slate-900 truncate mb-0.5">
                                                 {subjectName}
                                               </div>
-                                              <div className="text-xs text-gray-600 leading-tight truncate">{teacherName}</div>
+                                              <div className="text-xs text-slate-600 leading-tight truncate font-medium">{teacherName}</div>
                                             </div>
                                           </div>
                                         </td>
@@ -2487,7 +2374,7 @@ export default function Home() {
                                           key={`${day}-${timeIndex}-${level}`}
                                           className={`border p-1 relative text-sm text-center align-middle ${bgColor}`}
                                           style={{ minWidth: "140px", height: "35px" }}
-                                          {...(userRole !== 'user' ? {
+                                          {...(userRole !== 'view' ? {
                                             onDragOver: (e) => e.preventDefault(),
                                             onDrop: (e) => handleDrop(e, day, timeIndex, level)
                                           } : {})}
@@ -2495,14 +2382,12 @@ export default function Home() {
                                       );
                                     }
                                   });
-
                                   rows.push(
                                     <tr key={`${day}-${timeIndex}`}>
                                       {row}
                                     </tr>
                                   );
                                 });
-
                                 return rows;
                               })
                             )}
@@ -2515,8 +2400,7 @@ export default function Home() {
               })
             )}
           </div>
-
-          {userRole !== 'user' && (
+          {userRole !== 'view' && (
             <div
               className="w-80 bg-white rounded-lg shadow-lg border fixed right-4 top-36 bottom-4 flex flex-col"
               style={{ zIndex: 500 }}
@@ -2567,7 +2451,7 @@ export default function Home() {
                   </label>
                 </div>
               </div>
-              <div className="space-y-2 flex-1 overflow-y-auto p-4 [scrollbar-width:thin] [scrollbar-color:#cfcfcf_transparent]">
+              <div className="space-y-3 flex-1 overflow-y-auto p-4 [scrollbar-width:thin] [scrollbar-color:#cfcfcf_transparent]">
                 {filteredAssignments.map((assignment) => {
                   // Get class details for time and room assignments
                   const classData = assignment.classId ? classes.find((c) => c.id === assignment.classId) : null;
@@ -2584,11 +2468,12 @@ export default function Home() {
                     : subjectData?.yearLevel || "N/A";
                   // Check if the assignment has no teacher
                   const isNoTeacher = getTeacherName(assignment.teacherId) === "No Teacher";
-
+                  const color = getTeacherColor(assignment.teacherId);
+                  const lightBg = getLightBackgroundColor(color);
                   return (
                     <div
                       key={assignment.id}
-                      {...(userRole !== 'user' && !isNoTeacher
+                      {...(userRole !== 'view'
                         ? {
                           draggable: true,
                           onDragStart: (e) => e.dataTransfer.setData("text/plain", assignment.id),
@@ -2596,30 +2481,71 @@ export default function Home() {
                         : {
                           draggable: false,
                         })}
-                      className={`p-2 bg-gray-50 rounded-md border border-gray-200 hover:bg-gray-100 ${isNoTeacher ? 'cursor-not-allowed opacity-75' : 'cursor-move'
-                        }`}
-                      title={isNoTeacher ? "A teacher must be assigned first." : ""}
+                      className={`p-3 rounded-lg border-2 shadow-sm hover:shadow-md transition-all duration-200 ${userRole !== 'view' ? 'cursor-move hover:border-gray-400' : ''}`}
+                      style={{
+                        backgroundColor: lightBg,
+                        borderColor: isNoTeacher ? '#f0efeb' : color + '40'
+                      }}
                     >
-                      <div className="text-sm font-medium">{getSubjectName(assignment.subjectId)}</div>
-                      <div className="text-xs text-gray-600">{getTeacherName(assignment.teacherId)}</div>
-                      {assignment.timeSlot && (
-                        <div className="text-xs text-gray-500">
-                          {assignment.day} {assignment.timeSlot} ({getClassName(assignment.classId)})
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex-1">
+                          <div className="text-sm font-semibold text-gray-800 mb-1">
+                            {getSubjectName(assignment.subjectId)}
+                          </div>
+                          <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full font-medium" style={{ backgroundColor: color + '20', color: color }}>
+                              {getTeacherName(assignment.teacherId)}
+                            </span>
+                          </div>
                         </div>
-                      )}
-                      {assignment.roomId && (
-                        <div className="text-xs text-gray-500">Room: {getRoomName(assignment.roomId)}</div>
-                      )}
-                      <div className="text-xs text-gray-500">Course: {programName}</div>
-                      <div className="text-xs text-gray-500">Year: {yearLevel}</div>
-                      {!assignment.timeSlot && (
-                        <div className="text-xs text-orange-500">Unscheduled</div>
-                      )}
+                        {!assignment.timeSlot && (
+                          <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-orange-100 text-orange-700 border border-orange-200">
+                            Unscheduled
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="space-y-1 mt-2 pt-2 border-t border-gray-200">
+                        {assignment.timeSlot && (
+                          <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                            <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span className="font-medium">{assignment.day}</span>
+                            <span>{assignment.timeSlot}</span>
+                            <span className="text-gray-400">•</span>
+                            <span>{getClassName(assignment.classId)}</span>
+                          </div>
+                        )}
+                        {assignment.roomId && (
+                          <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                            <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                            </svg>
+                            <span>{getRoomName(assignment.roomId)}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-3 text-xs text-gray-500">
+                          <div className="flex items-center gap-1">
+                            <span>{programName}</span>
+                          </div>
+                          <span className="text-gray-300">|</span>
+                          <div className="flex items-center gap-1">
+                            <span>{yearLevel}</span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   );
                 })}
                 {filteredAssignments.length === 0 && (
-                  <div className="text-sm text-gray-500 italic">No assignments found.</div>
+                  <div className="text-center py-12">
+                    <svg className="w-12 h-12 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <p className="text-sm text-gray-500 font-medium">No assignments found</p>
+                    <p className="text-xs text-gray-400 mt-1">Try adjusting your filters</p>
+                  </div>
                 )}
               </div>
             </div>
@@ -2640,8 +2566,7 @@ export default function Home() {
           onClose={() => setConflictModal({ open: false, conflicts: [] })}
         />
       )}
-
-      {deleteModal.open && userRole !== 'user' && (
+      {deleteModal.open && userRole !== 'view' && (
         <Modal
           title="Confirm Deletion"
           type="confirm"

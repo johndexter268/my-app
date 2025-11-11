@@ -35,6 +35,7 @@ export default function Toolbar() {
   const [loadingFiles, setLoadingFiles] = useState(new Set());
   const [teachers, setTeachers] = useState([]);
   const [programs, setPrograms] = useState([]);
+  const [rooms, setRooms] = useState([]); // New state for rooms
   const navigate = useNavigate();
   const location = useLocation();
   const [showPreviewModal, setShowPreviewModal] = useState(false);
@@ -65,11 +66,11 @@ export default function Toolbar() {
         switch (key.toLowerCase()) {
           case 'n':
             event.preventDefault();
-            if (userRole === 'admin') handleNew();
+            if (userRole !== 'view') handleNew(); // Changed from 'admin' check to exclude 'view'
             break;
           case 's':
             event.preventDefault();
-            if (userRole === 'admin') {
+            if (userRole !== 'view') { // Changed from 'admin' check to exclude 'view'
               if (shiftKey) {
                 handleSaveAs();
               } else {
@@ -79,11 +80,11 @@ export default function Toolbar() {
             break;
           case 'e':
             event.preventDefault();
-            if (userRole === 'admin') handleExport();
+            if (userRole !== 'view') handleExport(); // Changed from 'admin' check to exclude 'view'
             break;
           case 'p':
             event.preventDefault();
-            if (userRole === 'admin') handlePrint();
+            if (userRole !== 'view') handlePrint(); // Changed from 'admin' check to exclude 'view'
             break;
           case 'h':
             event.preventDefault();
@@ -91,7 +92,7 @@ export default function Toolbar() {
             break;
           case 'w':
             event.preventDefault();
-            if (userRole === 'admin' && activeFileId) {
+            if (userRole !== 'view' && activeFileId) { // Changed from 'admin' check to exclude 'view'
               handleCloseFile(activeFileId);
             }
             break;
@@ -124,10 +125,7 @@ export default function Toolbar() {
     };
 
     document.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-    };
+    return () => document.removeEventListener('keydown', handleKeyDown);
   }, [
     showViewTools,
     location.pathname,
@@ -168,14 +166,17 @@ export default function Toolbar() {
           setLastActiveFileId(currentFile.id);
           window.dispatchEvent(new CustomEvent('fileSelected', { detail: currentFile }));
         }
-        const [teachersData, programsData] = await Promise.all([
+        const [teachersData, programsData, roomsData] = await Promise.all([
           window.api.getTeachers(),
           window.api.getPrograms(),
+          window.api.getRooms(), // Fetch rooms
         ]);
         setTeachers(teachersData || []);
         setPrograms(programsData || []);
+        setRooms(roomsData || []); // Set rooms state
       } catch (error) {
-        console.error("Error fetching current files:", error);
+        console.error("Error fetching data:", error);
+        alert("Error fetching data: " + error.message);
       }
     };
     fetchCurrentFiles();
@@ -328,7 +329,7 @@ export default function Toolbar() {
     if (isExporting) return;
     const defaultFileId = activeFileId || (openFiles.length > 0 ? openFiles[0].id : "");
     const defaultType = "program";
-    const defaultId = programs.length > 0 ? programs[0].id.toString() : "all";
+    const defaultId = programs.length > 0 ? programs[0].id.toString() : rooms.length > 0 ? rooms[0].id.toString() : "all";
     setExportData({
       fileId: defaultFileId.toString(),
       type: defaultType,
@@ -342,7 +343,7 @@ export default function Toolbar() {
     if (isPrinting) return;
     const defaultFileId = activeFileId || (openFiles.length > 0 ? openFiles[0].id : "");
     const defaultType = "program";
-    const defaultId = programs.length > 0 ? programs[0].id.toString() : "all";
+    const defaultId = programs.length > 0 ? programs[0].id.toString() : rooms.length > 0 ? rooms[0].id.toString() : "all";
     setExportData({
       fileId: defaultFileId.toString(),
       type: defaultType,
@@ -521,7 +522,20 @@ export default function Toolbar() {
   };
 
   const handleExportChange = (field, value) => {
-    setExportData((prev) => ({ ...prev, [field]: value }));
+    setExportData((prev) => {
+      const newData = { ...prev, [field]: value };
+      // Reset id when type changes to ensure valid selection
+      if (field === "type") {
+        newData.id = value === "program" && programs.length > 0
+          ? programs[0].id.toString()
+          : value === "teacher" && teachers.length > 0
+            ? teachers[0].id.toString()
+            : value === "room" && rooms.length > 0
+              ? rooms[0].id.toString()
+              : "all";
+      }
+      return newData;
+    });
   };
 
   const handleZoomIn = () => {
@@ -588,44 +602,6 @@ export default function Toolbar() {
     window.dispatchEvent(new CustomEvent('viewFullScreen'));
   };
 
-  const buttons = [
-    { 
-      name: "New", 
-      icon: <FiPlus />, 
-      onClick: handleNew, 
-      shortcut: "Ctrl+N",
-      disabled: userRole === 'user' || false
-    },
-    // { 
-    //   name: "Save", 
-    //   icon: <FiSave />, 
-    //   onClick: handleSave, 
-    //   disabled: userRole === 'user' || !activeFileId, 
-    //   shortcut: "Ctrl+S"
-    // },
-    // { 
-    //   name: "Save As", 
-    //   icon: <FiSave />, 
-    //   onClick: handleSaveAs, 
-    //   disabled: userRole === 'user' || !activeFileId, 
-    //   shortcut: "Ctrl+Shift+S"
-    // },
-    { 
-      name: "Export", 
-      icon: isExporting ? <FaSpinner className="animate-spin text-base" /> : <FiDownload />, 
-      onClick: handleExport, 
-      disabled: userRole === 'user' || !activeFileId || isExporting, 
-      shortcut: "Ctrl+E"
-    },
-    { 
-      name: "Print", 
-      icon: isPrinting ? <FaSpinner className="animate-spin text-base" /> : <FiPrinter />, 
-      onClick: handlePrint, 
-      disabled: userRole === 'user' || !activeFileId || isPrinting, 
-      shortcut: "Ctrl+P"
-    },
-  ];
-
   const handlePreview = async () => {
     if (isGeneratingPreview) return;
 
@@ -646,6 +622,7 @@ export default function Toolbar() {
       if (result.success) {
         setPreviewHtml(result.html);
         setShowPreviewModal(true);
+        setShowExportModal(false);
       } else {
         alert(result.message || "Failed to generate preview");
       }
@@ -656,9 +633,33 @@ export default function Toolbar() {
     }
   };
 
+  const buttons = [
+    {
+      name: "New",
+      icon: <FiPlus />,
+      onClick: handleNew,
+      shortcut: "Ctrl+N",
+      disabled: userRole === 'view' // Changed from 'user' to 'view'
+    },
+    {
+      name: "Export",
+      icon: isExporting ? <FaSpinner className="animate-spin text-base" /> : <FiDownload />,
+      onClick: handleExport,
+      disabled: userRole === 'view' || !activeFileId || isExporting, // Changed from 'user' to 'view'
+      shortcut: "Ctrl+E"
+    },
+    {
+      name: "Print",
+      icon: isPrinting ? <FaSpinner className="animate-spin text-base" /> : <FiPrinter />,
+      onClick: handlePrint,
+      disabled: userRole === 'view' || !activeFileId || isPrinting, // Changed from 'user' to 'view'
+      shortcut: "Ctrl+P"
+    },
+  ];
+
   return (
     <>
-      <div className="bg-[#1e2947] border-b border-gray-600 shadow-sm">
+      <div className="bg-[#0f162b] border-b border-gray-600 shadow-sm">
         <div className="px-1 py-1">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
@@ -681,7 +682,7 @@ export default function Toolbar() {
                       <span className="text-lg">{btn.icon}</span>
                       <span className="hidden lg:inline font-medium">{btn.name}</span>
                     </button>
-                    
+
                     {/* Tooltip */}
                     <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity poInter-events-none whitespace-nowrap lg:hidden">
                       {btn.name}
@@ -705,7 +706,7 @@ export default function Toolbar() {
                 <span className="text-lg"><FiHelpCircle /></span>
                 <span className="hidden lg:inline font-medium">Help</span>
               </button>
-              
+
               {/* Tooltip */}
               <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity poInter-events-none whitespace-nowrap lg:hidden">
                 Help
@@ -743,8 +744,8 @@ export default function Toolbar() {
                   className={`
                     flex items-center gap-2 px-2 py-1 rounded-md font-medium text-sm
                     transition-all duration-200 ease-out active:scale-95
-                    ${fullScheduleActive 
-                      ? 'bg-teal-600 text-white border border-teal-500 shadow-sm hover:bg-teal-500' 
+                    ${fullScheduleActive
+                      ? 'bg-teal-600 text-white border border-teal-500 shadow-sm hover:bg-teal-500'
                       : 'bg-gray-600 text-gray-200 hover:text-white hover:bg-gray-500 border border-gray-500'
                     }
                   `}
@@ -802,7 +803,7 @@ export default function Toolbar() {
                     group flex items-center gap-2 px-4 py-1 rounded-t-xl text-sm cursor-poInter
                     transition-all duration-200 ease-out border-b-2 relative min-w-0 flex-shrink-0
                     ${file.id === activeFileId
-                      ? 'bg-gray-600 text-gray-100 border-teal-500 shadow-sm transform translate-y-px' 
+                      ? 'bg-gray-600 text-gray-100 border-teal-500 shadow-sm transform translate-y-px'
                       : 'text-gray-300 hover:text-gray-100 hover:bg-gray-650 border-transparent hover:border-gray-500'
                     }
                   `}
@@ -823,11 +824,11 @@ export default function Toolbar() {
                     )}
                     <button
                       onClick={(e) => handleCloseFile(file.id, e)}
-                      disabled={userRole === 'user'}
+                      disabled={userRole === 'view'}
                       className={`
                         w-6 h-6 flex items-center justify-center rounded-md 
                         transition-all duration-200 flex-shrink-0
-                        ${userRole === 'user' 
+                        ${userRole === 'view'
                           ? 'opacity-0 cursor-not-allowed'
                           : 'opacity-0 group-hover:opacity-100 hover:border border-red-500 hover:text-white'
                         }
@@ -983,11 +984,11 @@ export default function Toolbar() {
               <button
                 type="button"
                 onClick={handlePreview}
-                disabled={userRole === 'user' || isGeneratingPreview || isExporting || !exportData.fileId || !exportData.type || !exportData.id}
-                className={`flex items-center px-4 py-2 rounded-md transition-colors ${userRole === 'user' || isGeneratingPreview || isExporting || !exportData.fileId || !exportData.type || !exportData.id
+                disabled={userRole === 'view' || isGeneratingPreview || isExporting || !exportData.fileId || !exportData.type || !exportData.id}
+                className={`flex items-center px-4 py-2 rounded-md transition-colors ${userRole === 'view' || isGeneratingPreview || isExporting || !exportData.fileId || !exportData.type || !exportData.id
                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                   : 'bg-teal-700 text-white hover:bg-teal-900'
-                }`}
+                  }`}
               >
                 {isGeneratingPreview ? (
                   <>
@@ -1001,11 +1002,11 @@ export default function Toolbar() {
               <button
                 type="button"
                 onClick={submitExport}
-                disabled={userRole === 'user' || isExporting || isGeneratingPreview}
-                className={`flex items-center px-4 py-2 rounded-md transition-colors ${userRole === 'user' || isExporting || isGeneratingPreview
+                disabled={userRole === 'view' || isExporting || isGeneratingPreview}
+                className={`flex items-center px-4 py-2 rounded-md transition-colors ${userRole === 'view' || isExporting || isGeneratingPreview
                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                   : 'bg-teal-600 text-white hover:bg-teal-700'
-                }`}
+                  }`}
               >
                 {isExporting ? (
                   <>
@@ -1025,7 +1026,7 @@ export default function Toolbar() {
               value={exportData.fileId || ""}
               onChange={(e) => handleExportChange("fileId", e.target.value)}
               className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-              disabled={userRole === 'user' || isExporting || isGeneratingPreview}
+              disabled={userRole === 'view' || isExporting || isGeneratingPreview}
             >
               <option value="">Select Schedule File</option>
               {openFiles.map((file) => (
@@ -1041,31 +1042,32 @@ export default function Toolbar() {
               value={exportData.type}
               onChange={(e) => handleExportChange("type", e.target.value)}
               className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-              disabled={userRole === 'user' || isExporting || isGeneratingPreview}
+              disabled={userRole === 'view' || isExporting || isGeneratingPreview}
             >
               <option value="program">Program</option>
               <option value="teacher">Teacher</option>
+              <option value="room">Room</option>
             </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              {exportData.type === "program" ? "Program" : "Teacher"}
+              {exportData.type === "program" ? "Program" : exportData.type === "teacher" ? "Teacher" : "Room"}
             </label>
             <select
               value={exportData.id}
               onChange={(e) => handleExportChange("id", e.target.value)}
               className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-              disabled={userRole === 'user' || isExporting || isGeneratingPreview}
+              disabled={userRole === 'view' || isExporting || isGeneratingPreview}
             >
               <option value="">
-                Select {exportData.type === "program" ? "Program" : "Teacher"}
+                Select {exportData.type === "program" ? "Program" : exportData.type === "teacher" ? "Teacher" : "Room"}
               </option>
-              {exportData.type === "program" && <option value="all">All Programs</option>}
-              {(exportData.type === "program" ? programs : teachers).map((item) => (
+              {(exportData.type === "program" ? programs : exportData.type === "teacher" ? teachers : rooms).map((item) => (
                 <option key={item.id} value={item.id}>
-                  {exportData.type === "program" ? item.name : item.fullName}
+                  {exportData.type === "program" ? item.name : exportData.type === "teacher" ? item.fullName : item.name}
                 </option>
               ))}
+              {["program", "room"].includes(exportData.type) && <option value="all">All {exportData.type === "program" ? "Programs" : "Rooms"}</option>}
             </select>
           </div>
           <div>
@@ -1074,7 +1076,7 @@ export default function Toolbar() {
               value={exportData.format}
               onChange={(e) => handleExportChange("format", e.target.value)}
               className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-              disabled={userRole === 'user' || isExporting || isGeneratingPreview}
+              disabled={userRole === 'view' || isExporting || isGeneratingPreview}
             >
               <option value="pdf">PDF</option>
             </select>
@@ -1092,7 +1094,7 @@ export default function Toolbar() {
           }}
           onSave={submitPrint}
           saveText={isPrinting ? "Printing..." : "Print"}
-          saveDisabled={userRole === 'user' || isPrinting}
+          saveDisabled={userRole === 'view' || isPrinting}
         >
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Select File</label>
@@ -1100,7 +1102,7 @@ export default function Toolbar() {
               value={exportData.fileId || ""}
               onChange={(e) => handleExportChange("fileId", e.target.value)}
               className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              disabled={userRole === 'user' || isPrinting}
+              disabled={userRole === 'view' || isPrinting}
             >
               <option value="">Select Schedule File</option>
               {openFiles.map((file) => (
@@ -1116,31 +1118,32 @@ export default function Toolbar() {
               value={exportData.type}
               onChange={(e) => handleExportChange("type", e.target.value)}
               className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              disabled={userRole === 'user' || isPrinting}
+              disabled={userRole === 'view' || isPrinting}
             >
               <option value="program">Program</option>
               <option value="teacher">Teacher</option>
+              <option value="room">Room</option>
             </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              {exportData.type === "program" ? "Program" : "Teacher"}
+              {exportData.type === "program" ? "Program" : exportData.type === "teacher" ? "Teacher" : "Room"}
             </label>
             <select
               value={exportData.id}
               onChange={(e) => handleExportChange("id", e.target.value)}
               className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              disabled={userRole === 'user' || isPrinting}
+              disabled={userRole === 'view' || isPrinting}
             >
               <option value="">
-                Select {exportData.type === "program" ? "Program" : "Teacher"}
+                Select {exportData.type === "program" ? "Program" : exportData.type === "teacher" ? "Teacher" : "Room"}
               </option>
-              {exportData.type === "program" && <option value="all">All Programs</option>}
-              {(exportData.type === "program" ? programs : teachers).map((item) => (
+              {(exportData.type === "program" ? programs : exportData.type === "teacher" ? teachers : rooms).map((item) => (
                 <option key={item.id} value={item.id}>
-                  {exportData.type === "program" ? item.name : item.fullName}
+                  {exportData.type === "program" ? item.name : exportData.type === "teacher" ? item.fullName : item.name}
                 </option>
               ))}
+              {["program", "room"].includes(exportData.type) && <option value="all">All {exportData.type === "program" ? "Programs" : "Rooms"}</option>}
             </select>
           </div>
         </Modal>
@@ -1148,17 +1151,17 @@ export default function Toolbar() {
 
       {showPreviewModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]">
-          <div className="bg-white rounded-lg shadow-lg w-11/12 h-5/6 max-w-6xl flex flex-col">
+          <div className="bg-white rounded-lg shadow-lg w-11/12 h-5/6 max-w-6xl flex rollen flex-col">
             <div className="flex items-center justify-between p-4 border-b">
               <h2 className="text-lg font-semibold text-gray-900">Export Preview</h2>
               <div className="flex space-x-2">
                 <button
                   onClick={submitExport}
-                  disabled={userRole === 'user' || isExporting}
-                  className={`flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 ${userRole === 'user' || isExporting
+                  disabled={userRole === 'view' || isExporting}
+                  className={`flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 ${userRole === 'view' || isExporting
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                     : 'bg-teal-600 text-white hover:bg-teal-700'
-                  }`}
+                    }`}
                 >
                   {isExporting ? (
                     <>

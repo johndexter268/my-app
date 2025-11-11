@@ -14,8 +14,8 @@ export default function Help() {
       description: "These commands let you quickly perform essential file operations:",
       items: [
         { key: "Ctrl+N", action: "Create a New file", icon: <FiPlus /> },
-        { key: "Ctrl+S", action: "Save the current file", icon: <FiSave /> },
-        { key: "Ctrl+Shift+S", action: "Save As a new file name or location", icon: <FiSave /> },
+        // { key: "Ctrl+S", action: "Save the current file", icon: <FiSave /> },
+        // { key: "Ctrl+Shift+S", action: "Save As a new file name or location", icon: <FiSave /> },
         { key: "Ctrl+E", action: "Export the current file", icon: <FiFileText /> },
         { key: "Ctrl+P", action: "Print the current document", icon: <FiPrinter /> },
         { key: "Ctrl+H", action: "Open the Help page", icon: <FiInfo /> },
