@@ -496,9 +496,9 @@ export default function ManageData() {
   }
 
   return (
-    <div className="p-4 h-[calc(100vh-80px)] overflow-hidden bg-[#f8f8f8]">
+    <div className="p-4 h-[calc(100vh-20px)] overflow-hidden bg-[#f8f8f8]">
       <div className="-mx-4 -mt-4 px-4 py-3 bg-white shadow-sm">
-        <div className="flex items-center border-l-4 pl-4" style={{ borderColor: "#09153e" }}>
+        <div className="flex items-center border-l-4 pl-4" style={{ borderColor: "#c682fc" }}>
           <h1 className="text-xl font-semibold text-gray-800">Data Management</h1>
         </div>
       </div>
@@ -530,7 +530,7 @@ export default function ManageData() {
         <FiPlus /> Add New
       </button>
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-6 h-[calc(100vh-18rem)]">
-        <div className="bg-white rounded-lg p-6 flex flex-col overflow-y-auto [scrollbar-width:thin] [scrollbar-color:#cfcfcf_transparent] h-[calc(100vh-18rem)]">
+        <div className="bg-white rounded-lg p-6 flex flex-col overflow-y-auto [scrollbar-width:thin] [scrollbar-color:#cfcfcf_transparent] h-[calc(100vh-12rem)]">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold">{activeTab} List</h2>
             <div className="flex items-center gap-4">
@@ -762,7 +762,7 @@ export default function ManageData() {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg p-3 flex flex-col h-[calc(100vh-18rem)]">
+        <div className="bg-white rounded-lg p-3 flex flex-col h-[calc(100vh-12rem)]">
           {selectedItem ? (
             <>
               <div className="flex justify-between items-center mb-4 bg-[#4c4c4c] text-white text-sm px-4 py-2 rounded-md">

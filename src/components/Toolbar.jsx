@@ -1,12 +1,21 @@
-import { FiPlus, FiSave, FiEdit, FiDownload, FiX, FiPrinter, FiHelpCircle, FiZoomIn, FiZoomOut, FiCalendar } from "react-icons/fi";
+/* eslint-disable no-unused-vars */
+import { FiPlus, FiLayers, FiSave, FiEdit, FiDownload, FiX, FiPrinter, FiHelpCircle, FiZoomIn, FiZoomOut, FiCalendar, FiSearch, FiArchive } from "react-icons/fi";
+import { TbLayoutSidebarRightFilled } from "react-icons/tb";
 import { MdOutlineAssignmentTurnedIn } from "react-icons/md";
 import { GrExpand } from "react-icons/gr";
-import { useState, useEffect } from "react";
+import { RiExportFill } from "react-icons/ri";
+import { useState, useEffect, useRef } from "react";
+import { MdPrint } from "react-icons/md";
 import { useNavigate, useLocation } from "react-router-dom";
 import Modal from "./Modal";
 import { FaSpinner } from "react-icons/fa";
 
-export default function Toolbar() {
+export default function Toolbar({
+  searchTerm,
+  setSearchTerm,
+  showArchived,
+  setShowArchived
+}) {
   const [showNewModal, setShowNewModal] = useState(false);
   const [showSaveAsModal, setShowSaveAsModal] = useState(false);
   const [showCloseConfirmModal, setShowCloseConfirmModal] = useState(false);
@@ -16,7 +25,7 @@ export default function Toolbar() {
   const [fileToCloseId, setFileToCloseId] = useState(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
-  const MAX_OPEN_FILES = 5;
+  const MAX_OPEN_FILES = 10;
   const [formData, setFormData] = useState({
     name: "",
     academic_year: "",
@@ -35,13 +44,20 @@ export default function Toolbar() {
   const [loadingFiles, setLoadingFiles] = useState(new Set());
   const [teachers, setTeachers] = useState([]);
   const [programs, setPrograms] = useState([]);
-  const [rooms, setRooms] = useState([]); // New state for rooms
+  const [rooms, setRooms] = useState([]);
   const navigate = useNavigate();
   const location = useLocation();
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [previewHtml, setPreviewHtml] = useState("");
   const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
   const userRole = localStorage.getItem('userRole') || 'user';
+  const isFilePage = location.pathname === '/file';
+
+  // Refs for focusing inputs
+  const newModalInputRef = useRef(null);
+  const saveAsModalInputRef = useRef(null);
+  const exportModalSelectRef = useRef(null);
+  const printModalSelectRef = useRef(null);
 
   // Keyboard shortcuts effect
   useEffect(() => {
@@ -50,9 +66,7 @@ export default function Toolbar() {
       const isModifier = ctrlKey || metaKey;
 
       if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA' || event.target.tagName === 'SELECT') {
-        if (key === 'Escape') {
-          closeAllModals();
-        }
+        if (key === 'Escape') closeAllModals();
         return;
       }
 
@@ -66,25 +80,22 @@ export default function Toolbar() {
         switch (key.toLowerCase()) {
           case 'n':
             event.preventDefault();
-            if (userRole !== 'view') handleNew(); // Changed from 'admin' check to exclude 'view'
+            if (userRole !== 'view' && location.pathname === '/file') handleNew();
             break;
           case 's':
             event.preventDefault();
-            if (userRole !== 'view') { // Changed from 'admin' check to exclude 'view'
-              if (shiftKey) {
-                handleSaveAs();
-              } else {
-                handleSave();
-              }
+            if (userRole !== 'view') {
+              if (shiftKey) handleSaveAs();
+              else handleSave();
             }
             break;
           case 'e':
             event.preventDefault();
-            if (userRole !== 'view') handleExport(); // Changed from 'admin' check to exclude 'view'
+            if (userRole !== 'view' && location.pathname === '/home') handleExport();
             break;
           case 'p':
             event.preventDefault();
-            if (userRole !== 'view') handlePrint(); // Changed from 'admin' check to exclude 'view'
+            if (userRole !== 'view' && location.pathname === '/home') handlePrint();
             break;
           case 'h':
             event.preventDefault();
@@ -92,9 +103,7 @@ export default function Toolbar() {
             break;
           case 'w':
             event.preventDefault();
-            if (userRole !== 'view' && activeFileId) { // Changed from 'admin' check to exclude 'view'
-              handleCloseFile(activeFileId);
-            }
+            if (userRole !== 'view' && activeFileId && location.pathname === '/home') handleCloseFile(activeFileId);
             break;
           case '=':
           case '+':
@@ -113,6 +122,12 @@ export default function Toolbar() {
             if (showViewTools && location.pathname === '/home') {
               event.preventDefault();
               handleFullScreen();
+            } else if (location.pathname === '/file' && !showArchived) {
+              event.preventDefault();
+              setShowArchived(true);
+            } else if (location.pathname === '/file' && showArchived) {
+              event.preventDefault();
+              setShowArchived(false);
             }
             break;
         }
@@ -136,7 +151,8 @@ export default function Toolbar() {
     showCloseConfirmModal,
     showExportModal,
     showPrintModal,
-    userRole
+    userRole,
+    showArchived
   ]);
 
   const closeAllModals = () => {
@@ -169,26 +185,25 @@ export default function Toolbar() {
         const [teachersData, programsData, roomsData] = await Promise.all([
           window.api.getTeachers(),
           window.api.getPrograms(),
-          window.api.getRooms(), // Fetch rooms
+          window.api.getRooms(),
         ]);
         setTeachers(teachersData || []);
         setPrograms(programsData || []);
-        setRooms(roomsData || []); // Set rooms state
+        setRooms(roomsData || []);
       } catch (error) {
         console.error("Error fetching data:", error);
         alert("Error fetching data: " + error.message);
       }
     };
+
     fetchCurrentFiles();
 
     const handleFileSelected = async (event) => {
       const file = event.detail;
-
       if (openFiles.length >= MAX_OPEN_FILES && !openFiles.some(f => f.id === file.id)) {
         alert(`You can only open up to ${MAX_OPEN_FILES} schedule files at a time. Please close one before opening another.`);
         return;
       }
-
       setLoadingFiles((prev) => new Set([...prev, file.id]));
       try {
         await window.api.setCurrentFile(file);
@@ -287,7 +302,6 @@ export default function Toolbar() {
       if (!currentFile.name) missingFields.push("Name");
       if (!currentFile.academic_year) missingFields.push("Academic Year");
       if (!currentFile.semester) missingFields.push("Semester");
-
       if (missingFields.length > 0) {
         alert(`Please fill in all required fields: ${missingFields.join(", ")}`);
         return;
@@ -353,11 +367,9 @@ export default function Toolbar() {
   };
 
   const handleCloseFile = (fileId, event) => {
-    if (event) {
-      event.stopPropagation();
-    }
+    if (event) event.stopPropagation();
     const fileToClose = openFiles.find((f) => f.id === fileId);
-    if (fileToClose.hasUnsavedChanges) {
+    if (fileToClose?.hasUnsavedChanges) {
       setFileToCloseId(fileId);
       setShowCloseConfirmModal(true);
     } else {
@@ -376,9 +388,7 @@ export default function Toolbar() {
         window.activeFileId = newActiveFile?.id || null;
         setLastActiveFileId(newActiveFile?.id || null);
         if (newActiveFile) {
-          window.dispatchEvent(
-            new CustomEvent('fileSelected', { detail: newActiveFile })
-          );
+          window.dispatchEvent(new CustomEvent('fileSelected', { detail: newActiveFile }));
         } else {
           navigate("/file");
         }
@@ -524,7 +534,6 @@ export default function Toolbar() {
   const handleExportChange = (field, value) => {
     setExportData((prev) => {
       const newData = { ...prev, [field]: value };
-      // Reset id when type changes to ensure valid selection
       if (field === "type") {
         newData.id = value === "program" && programs.length > 0
           ? programs[0].id.toString()
@@ -602,15 +611,27 @@ export default function Toolbar() {
     window.dispatchEvent(new CustomEvent('viewFullScreen'));
   };
 
+  const handleMergeClass = () => {
+    // Placeholder: Dispatch a custom event to trigger merging class schedules
+    window.dispatchEvent(new CustomEvent('mergeClass', { detail: { fileId: activeFileId } }));
+    // TODO: Implement actual merge logic, e.g., open a modal to select classes to merge
+    console.log('Merge Class triggered for file:', activeFileId);
+  };
+
+  const toggleAssignmentList = () => {
+    // Placeholder: Dispatch a custom event to toggle the assignment list sidebar
+    window.dispatchEvent(new CustomEvent('toggleAssignmentList'));
+    // TODO: Implement actual toggle logic, e.g., update state to show/hide sidebar
+    console.log('Toggling Assignment List');
+  };
+
   const handlePreview = async () => {
     if (isGeneratingPreview) return;
-
     const fileIdToUse = exportData.fileId;
     if (!fileIdToUse || !exportData.type || !exportData.id) {
       alert("Please select all required fields for preview.");
       return;
     }
-
     setIsGeneratingPreview(true);
     try {
       const result = await window.api.generatePreview({
@@ -618,7 +639,6 @@ export default function Toolbar() {
         type: exportData.type,
         id: exportData.id === "all" ? "all" : parseInt(exportData.id),
       });
-
       if (result.success) {
         setPreviewHtml(result.html);
         setShowPreviewModal(true);
@@ -633,228 +653,580 @@ export default function Toolbar() {
     }
   };
 
+  // eslint-disable-next-line no-unused-vars
   const buttons = [
     {
       name: "New",
       icon: <FiPlus />,
       onClick: handleNew,
       shortcut: "Ctrl+N",
-      disabled: userRole === 'view' // Changed from 'user' to 'view'
+      disabled: userRole === 'view'
     },
     {
       name: "Export",
       icon: isExporting ? <FaSpinner className="animate-spin text-base" /> : <FiDownload />,
       onClick: handleExport,
-      disabled: userRole === 'view' || !activeFileId || isExporting, // Changed from 'user' to 'view'
+      disabled: userRole === 'view' || !activeFileId || isExporting,
       shortcut: "Ctrl+E"
     },
     {
       name: "Print",
       icon: isPrinting ? <FaSpinner className="animate-spin text-base" /> : <FiPrinter />,
       onClick: handlePrint,
-      disabled: userRole === 'view' || !activeFileId || isPrinting, // Changed from 'user' to 'view'
+      disabled: userRole === 'view' || !activeFileId || isPrinting,
       shortcut: "Ctrl+P"
     },
   ];
 
-  return (
-    <>
-      <div className="bg-[#0f162b] border-b border-gray-600 shadow-sm">
-        <div className="px-1 py-1">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <div className="flex items-center gap-1 mr-6">
-                {buttons.map((btn, idx) => (
-                  <div key={idx} className="relative group">
-                    <button
-                      onClick={btn.onClick}
-                      disabled={btn.disabled}
-                      className={`
-                        relative flex items-center gap-2.5 px-2.5 py-1 rounded-md font-medium text-sm
-                        transition-all duration-200 ease-out
-                        ${btn.disabled
-                          ? 'text-gray-500 bg-gray-700 cursor-not-allowed border border-gray-600'
-                          : 'text-gray-200 hover:text-white hover:bg-gray-700 hover:shadow-sm active:scale-95 border border-gray-600 hover:border-gray-500'
-                        }
-                      `}
-                      title={`${btn.name} (${btn.shortcut})`}
-                    >
-                      <span className="text-lg">{btn.icon}</span>
-                      <span className="hidden lg:inline font-medium">{btn.name}</span>
-                    </button>
+  // Focus management effect
+  useEffect(() => {
+    if (showNewModal && newModalInputRef.current) {
+      newModalInputRef.current.focus();
+    } else if (showSaveAsModal && saveAsModalInputRef.current) {
+      saveAsModalInputRef.current.focus();
+    } else if (showExportModal && exportModalSelectRef.current) {
+      exportModalSelectRef.current.focus();
+    } else if (showPrintModal && printModalSelectRef.current) {
+      printModalSelectRef.current.focus();
+    }
+  }, [showNewModal, showSaveAsModal, showExportModal, showPrintModal]);
 
-                    {/* Tooltip */}
-                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity poInter-events-none whitespace-nowrap lg:hidden">
-                      {btn.name}
-                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
-                    </div>
-                  </div>
-                ))}
+  // Render File page toolbar
+  if (isFilePage) {
+    return (
+      <>
+        <div className="bg-white ">
+          <div className="px-4 py-3 shadow-lg rounded-xl">
+            <div className="flex items-center justify-between">
+              {/* Left side - Title */}
+              <div className="flex items-center border-l-4 pl-4" style={{ borderColor: "#c682fc" }}>
+                <h1 className="text-xl font-semibold text-gray-800">File Dashboard</h1>
+              </div>
+              {/* Right side - Search and Archive */}
+              <div className="flex items-center space-x-3">
+                {/* Search Input */}
+                <div className="relative">
+                  <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search Schedule"
+                    value={searchTerm || ''}
+                    onChange={(e) => setSearchTerm?.(e.target.value)}
+                    className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent w-64"
+                  />
+                </div>
+                {/* Archive Toggle */}
+                <button
+                  onClick={() => setShowArchived?.(!showArchived)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${showArchived
+                    ? 'bg-gray-200 text-gray-900'
+                    : 'bg-white text-gray-700 hover:bg-gray-50'
+                    }`}
+                >
+                  <FiArchive className="w-4 h-4" />
+                  <span>Archive</span>
+                </button>
               </div>
             </div>
-
-            {/* Help button */}
-            <div className="relative group">
-              <button
-                onClick={() => {
-                  navigate("/help");
-                  window.location.reload();
-                }}
-                className="flex items-center gap-2.5 px-2.5 py-1 rounded-md text-sm font-medium text-gray-200 hover:text-white hover:bg-gray-700 hover:shadow-sm transition-all duration-200 ease-out active:scale-95 border border-gray-600 hover:border-gray-500"
-                title="Help (Ctrl+H)"
+            {/* Action Buttons - Centered on New Line */}
+            {userRole !== 'view' && (
+              <div className="flex items-center justify-center space-x-3 mt-3 pt-3">
+                <button
+                  onClick={handleNew}
+                  className="flex items-center gap-2 px-4 py-1 bg-[#336785] text-white rounded-lg hover:bg-teal-700 transition-colors text-sm font-medium"
+                >
+                  <FiPlus className="w-4 h-4" />
+                  <span>New</span>
+                </button>
+                <button
+                  onClick={handleExport}
+                  disabled={isExporting}
+                  className="flex items-center gap-2 px-4 py-1 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isExporting ? (
+                    <FaSpinner className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <RiExportFill className="w-4 h-4" />
+                  )}
+                  <span>Export</span>
+                </button>
+                <button
+                  onClick={handlePrint}
+                  disabled={isPrinting}
+                  className="flex items-center gap-2 px-4 py-1 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isPrinting ? (
+                    <FaSpinner className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <MdPrint className="w-4 h-4" />
+                  )}
+                  <span>Print</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+        {/* Modals for File Page */}
+        {showNewModal && (
+          <Modal
+            title="Create New Schedule File"
+            onClose={() => {
+              setShowNewModal(false);
+              setFormData({ name: "", academic_year: "", semester: "" });
+            }}
+            onSave={submitNewFile}
+          >
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+              <input
+                ref={newModalInputRef} // Added ref for focus
+                type="text"
+                value={formData.name}
+                onChange={(e) => handleFormChange("name", e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Enter schedule name"
+                autoFocus
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Academic Year</label>
+              <input
+                type="text"
+                value={formData.academic_year}
+                onChange={(e) => handleFormChange("academic_year", e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="e.g., 2024-2025"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Semester</label>
+              <select
+                value={formData.semester}
+                onChange={(e) => handleFormChange("semester", e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
-                <span className="text-lg"><FiHelpCircle /></span>
-                <span className="hidden lg:inline font-medium">Help</span>
-              </button>
-
-              {/* Tooltip */}
-              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity poInter-events-none whitespace-nowrap lg:hidden">
-                Help
-                <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                <option value="">Select Semester</option>
+                <option value="1st Semester">1st Semester</option>
+                <option value="2nd Semester">2nd Semester</option>
+              </select>
+            </div>
+          </Modal>
+        )}
+        {showExportModal && (
+          <Modal
+            title="Export Schedule"
+            onClose={() => {
+              setShowExportModal(false);
+              setExportData({ fileId: "", type: "program", id: "", format: "pdf" });
+              setIsExporting(false);
+              setIsGeneratingPreview(false);
+            }}
+            customButtons={
+              <div className="flex space-x-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowExportModal(false);
+                    setExportData({ fileId: "", type: "program", id: "", format: "pdf" });
+                    setIsExporting(false);
+                    setIsGeneratingPreview(false);
+                  }}
+                  className="px-4 py-2 text-gray-600 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePreview}
+                  disabled={userRole === 'view' || isGeneratingPreview || isExporting || !exportData.fileId || !exportData.type || !exportData.id}
+                  className={`flex items-center px-4 py-2 rounded-md transition-colors ${userRole === 'view' || isGeneratingPreview || isExporting || !exportData.fileId || !exportData.type || !exportData.id
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-teal-700 text-white hover:bg-teal-900'
+                    }`}
+                >
+                  {isGeneratingPreview ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Generating...
+                    </>
+                  ) : (
+                    'Preview'
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={submitExport}
+                  disabled={userRole === 'view' || isExporting || isGeneratingPreview}
+                  className={`flex items-center px-4 py-2 rounded-md transition-colors ${userRole === 'view' || isExporting || isGeneratingPreview
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-teal-600 text-white hover:bg-teal-700'
+                    }`}
+                >
+                  {isExporting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Exporting...
+                    </>
+                  ) : (
+                    'Export'
+                  )}
+                </button>
+              </div>
+            }
+          >
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Select File</label>
+              <select
+                ref={exportModalSelectRef} // Added ref for focus
+                value={exportData.fileId || ""}
+                onChange={(e) => handleExportChange("fileId", e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                disabled={userRole === 'view' || isExporting || isGeneratingPreview}
+              >
+                <option value="">Select Schedule File</option>
+                {openFiles.map((file) => (
+                  <option key={file.id} value={file.id}>
+                    {file.name} ({file.semester} {file.academic_year})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Export Type</label>
+              <select
+                value={exportData.type}
+                onChange={(e) => handleExportChange("type", e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                disabled={userRole === 'view' || isExporting || isGeneratingPreview}
+              >
+                <option value="program">Program</option>
+                <option value="teacher">Teacher</option>
+                <option value="room">Room</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {exportData.type === "program" ? "Program" : exportData.type === "teacher" ? "Teacher" : "Room"}
+              </label>
+              <select
+                value={exportData.id}
+                onChange={(e) => handleExportChange("id", e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                disabled={userRole === 'view' || isExporting || isGeneratingPreview}
+              >
+                <option value="">
+                  Select {exportData.type === "program" ? "Program" : exportData.type === "teacher" ? "Teacher" : "Room"}
+                </option>
+                {(exportData.type === "program" ? programs : exportData.type === "teacher" ? teachers : rooms).map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {exportData.type === "program" ? item.name : exportData.type === "teacher" ? item.fullName : item.name}
+                  </option>
+                ))}
+                {["program", "room"].includes(exportData.type) && <option value="all">All {exportData.type === "program" ? "Programs" : "Rooms"}</option>}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Format</label>
+              <select
+                value={exportData.format}
+                onChange={(e) => handleExportChange("format", e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                disabled={userRole === 'view' || isExporting || isGeneratingPreview}
+              >
+                <option value="pdf">PDF</option>
+              </select>
+            </div>
+          </Modal>
+        )}
+        {showPrintModal && (
+          <Modal
+            title="Print Schedule"
+            onClose={() => {
+              setShowPrintModal(false);
+              setExportData({ fileId: "", type: "program", id: "", format: "pdf" });
+              setIsPrinting(false);
+            }}
+            onSave={submitPrint}
+            saveText={isPrinting ? "Printing..." : "Print"}
+            saveDisabled={userRole === 'view' || isPrinting}
+          >
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Select File</label>
+              <select
+                ref={printModalSelectRef} // Added ref for focus
+                value={exportData.fileId || ""}
+                onChange={(e) => handleExportChange("fileId", e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={userRole === 'view' || isPrinting}
+              >
+                <option value="">Select Schedule File</option>
+                {openFiles.map((file) => (
+                  <option key={file.id} value={file.id}>
+                    {file.name} ({file.semester} {file.academic_year})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Print Type</label>
+              <select
+                value={exportData.type}
+                onChange={(e) => handleExportChange("type", e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={userRole === 'view' || isPrinting}
+              >
+                <option value="program">Program</option>
+                <option value="teacher">Teacher</option>
+                <option value="room">Room</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {exportData.type === "program" ? "Program" : exportData.type === "teacher" ? "Teacher" : "Room"}
+              </label>
+              <select
+                value={exportData.id}
+                onChange={(e) => handleExportChange("id", e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={userRole === 'view' || isPrinting}
+              >
+                <option value="">
+                  Select {exportData.type === "program" ? "Program" : exportData.type === "teacher" ? "Teacher" : "Room"}
+                </option>
+                {(exportData.type === "program" ? programs : exportData.type === "teacher" ? teachers : rooms).map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {exportData.type === "program" ? item.name : exportData.type === "teacher" ? item.fullName : item.name}
+                  </option>
+                ))}
+                {["program", "room"].includes(exportData.type) && <option value="all">All {exportData.type === "program" ? "Programs" : "Rooms"}</option>}
+              </select>
+            </div>
+          </Modal>
+        )}
+        {showPreviewModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]">
+            <div className="bg-white rounded-lg shadow-lg w-11/12 h-5/6 max-w-6xl flex flex-col">
+              <div className="flex items-center justify-between p-4 border-b">
+                <h2 className="text-lg font-semibold text-gray-900">Export Preview</h2>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={submitExport}
+                    disabled={userRole === 'view' || isExporting}
+                    className={`flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 ${userRole === 'view' || isExporting
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-teal-600 text-white hover:bg-teal-700'
+                      }`}
+                  >
+                    {isExporting ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Exporting...
+                      </>
+                    ) : (
+                      'Export PDF'
+                    )}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowPreviewModal(false);
+                      setPreviewHtml("");
+                    }}
+                    className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors duration-200"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-hidden">
+                <iframe
+                  srcDoc={previewHtml}
+                  className="w-full h-full border-0"
+                  title="Export Preview"
+                  style={{ backgroundColor: 'white' }}
+                />
               </div>
             </div>
           </div>
+        )}
+      </>
+    );
+  }
 
-          {/* View Tools */}
-          {location.pathname === '/home' && showViewTools && (
-            <div className="mt-2 p-1 bg-gray-700 rounded-md border border-gray-600">
-              <div className="flex items-center gap-3 flex-wrap">
-                {/* Zoom Controls */}
-                <div className="flex items-center gap-1 p-0">
+  // Render default toolbar (for Home page)
+  return (
+    <>
+      <div className="">
+        <div className="">
+          {/* Main toolbar row */}
+          <div className="flex items-center justify-between px-4 py-3  bg-white shadow-sm rounded-xl">
+            {/* Left side - Title */}
+            <div className="flex items-center border-l-4 pl-4" style={{ borderColor: "#c682fc" }}>
+              <h1 className="text-xl font-semibold text-gray-800">Home</h1>
+            </div>
+
+            {/* Right side - Action buttons */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleNew}
+                disabled={userRole === 'view'}
+                className="flex items-center gap-2 px-4 py-2 bg-[#336785] text-white rounded-lg hover:bg-teal-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                title="New (Ctrl+N)"
+              >
+                <FiPlus className="w-4 h-4" />
+                <span>New</span>
+              </button>
+              <button
+                onClick={handleExport}
+                disabled={userRole === 'view' || !activeFileId || isExporting}
+                className="flex items-center gap-2 px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Export (Ctrl+E)"
+              >
+                {isExporting ? (
+                  <FaSpinner className="w-4 h-4 animate-spin" />
+                ) : (
+                  <FiDownload className="w-4 h-4" />
+                )}
+                <span>Export</span>
+              </button>
+              <button
+                onClick={handlePrint}
+                disabled={userRole === 'view' || !activeFileId || isPrinting}
+                className="flex items-center gap-2 px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Print (Ctrl+P)"
+              >
+                {isPrinting ? (
+                  <FaSpinner className="w-4 h-4 animate-spin" />
+                ) : (
+                  <FiPrinter className="w-4 h-4" />
+                )}
+                <span>Print</span>
+              </button>
+            </div>
+          </div>
+
+        </div>
+        <div className="">
+          {/* View Tools Section */}
+          {showViewTools && (
+            <div className="mt-1 pt-4 px-6">
+              <div className="flex items-center justify-between p-2 border rounded-xl bg-white">
+                <div className="flex items-center gap-3">
+                  {/* All Schedule Button */}
                   <button
-                    onClick={handleZoomIn}
-                    className="p-2 rounded-lg text-gray-300 hover:text-white hover:bg-gray-500 transition-all duration-200 active:scale-95"
-                    title="Zoom In (Ctrl++)"
+                    onClick={handleFullSchedule}
+                    className={`flex items-center gap-2 px-4 py-1 rounded-lg text-sm font-medium transition-colors ${fullScheduleActive
+                      ? 'bg-[#be90fc] text-white'
+                      : 'bg-white text-gray-700 hover:bg-gray-50'
+                      }`}
+                    title="All Schedules"
                   >
-                    <FiZoomIn className="w-4 h-4" />
+                    <FiCalendar className="w-4 h-4" />
+                    <span>All Schedule</span>
                   </button>
-                  <div className="w-px h-6 bg-gray-500"></div>
-                  <button
-                    onClick={handleZoomOut}
-                    className="p-2 rounded-lg text-gray-300 hover:text-white hover:bg-gray-500 transition-all duration-200 active:scale-95"
-                    title="Zoom Out (Ctrl+-)"
+
+                  <p className="text-gray-200">|</p>
+                  {/* Select programs dropdown */}
+                  <select
+                    onChange={(e) => handleScheduleByCourse(e.target.value ? parseInt(e.target.value) : null)}
+                    className="px-4 py-1 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-colors outline-none"
+                    title="Select programs"
                   >
-                    <FiZoomOut className="w-4 h-4" />
+                    <option value="">Select programs</option>
+                    {programs.map((program) => (
+                      <option key={program.id} value={program.id}>
+                        {program.name}
+                      </option>
+                    ))}
+                  </select>
+
+                  {/* Select Class dropdown */}
+                  <select
+                    onChange={(e) => handleYearLevelSchedule(e.target.value)}
+                    className="px-4 py-1 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-colors outline-none"
+                    title="Select Class"
+                  >
+                    <option value="">Select Class</option>
+                    {['1st Year', '2nd Year', '3rd Year', '4th Year', '5th Year'].map((level) => (
+                      <option key={level} value={level}>
+                        {level}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-gray-200">|</p>
+                  <select
+                    onChange={handleMergeClass}
+                    className="px-4 py-1 bg-white text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+                    title="Merge Class"
+                  >
+                    <option value="">Merge Class</option>
+                  </select>
+
+                </div>
+                <div className="flex items-center gap-20 px-4 bg-white  rounded-lg transition-colors">
+                  <span className="text-sm font-medium text-gray-700">Assignment List</span>
+                  <button
+                    onClick={toggleAssignmentList}
+                    className="w-8 h-8 flex items-center justify-center bg-white text-gray-700 rounded hover:bg-gray-100 transition-colors"
+                    title="Toggle Assignment List"
+                  >
+                    <TbLayoutSidebarRightFilled className="w-5 h-5" />
                   </button>
                 </div>
-
-                {/* Schedule Toggle */}
-                <button
-                  onClick={handleFullSchedule}
-                  className={`
-                    flex items-center gap-2 px-2 py-1 rounded-md font-medium text-sm
-                    transition-all duration-200 ease-out active:scale-95
-                    ${fullScheduleActive
-                      ? 'bg-teal-600 text-white border border-teal-500 shadow-sm hover:bg-teal-500'
-                      : 'bg-gray-600 text-gray-200 hover:text-white hover:bg-gray-500 border border-gray-500'
-                    }
-                  `}
-                  title="All Schedules"
-                >
-                  <FiCalendar className="w-4 h-4" />
-                  <span>All Schedules</span>
-                </button>
-
-                {/* Dropdowns */}
-                <select
-                  onChange={(e) => handleScheduleByCourse(e.target.value ? parseInt(e.target.value) : null)}
-                  className="px-2 py-1 rounded-md text-sm font-medium text-gray-200 bg-gray-600 border border-gray-500 hover:border-gray-400 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all duration-200 outline-none"
-                  title="Schedule by Course"
-                >
-                  <option value="">Select Course</option>
-                  {programs.map((program) => (
-                    <option key={program.id} value={program.id}>{program.name}</option>
-                  ))}
-                </select>
-
-                <select
-                  onChange={(e) => handleYearLevelSchedule(e.target.value)}
-                  className="px-2 py-1 rounded-md text-sm font-medium text-gray-200 bg-gray-600 border border-gray-500 hover:border-gray-400 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all duration-200 outline-none"
-                  title="Year-Level Schedule"
-                >
-                  <option value="">Select Year</option>
-                  {['1st Year', '2nd Year', '3rd Year', '4th Year'].map((level) => (
-                    <option key={level} value={level}>{level}</option>
-                  ))}
-                </select>
-
-                {/* Full Screen */}
-                <button
-                  onClick={handleFullScreen}
-                  className="flex items-center gap-2 px-2 py-1 rounded-md text-sm font-medium text-gray-200 bg-gray-600 border border-gray-500 hover:text-white hover:bg-gray-500 hover:border-gray-400 transition-all duration-200 active:scale-95"
-                  title="Full Screen (Ctrl+F or F11)"
-                >
-                  <GrExpand className="w-4 h-4" />
-                  <span>Fullscreen</span>
-                </button>
               </div>
             </div>
           )}
         </div>
 
-        {/* File Tabs */}
-        <div className="px-0 pb-0 border-t border-gray-600">
+        {/* File Tabs Section */}
+        {/* <div className="px-4 pb-0">
           {openFiles.length > 0 ? (
-            <div className="flex items-start px-1 pt-1 gap-1 -mb-px bg-gray-700">
+            <div className="flex items-start gap-2 pt-2 -mb-px overflow-x-auto">
               {openFiles.map((file) => (
                 <div
                   key={file.id}
-                  className={`
-                    group flex items-center gap-2 px-4 py-1 rounded-t-xl text-sm cursor-poInter
-                    transition-all duration-200 ease-out border-b-2 relative min-w-0 flex-shrink-0
-                    ${file.id === activeFileId
-                      ? 'bg-gray-600 text-gray-100 border-teal-500 shadow-sm transform translate-y-px'
-                      : 'text-gray-300 hover:text-gray-100 hover:bg-gray-650 border-transparent hover:border-gray-500'
-                    }
-                  `}
+                  className={`group flex items-center gap-2 px-4 py-2 rounded-t-lg text-sm cursor-pointer transition-all duration-200 border-b-2 relative min-w-0 flex-shrink-0 ${
+                    file.id === activeFileId
+                      ? 'bg-white text-gray-900 border-[#336785]'
+                      : 'bg-gray-50 text-gray-600 hover:text-gray-900 hover:bg-gray-100 border-transparent'
+                  }`}
                   onClick={() => handleTabClick(file.id)}
-                  style={{ maxWidth: '240px', minWidth: '140px', cursor: 'pointer' }}
+                  style={{ maxWidth: '240px', minWidth: '140px' }}
                 >
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
                     {loadingFiles.has(file.id) && (
-                      <div className="w-4 h-4 border-2 border-gray-400 border-t-teal-500 rounded-full animate-spin flex-shrink-0" />
+                      <div className="w-4 h-4 border-2 border-gray-300 border-t-teal-500 rounded-full animate-spin flex-shrink-0" />
                     )}
                     <div className="min-w-0 flex-1">
-                      <div className="font-medium truncate">
-                        {file.name}
-                      </div>
+                      <div className="font-medium truncate">{file.name}</div>
                     </div>
                     {file.hasUnsavedChanges && (
                       <div className="w-2 h-2 bg-orange-400 rounded-full flex-shrink-0" title="Unsaved changes" />
                     )}
-                    <button
-                      onClick={(e) => handleCloseFile(file.id, e)}
-                      disabled={userRole === 'view'}
-                      className={`
-                        w-6 h-6 flex items-center justify-center rounded-md 
-                        transition-all duration-200 flex-shrink-0
-                        ${userRole === 'view'
-                          ? 'opacity-0 cursor-not-allowed'
-                          : 'opacity-0 group-hover:opacity-100 hover:border border-red-500 hover:text-white'
-                        }
-                      `}
-                      title="Close file (Ctrl+W)"
-                    >
-                      <FiX className="w-4 h-4" />
-                    </button>
+                    {userRole !== 'view' && (
+                      <button
+                        onClick={(e) => handleCloseFile(file.id, e)}
+                        className="w-5 h-5 flex items-center justify-center rounded-md transition-all duration-200 flex-shrink-0 opacity-0 group-hover:opacity-100 hover:bg-red-100 hover:text-red-600"
+                        title="Close file (Ctrl+W)"
+                      >
+                        <FiX className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="py-1 text-sm text-gray-400 text-center mx-0 my-2">
+            <div className="py-3 text-sm text-gray-500 text-center">
               <div className="flex items-center justify-center gap-2">
-                <div className="w-5 h-5 bg-gray-600 rounded-lg flex items-center justify-center">
-                  <FiEdit className="w-3 h-3 text-gray-400" />
-                </div>
+                <FiEdit className="w-4 h-4" />
                 <span>No files open. Click "New" to create a schedule file.</span>
               </div>
             </div>
           )}
-        </div>
+        </div> */}
       </div>
 
-      {/* Modals */}
+      {/* Modals for Home Page */}
       {showNewModal && (
         <Modal
           title="Create New Schedule File"
@@ -867,6 +1239,7 @@ export default function Toolbar() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
             <input
+              ref={newModalInputRef}
               type="text"
               value={formData.name}
               onChange={(e) => handleFormChange("name", e.target.value)}
@@ -912,6 +1285,7 @@ export default function Toolbar() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
             <input
+              ref={saveAsModalInputRef}
               type="text"
               value={formData.name}
               onChange={(e) => handleFormChange("name", e.target.value)}
@@ -1023,6 +1397,7 @@ export default function Toolbar() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Select File</label>
             <select
+              ref={exportModalSelectRef}
               value={exportData.fileId || ""}
               onChange={(e) => handleExportChange("fileId", e.target.value)}
               className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-transparent"
@@ -1067,7 +1442,9 @@ export default function Toolbar() {
                   {exportData.type === "program" ? item.name : exportData.type === "teacher" ? item.fullName : item.name}
                 </option>
               ))}
-              {["program", "room"].includes(exportData.type) && <option value="all">All {exportData.type === "program" ? "Programs" : "Rooms"}</option>}
+              {["program", "room"].includes(exportData.type) && (
+                <option value="all">All {exportData.type === "program" ? "Programs" : "Rooms"}</option>
+              )}
             </select>
           </div>
           <div>
@@ -1099,6 +1476,7 @@ export default function Toolbar() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Select File</label>
             <select
+              ref={printModalSelectRef}
               value={exportData.fileId || ""}
               onChange={(e) => handleExportChange("fileId", e.target.value)}
               className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -1143,7 +1521,9 @@ export default function Toolbar() {
                   {exportData.type === "program" ? item.name : exportData.type === "teacher" ? item.fullName : item.name}
                 </option>
               ))}
-              {["program", "room"].includes(exportData.type) && <option value="all">All {exportData.type === "program" ? "Programs" : "Rooms"}</option>}
+              {["program", "room"].includes(exportData.type) && (
+                <option value="all">All {exportData.type === "program" ? "Programs" : "Rooms"}</option>
+              )}
             </select>
           </div>
         </Modal>
@@ -1151,7 +1531,7 @@ export default function Toolbar() {
 
       {showPreviewModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]">
-          <div className="bg-white rounded-lg shadow-lg w-11/12 h-5/6 max-w-6xl flex rollen flex-col">
+          <div className="bg-white rounded-lg shadow-lg w-11/12 h-5/6 max-w-6xl flex flex-col">
             <div className="flex items-center justify-between p-4 border-b">
               <h2 className="text-lg font-semibold text-gray-900">Export Preview</h2>
               <div className="flex space-x-2">

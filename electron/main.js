@@ -803,7 +803,7 @@ ipcMain.handle("export-file", async (event, args = {}) => {
         const programClasses = classes.filter(c => c.programId === program.id);
         const classIds = programClasses.map(c => c.id);
         const programTimeAssignments = timeAssignments.filter(a => classIds.includes(a.classId));
-        const yearLevels = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
+        const yearLevels = ['1st Year', '2nd Year', '3rd Year', '4th Year', '5th Year', '6th Year', '7th Year', '8th Year', '9th Year', '10th Year'];
 
         for (const yearLevel of yearLevels) {
           const yearClasses = programClasses.filter(c => c.yearLevel === yearLevel);
@@ -1377,7 +1377,7 @@ ipcMain.handle("print-file", async (event, args = {}) => {
         const programClasses = classes.filter(c => c.programId === program.id);
         const classIds = programClasses.map(c => c.id);
         const programTimeAssignments = timeAssignments.filter(a => classIds.includes(a.classId));
-        const yearLevels = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
+        const yearLevels = ['1st Year', '2nd Year', '3rd Year', '4th Year', '5th Year', '6th Year', '7th Year', '8th Year', '9th Year', '10th Year'];
 
         for (const yearLevel of yearLevels) {
           const yearClasses = programClasses.filter(c => c.yearLevel === yearLevel);
@@ -2495,7 +2495,7 @@ ipcMain.handle("generate-preview", async (event, args = {}) => {
         const classIds = programClasses.map(c => c.id);
         const programTimeAssignments = timeAssignments.filter(a => classIds.includes(a.classId));
 
-        const yearLevels = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
+        const yearLevels = ['1st Year', '2nd Year', '3rd Year', '4th Year', '5th Year', '6th Year', '7th Year', '8th Year', '9th Year', '10th Year'];
 
         for (const yearLevel of yearLevels) {
           const yearClasses = programClasses.filter(c => c.yearLevel === yearLevel);

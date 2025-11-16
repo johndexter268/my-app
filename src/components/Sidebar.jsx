@@ -12,6 +12,7 @@ import {
   FiUsers,
   FiMenu,
 } from "react-icons/fi";
+import { FaHome, FaFileAlt, FaCalendar, FaEye, FaUserAlt, FaQuestion, FaCalendarAlt, FaSignOutAlt } from "react-icons/fa";
 
 export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(() => {
@@ -132,11 +133,11 @@ export default function Sidebar() {
   };
 
   const menuItems = [
-    { name: "Files", icon: <FiFile />, path: "/file", roles: ['admin', 'user', 'view'] },
-    { name: "Home", icon: <FiHome />, path: "/home", roles: ['admin', 'user', 'view'] },
+    { name: "Files", icon: <FaFileAlt />, path: "/file", roles: ['admin', 'user', 'view'] },
+    { name: "Home", icon: <FaHome />, path: "/home", roles: ['admin', 'user', 'view'] },
     {
       name: "Scheduling Tool",
-      icon: <FiBook />,
+      icon: <FaCalendarAlt />,
       isCollapsible: true,
       roles: ['admin', 'user'],
       submenu: [
@@ -144,10 +145,10 @@ export default function Sidebar() {
         { name: "Assign Management", path: "/assign", roles: ['admin', 'user'] },
       ],
     },
-    { name: "View", icon: <FiEye />, isButton: true, onClick: toggleViewTools, roles: ['admin', 'user', 'view'] },
-    { name: "Accounts", icon: <FiUsers />, path: "/accounts", roles: ['admin'] },
-    { name: "Help", icon: <FiHelpCircle />, path: "/help", roles: ['admin', 'user', 'view'] },
-    { name: "Logout", icon: <FiLogOut />, isButton: true, onClick: handleLogout, roles: ['admin', 'user', 'view'] },
+    { name: "View", icon: <FaEye />, isButton: true, onClick: toggleViewTools, roles: ['admin', 'user', 'view'] },
+    { name: "Accounts", icon: <FaUserAlt />, path: "/accounts", roles: ['admin'] },
+    { name: "Help", icon: <FaQuestion />, path: "/help", roles: ['admin', 'user', 'view'] },
+    { name: "Logout", icon: <FaSignOutAlt />, isButton: true, onClick: handleLogout, roles: ['admin', 'user', 'view'] },
   ];
 
   const topMenuItems = menuItems.filter(item =>
@@ -159,6 +160,12 @@ export default function Sidebar() {
 
   const isSchedulingActive =
     location.pathname === "/manage" || location.pathname === "/assign";
+
+  useEffect(() => {
+  // Broadcast sidebar width to other components
+  const width = collapsed ? 64 : 288; // match your CSS width
+  window.dispatchEvent(new CustomEvent("sidebarWidthChange", { detail: width }));
+}, [collapsed]);
 
   return (
     <>
@@ -175,23 +182,23 @@ export default function Sidebar() {
       <div
         className={`h-screen transition-all duration-300 ease-out ${collapsed ? "w-16" : "w-72"} flex flex-col shadow-sm ${isLoading ? "opacity-50 pointer-events-none" : ""}`}
         style={{
-          backgroundColor: "#1e2947",
+          backgroundColor: collapsed ? "#FFFFFF" : "#EFF4FF",
           position: "relative",
-          zIndex: 1000,
+          // zIndex: 1000,
         }}
       >
         <div className="flex items-center justify-between p-3">
           {!collapsed && (
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full"><img src="/imgs/app-icon.png" alt="" /></div>
-              <span className="text-white font-semibold text-lg">Menu</span>
+              <span className="text-[#3D3D3D] font-semibold text-lg">Menu</span>
             </div>
           )}
           {collapsed && (
             <div className="w-full flex justify-center">
               <button
                 onClick={() => setCollapsed(false)}
-                className="p-2 rounded-lg text-white hover:text-white hover:bg-gray-700/50 transition-all duration-200 active:scale-95"
+                className="p-2 rounded-lg text-[#3D3D3D] hover:text-[#3D3D3D] hover:bg-transparent transition-all duration-200 active:scale-95"
                 disabled={isLoading}
                 title="Expand sidebar (Ctrl+B)"
               >
@@ -202,7 +209,7 @@ export default function Sidebar() {
           {!collapsed && (
             <button
               onClick={() => setCollapsed(!collapsed)}
-              className="p-2 rounded-lg text-white hover:text-white hover:bg-gray-700/50 transition-all duration-200 active:scale-95"
+              className="p-2 rounded-lg text-[#7c7c7c] hover:bg-gray-100/50 transition-all duration-200 active:scale-95"
               disabled={isLoading}
               title="Collapse sidebar (Ctrl+B)"
             >
@@ -224,8 +231,8 @@ export default function Sidebar() {
                       group w-full flex items-center px-4 py-3 text-sm font-medium 
                       transition-all duration-200 cursor-pointer rounded-xl
                       ${isSchedulingActive
-                          ? "text-white bg-teal-500 shadow-sm"
-                          : "text-gray-300 hover:text-white hover:bg-gray-700/50"
+                          ? "text-[#446EC8] bg-white shadow-sm"
+                          : "text-[#3D3D3D] hover:text-[#3D3D3D] hover:bg-[#E5E5E5]"
                         } ${collapsed ? "justify-center" : "justify-between"}
                     `}
                     >
@@ -261,8 +268,8 @@ export default function Sidebar() {
                                 className={`
                               block px-4 py-2.5 text-sm font-medium transition-all duration-200 rounded-lg
                               ${location.pathname === sub.path
-                                    ? "text-white bg-gray-700/60 shadow-sm"
-                                    : "text-gray-300 hover:text-white hover:bg-gray-700/30"
+                                    ? "text-[#446EC8] bg-white shadow-sm"
+                                    : "text-[#3D3D3D] hover:text-[#3D3D3D] hover:bg-gray-700/30"
                                   } ${isLoading ? "pointer-events-none" : ""}
                             `}
                               >
@@ -281,7 +288,7 @@ export default function Sidebar() {
                       className={`
                       w-full flex items-center gap-3 px-4 py-3 text-sm font-medium 
                       transition-all duration-200 rounded-xl
-                      text-gray-300 hover:text-white hover:bg-gray-700/50 active:scale-95
+                      text-[#3D3D3D] hover:text-[#3D3D3D] hover:bg-[#E5E5E5] active:scale-95
                       ${isLoading ? "pointer-events-none" : ""}
                       ${collapsed ? "justify-center" : ""}
                     `}
@@ -310,8 +317,8 @@ export default function Sidebar() {
                       flex items-center gap-3 px-4 py-3 text-sm font-medium 
                       transition-all duration-200 rounded-xl active:scale-95
                       ${location.pathname === item.path
-                          ? "text-white bg-teal-500 shadow-sm"
-                          : "text-gray-300 hover:text-white hover:bg-gray-700/50"
+                          ? "text-[#446EC8] bg-white shadow-sm"
+                          : "text-[#3D3D3D] hover:text-[#3D3D3D] hover:bg-[#E5E5E5]"
                         } ${isLoading ? "pointer-events-none" : ""}
                       ${collapsed ? "justify-center" : ""}
                     `}
@@ -348,8 +355,8 @@ export default function Sidebar() {
               flex items-center gap-3 px-4 py-3 text-sm font-medium 
               transition-all duration-200 rounded-xl active:scale-95
               ${location.pathname === item.path
-                        ? "text-white bg-teal-500 shadow-sm"
-                        : "text-gray-300 hover:text-white hover:bg-gray-700/50"
+                        ? "text-[#446EC8] bg-white shadow-sm"
+                        : "text-[#3D3D3D] hover:text-[#3D3D3D] hover:bg-[#E5E5E5]"
                       }
               ${isLoading ? "pointer-events-none" : ""}
               ${collapsed ? "justify-center" : ""}
@@ -366,7 +373,7 @@ export default function Sidebar() {
                     className={`
               flex items-center gap-3 px-4 py-3 text-sm font-medium 
               transition-all duration-200 rounded-xl active:scale-95
-              text-gray-300 hover:text-white hover:bg-gray-700/50
+              text-[#3D3D3D] hover:text-[#3D3D3D] hover:bg-[#E5E5E5]
               ${isLoading ? "pointer-events-none" : ""}
               ${collapsed ? "justify-center" : ""}
             `}

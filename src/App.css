@@ -41,3 +41,10 @@
   color: #888;
 }
 
+:root {
+  --sidebar-width: 288px; /* default w-72 */
+}
+
+.sidebar-collapsed {
+  --sidebar-width: 64px; /* w-16 */
+}

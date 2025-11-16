@@ -2,7 +2,7 @@
 /* eslint-disable no-unused-vars */
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { FiPlus, FiEdit, FiTrash2, FiFilter, FiChevronDown, FiChevronUp } from "react-icons/fi";
+import { FiPlus, FiEdit, FiTrash2, FiChevronDown, FiChevronUp, FiFilter } from "react-icons/fi";
 import { FaTrash } from "react-icons/fa";
 import { FaPenToSquare } from "react-icons/fa6";
 import Modal from "../components/Modal";
@@ -22,14 +22,13 @@ export default function Assigning() {
     setShowModal(false);
     setFormData({});
     setEditingId(null);
-    // Restore focus to the last used search input after a slight delay
     setTimeout(() => {
       if (activeTab === "Subject Assign") {
         subjectSearchRef.current?.focus();
       } else {
         teacherSearchRef.current?.focus();
       }
-    }, 100); // Single focus call with a delay to ensure DOM is ready
+    }, 100);
   };
 
   const [currentFile, setCurrentFile] = useState(null);
@@ -49,7 +48,7 @@ export default function Assigning() {
   const [subjectSearch, setSubjectSearch] = useState("");
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const [filterOptions, setFilterOptions] = useState({
-    sortAZ: false,
+    sortAZ: true,
     showWithTeachers: true,
     showWithoutTeachers: true,
     programId: "",
@@ -131,14 +130,12 @@ export default function Assigning() {
     checkCurrentFile();
   }, [navigate]);
 
-  // useEffect(() => {
-  //   console.log("Teacher Search Ref:", teacherSearchRef.current);
-  //   console.log("Subject Search Ref:", subjectSearchRef.current);
-  // }, []);
-
   const handleAssign = (type) => {
     setModalType(type);
-    setFormData({ teacherId: selectedTeacherId || "", classId: selectedClassId || "" });
+    setFormData({
+      teacherId: selectedTeacherId || "",
+      classId: selectedClassId || "",
+    });
     setEditingId(null);
     setShowModal(true);
   };
@@ -159,7 +156,14 @@ export default function Assigning() {
         .map((id) => classes.find((c) => c.id === id)?.name || "Unknown")
         .join(", ");
       const startTime = assignment.timeSlot.split('-')[0].trim();
-      setFormData({ ...assignment, timeSlot: startTime, classIds, classNames });
+      const subject = subjects.find((s) => s.id === assignment.subjectId);
+      setFormData({
+        ...assignment,
+        timeSlot: startTime,
+        classIds,
+        classNames,
+        duration: subject ? String(subject.units * 60) : "60",
+      });
     } else {
       setFormData(assignment);
     }
@@ -250,14 +254,18 @@ export default function Assigning() {
   };
 
   const parseTime = (timeStr) => {
+    if (!timeStr) return null;
     const [time, period] = timeStr.split(' ');
+    if (!time || !period) return null;
     let [hours, minutes] = time.split(':').map(Number);
-    if (period === 'PM' && hours !== 12) hours += 12;
-    if (period === 'AM' && hours === 12) hours = 0;
+    if (isNaN(hours) || isNaN(minutes)) return null;
+    if (period.toUpperCase() === 'PM' && hours !== 12) hours += 12;
+    if (period.toUpperCase() === 'AM' && hours === 12) hours = 0;
     return hours * 60 + minutes;
   };
 
   const formatTime = (minutes) => {
+    if (isNaN(minutes)) return "Invalid";
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
     const period = hours >= 12 ? 'PM' : 'AM';
@@ -267,15 +275,24 @@ export default function Assigning() {
 
   const getTimeSlotRange = (startTime, duration) => {
     const startMinutes = parseTime(startTime);
-    if (startMinutes === null) return "";
-    const endMinutes = startMinutes + parseInt(duration);
+    if (startMinutes === null) {
+      console.error(`Invalid startTime: ${startTime}`);
+      return null;
+    }
+    const durationMinutes = parseInt(duration) || 60;
+    console.log(`getTimeSlotRange: startTime=${startTime}, duration=${durationMinutes}, startMinutes=${startMinutes}`);
+    const endMinutes = startMinutes + durationMinutes;
     const endTime = formatTime(endMinutes);
-    return `${startTime}-${endTime}`;
+    const timeSlot = `${startTime}-${endTime}`;
+    console.log(`getTimeSlotRange: timeSlot=${timeSlot}`);
+    return timeSlot;
   };
 
   const handleSave = async () => {
     setIsSaving(true);
     try {
+      console.log("handleSave: formData =", JSON.stringify(formData, null, 2));
+      console.log("handleSave: currentFile =", JSON.stringify(currentFile, null, 2));
       if (!formData.subjectId) {
         setAlertModal({ show: true, message: "Please select a subject." });
         return;
@@ -284,78 +301,37 @@ export default function Assigning() {
         setAlertModal({ show: true, message: "Please select a teacher." });
         return;
       }
-      if (modalType === "Time & Date Assign" && (!formData.teacherId || !formData.classId || !formData.day || !formData.timeSlot || !formData.duration)) {
+      if (modalType === "Time & Date Assign" && (!formData.teacherId || !formData.classId || !formData.day || !formData.timeSlot)) {
         setAlertModal({ show: true, message: "Please fill in all fields, including teacher." });
         return;
       }
-      if (modalType === "Room Assign" && (!formData.teacherId || !formData.roomId || !formData.classId)) {
-        setAlertModal({ show: true, message: "Please select a teacher, room, and class." });
+      if (modalType === "Room Assign" && (
+        !formData.teacherId || formData.teacherId === "" ||
+        !formData.roomId || formData.roomId === "" ||
+        !formData.classId || formData.classId === "" ||
+        !formData.subjectId || formData.subjectId === ""
+      )) {
+        setAlertModal({ show: true, message: "Please select a teacher, subject, room, and class." });
+        return;
+      }
+      if (!currentFile?.id) {
+        setAlertModal({ show: true, message: "No active schedule file selected." });
         return;
       }
 
-      const assignmentData = { ...formData, scheduleFileId: currentFile.id };
-      if (modalType === "Time & Date Assign") {
-        assignmentData.timeSlot = getTimeSlotRange(formData.timeSlot, formData.duration);
-        if (!assignmentData.timeSlot) {
-          setAlertModal({ show: true, message: "Invalid time slot or duration." });
-          return;
-        }
-
-        const existingAssignments = assignments.filter(
-          (a) =>
-            a.type === "time" &&
-            a.subjectId === assignmentData.subjectId &&
-            a.teacherId === assignmentData.teacherId &&
-            a.day === assignmentData.day &&
-            a.classId !== assignmentData.classId &&
-            (!editingId || a.id !== editingId)
-        );
-
-        if (existingAssignments.length > 0) {
-          const referenceAssignment = existingAssignments[0];
-          if (
-            referenceAssignment.timeSlot.split('-')[0].trim() !== formData.timeSlot ||
-            referenceAssignment.duration !== parseInt(formData.duration)
-          ) {
-            setAlertModal({
-              show: true,
-              message: "Cannot save: Merged classes must have the same start time and duration for the same subject, teacher, and day.",
-            });
-            return;
-          }
-        }
-
-        const startSlot = timeSlots.findIndex((slot) => slot.split('-')[0].trim() === formData.timeSlot);
-        const span = Math.round(parseInt(formData.duration) / 30);
-        const dayAssignments = assignments.filter(
-          (a) => a.type === "time" && a.day === assignmentData.day && (!editingId || a.id !== editingId)
-        );
-
-        const conflicts = new Set();
-        for (let i = startSlot; i < startSlot + span; i++) {
-          dayAssignments.forEach((ass) => {
-            const assStart = timeSlots.findIndex((slot) => slot.split('-')[0].trim() === ass.timeSlot.split('-')[0].trim());
-            const assSpan = Math.round(ass.duration / 30);
-            if (assStart <= i && assStart + assSpan > i) {
-              if (ass.teacherId === assignmentData.teacherId && ass.subjectId !== assignmentData.subjectId) {
-                conflicts.add(
-                  `Teacher ${teachers.find((t) => t.id === ass.teacherId)?.fullName || "Unknown"} is already assigned to ${subjects.find((s) => s.id === ass.subjectId)?.name || "Unknown"} at this time.`
-                );
-              }
-              if (ass.classId === assignmentData.classId) {
-                conflicts.add(
-                  `Class ${classes.find((c) => c.id === ass.classId)?.name || "Unknown"} is already scheduled at this time.`
-                );
-              }
-            }
-          });
-        }
-
-        if (conflicts.size > 0) {
-          setAlertModal({ show: true, message: [...conflicts].join("\n") });
-          return;
-        }
+      const assignmentData = {
+        subjectId: Number(formData.subjectId),
+        teacherId: Number(formData.teacherId),
+        classId: Number(formData.classId),
+        scheduleFileId: Number(currentFile.id),
+      };
+      if (modalType === "Room Assign") {
+        assignmentData.roomId = Number(formData.roomId);
+      } else if (modalType === "Time & Date Assign") {
+        assignmentData.day = formData.day;
+        assignmentData.timeSlot = formData.timeSlot;
       }
+      console.log("handleSave: assignmentData =", JSON.stringify(assignmentData, null, 2));
 
       let updatedAssignment;
 
@@ -368,17 +344,22 @@ export default function Assigning() {
             updatedAssignment = { ...assignmentData, id: editingId, type: "subject" };
           }
         } else if (modalType === "Time & Date Assign") {
+          console.log(`Updating assignment:`, JSON.stringify(assignmentData, null, 2));
           result = await window.api.updateTimeSlotAssignment(assignmentData);
+          console.log(`Update result:`, JSON.stringify(result, null, 2));
           if (result.success) {
             updatedAssignment = { ...assignmentData, id: editingId, type: "time" };
           }
         } else if (modalType === "Room Assign") {
+          console.log(`Updating room assignment:`, JSON.stringify(assignmentData, null, 2));
           result = await window.api.updateRoomAssignment(assignmentData);
+          console.log(`Update result:`, JSON.stringify(result, null, 2));
           if (result.success) {
             updatedAssignment = { ...assignmentData, id: editingId, type: "room" };
           }
         }
         if (!result.success) {
+          console.error("API error:", result.message);
           setAlertModal({ show: true, message: result.message });
           return;
         }
@@ -395,17 +376,22 @@ export default function Assigning() {
             newAssignment = { ...assignmentData, id: result.id, type: "subject" };
           }
         } else if (modalType === "Time & Date Assign") {
+          console.log(`Saving new assignment:`, JSON.stringify(assignmentData, null, 2));
           result = await window.api.assignTimeSlot(assignmentData);
+          console.log(`Save result:`, JSON.stringify(result, null, 2));
           if (result.success) {
             newAssignment = { ...assignmentData, id: result.id, type: "time" };
           }
         } else if (modalType === "Room Assign") {
+          console.log(`Saving new room assignment:`, JSON.stringify(assignmentData, null, 2));
           result = await window.api.assignRoom(assignmentData);
+          console.log(`Save result:`, JSON.stringify(result, null, 2));
           if (result.success) {
             newAssignment = { ...assignmentData, id: result.id, type: "room" };
           }
         }
         if (!result.success) {
+          console.error("API error:", result.message);
           setAlertModal({ show: true, message: result.message });
           return;
         }
@@ -426,7 +412,6 @@ export default function Assigning() {
       setIsSaving(false);
     }
   };
-
   const getTeacherSubjectCount = (teacherId) => {
     if (!assignments || !Array.isArray(assignments)) return 0;
     return assignments.filter((a) => a.type === "subject" && a.teacherId === teacherId).length;
@@ -439,19 +424,9 @@ export default function Assigning() {
         subject.name.toLowerCase().includes(subjectSearch.toLowerCase())
       );
     }
-    if (!filterOptions.showWithTeachers) {
-      filteredSubjects = filteredSubjects.filter(
-        (subject) => !assignments.some((a) => a.type === "subject" && a.subjectId === subject.id)
-      );
-    }
-    if (!filterOptions.showWithoutTeachers) {
-      filteredSubjects = filteredSubjects.filter(
-        (subject) => assignments.some((a) => a.type === "subject" && a.subjectId === subject.id)
-      );
-    }
     if (filterOptions.programId) {
       filteredSubjects = filteredSubjects.filter(
-        (subject) => subject.programId === parseInt(filterOptions.programId)
+        (subject) => String(subject.programId) === String(filterOptions.programId)
       );
     }
     if (filterOptions.yearLevel) {
@@ -459,8 +434,18 @@ export default function Assigning() {
         (subject) => subject.yearLevel === filterOptions.yearLevel
       );
     }
+    if (!filterOptions.showWithTeachers || !filterOptions.showWithoutTeachers) {
+      filteredSubjects = filteredSubjects.filter((subject) => {
+        const hasTeacher = assignments.some(
+          (a) => a.type === "subject" && String(a.subjectId) === String(subject.id) && a.teacherId
+        );
+        return (filterOptions.showWithTeachers && hasTeacher) || (filterOptions.showWithoutTeachers && !hasTeacher);
+      });
+    }
     if (filterOptions.sortAZ) {
       filteredSubjects.sort((a, b) => a.name.localeCompare(b.name));
+    } else {
+      filteredSubjects.sort((a, b) => b.name.localeCompare(a.name));
     }
     return filteredSubjects;
   };
@@ -475,7 +460,7 @@ export default function Assigning() {
     if (teacherSortOrder === "A-Z") {
       filteredTeachers.sort((a, b) => a.fullName.localeCompare(b.fullName));
     } else {
-      filteredTeachers.sort((a, b) => b.fullName.localeCompare(a.fullName));
+      filteredTeachers.sort((a, b) => b.fullName.localeCompare(b.fullName));
     }
     return filteredTeachers;
   };
@@ -516,11 +501,11 @@ export default function Assigning() {
 
   const getDayAssignments = (selectedTeacherId) => {
     const timeAssignments = assignments.filter(
-      a => a.type === "time" && a.teacherId === selectedTeacherId
+      (a) => a.type === "time" && a.teacherId === selectedTeacherId
     );
 
     const groupedAssignments = {};
-    timeAssignments.forEach(a => {
+    timeAssignments.forEach((a) => {
       const key = `${a.subjectId}-${a.teacherId}-${a.day}-${a.timeSlot}`;
       if (!groupedAssignments[key]) {
         groupedAssignments[key] = {
@@ -528,7 +513,7 @@ export default function Assigning() {
           teacherId: a.teacherId,
           day: a.day,
           timeSlot: a.timeSlot,
-          duration: a.duration,
+          duration: parseInt(a.duration) || 60,
           classIds: [a.classId],
           ids: [a.id]
         };
@@ -539,18 +524,20 @@ export default function Assigning() {
     });
 
     const dayAssignments = {};
-    days.forEach(day => {
+    days.forEach((day) => {
       dayAssignments[day] = Object.values(groupedAssignments)
-        .filter(a => a.day === day)
-        .map(a => {
+        .filter((a) => a.day === day)
+        .map((a) => {
           const startTime = a.timeSlot.split('-')[0].trim();
-          const slotIndex = timeSlots.findIndex(slot => slot.split('-')[0].trim() === startTime);
+          const slotIndex = timeSlots.findIndex((slot) => slot.split('-')[0].trim() === startTime);
           const classNames = a.classIds
-            .map(classId => classes.find(c => c.id === classId)?.name || "Unknown")
+            .map((classId) => classes.find((c) => c.id === classId)?.name || "Unknown")
             .join(", ");
+          const span = Math.round(a.duration / 30) || 2;
+          console.log(`getDayAssignments: subjectId=${a.subjectId}, day=${a.day}, timeSlot=${a.timeSlot}, duration=${a.duration}, span=${span}`);
           return {
             start: slotIndex,
-            span: Math.round(a.duration / 30),
+            span: span,
             assignment: {
               id: a.ids[0],
               subjectId: a.subjectId,
@@ -565,10 +552,23 @@ export default function Assigning() {
             }
           };
         })
-        .filter(a => a.start !== -1)
+        .filter((a) => a.start !== -1)
         .sort((a, b) => a.start - b.start);
     });
     return dayAssignments;
+  };
+
+  const generateYearLevels = (years) => {
+    const ordinals = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th'];
+    return Array.from({ length: Math.min(years, 10) }, (_, i) => `${ordinals[i]} Year`);
+  };
+
+  const getSortedClasses = () => {
+    return [...classes].sort((a, b) => {
+      const programA = programs.find((p) => p.id === a.programId)?.name || "";
+      const programB = programs.find((p) => p.id === b.programId)?.name || "";
+      return programA.localeCompare(programB) || a.name.localeCompare(b.name);
+    });
   };
 
   if (isLoading) {
@@ -582,10 +582,10 @@ export default function Assigning() {
   const tabs = ["Subject Assign", "Time & Date Assign", "Room Assign"];
 
   return (
-    <div className="p-4 h-[calc(100vh-80px)] overflow-hidden bg-[#f8f8f8] border-b border-gray-200">
+    <div className="p-4 h-screen overflow-hidden bg-[#f8f8f8] border-b border-gray-200">
       <div className="">
         <div className="-mx-4 -mt-4 px-4 py-3 bg-white shadow-sm">
-          <div className="flex items-center border-l-4 pl-4" style={{ borderColor: "#09153e" }}>
+          <div className="flex items-center border-l-4 pl-4" style={{ borderColor: "#c682fc" }}>
             <h1 className="text-xl font-semibold text-gray-800">Assigning</h1>
           </div>
         </div>
@@ -608,8 +608,8 @@ export default function Assigning() {
         </div>
       </div>
       {activeTab === "Subject Assign" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 h-[calc(100vh-14rem)]">
-          <div className="bg-white rounded-lg p-6 shadow-sm border flex flex-col h-[calc(100vh-14rem)] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:#cfcfcf_transparent]">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 h-[calc(100vh-8rem)]">
+          <div className="bg-white rounded-lg p-6 shadow-sm border flex flex-col h-[calc(100vh-8rem)] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:#cfcfcf_transparent]">
             <h2 className="text-lg font-semibold mb-4">Teachers</h2>
             <div className="flex gap-2 mb-4">
               <input
@@ -625,7 +625,7 @@ export default function Assigning() {
                 className="p-2 rounded-md hover:bg-gray-100 transition-colors"
                 title={`Sort ${teacherSortOrder === "A-Z" ? "Z-A" : "A-Z"}`}
               >
-                <MdOutlineSort className="w-5 h-5" />
+                <MdOutlineSort className="w-5 h-5 text-[#031844]" />
               </button>
             </div>
             <div className="flex-1 overflow-y-auto">
@@ -652,7 +652,7 @@ export default function Assigning() {
             </div>
           </div>
 
-          <div className="bg-white rounded-lg p-6 shadow-sm border flex flex-col h-[calc(100vh-14rem)] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:#cfcfcf_transparent]">
+          <div className="bg-white rounded-lg p-6 shadow-sm border flex flex-col h-[calc(100vh-8rem)] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:#cfcfcf_transparent]">
             <h2 className="text-lg font-semibold mb-4">
               Assigned Subjects {selectedTeacherId && `for ${teachers.find((t) => t.id === selectedTeacherId)?.fullName}`}
             </h2>
@@ -660,30 +660,36 @@ export default function Assigning() {
               {selectedTeacherId ? (
                 assignments
                   .filter((a) => a.type === "subject" && a.teacherId === selectedTeacherId)
-                  .map((assignment) => (
-                    <div
-                      key={assignment.id}
-                      className="flex justify-between items-center p-2 hover:bg-gray-50 rounded-md"
-                    >
-                      <span>{subjects.find((s) => s.id === assignment.subjectId)?.name || "Unknown"}</span>
-                      <button
-                        onClick={() => handleDelete(assignment, "Subject")}
-                        disabled={isDeleting}
-                        className={`text-zinc-500 hover:text-red-700 ${isDeleting ? "opacity-50 cursor-not-allowed" : ""}`}
+                  .map((assignment) => {
+                    const subjectData = subjects.find((s) => s.id === assignment.subjectId);
+                    return (
+                      <div
+                        key={assignment.id}
+                        className="p-2 flex justify-between items-center hover:bg-gray-50 rounded-md"
                       >
-                        <FaTrash />
-                      </button>
-                    </div>
-                  ))
+                        <span>{subjectData?.name || "Unknown"}</span>
+                        <button
+                          onClick={() => handleDelete(assignment, "Subject")}
+                          disabled={isDeleting}
+                          className={`p-2 text-zinc-500 hover:text-red-700 ${isDeleting ? "opacity-50 cursor-not-allowed" : ""}`}
+                          aria-label="Delete assignment"
+                        >
+                          <FaTrash size={16} />
+                        </button>
+                      </div>
+                    );
+                  })
               ) : (
-                <p className="text-gray-500">Select a teacher to view assigned subjects</p>
+                <div className="text-center py-8">
+                  <p className="text-gray-500">Select a teacher to view assigned subjects</p>
+                </div>
               )}
             </div>
           </div>
 
-          <div className="bg-white rounded-lg p-6 shadow-sm border flex flex-col h-[calc(100vh-14rem)] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:#cfcfcf_transparent]">
+          <div className="bg-white rounded-lg p-6 shadow-sm border flex flex-col h-[calc(100vh-8rem)] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:#cfcfcf_transparent]">
             <h2 className="text-lg font-semibold mb-4">Subjects</h2>
-            <div className="flex gap-2 mb-4">
+            <div className="flex gap-2 mb-4 relative">
               <input
                 ref={subjectSearchRef}
                 type="text"
@@ -692,99 +698,98 @@ export default function Assigning() {
                 placeholder="Search subjects..."
                 className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500"
               />
-              <div className="relative">
-                <button
-                  onClick={() => setShowFilterDropdown(!showFilterDropdown)}
-                  className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-600 rounded-md hover:bg-gray-300"
-                >
-                  <FiFilter /> Filter
-                </button>
-                {showFilterDropdown && (
-                  <div className="absolute right-0 mt-2 w-64 bg-white border rounded-lg shadow-lg p-4 z-10">
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={filterOptions.sortAZ}
-                          onChange={() =>
-                            setFilterOptions((prev) => ({ ...prev, sortAZ: !prev.sortAZ }))
-                          }
-                          className="h-4 w-4 text-teal-600"
-                        />
-                        Sort A-Z
-                      </label>
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={filterOptions.showWithTeachers}
-                          onChange={() =>
-                            setFilterOptions((prev) => ({
-                              ...prev,
-                              showWithTeachers: !prev.showWithTeachers,
-                            }))
-                          }
-                          className="h-4 w-4 text-teal-600"
-                        />
-                        Show subjects with teachers
-                      </label>
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={filterOptions.showWithoutTeachers}
-                          onChange={() =>
-                            setFilterOptions((prev) => ({
-                              ...prev,
-                              showWithoutTeachers: !prev.showWithoutTeachers,
-                            }))
-                          }
-                          className="h-4 w-4 text-teal-600"
-                        />
-                        Show subjects without teachers
-                      </label>
-                      <select
-                        value={filterOptions.programId}
-                        onChange={(e) =>
-                          setFilterOptions((prev) => ({ ...prev, programId: e.target.value }))
+              <button
+                onClick={() => setShowFilterDropdown(!showFilterDropdown)}
+                className="p-2 rounded-md hover:bg-gray-100 transition-colors"
+                title="Filter subjects"
+              >
+                <FiFilter className="w-5 h-5 text-[#031844]" />
+              </button>
+              {showFilterDropdown && (
+                <div className="absolute right-0 top-12 mt-2 w-64 bg-white border rounded-lg shadow-lg p-4 z-10">
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={filterOptions.sortAZ}
+                        onChange={() =>
+                          setFilterOptions((prev) => ({ ...prev, sortAZ: !prev.sortAZ }))
                         }
-                        className="w-full p-2 border border-gray-300 rounded-md"
-                      >
-                        <option value="">All Programs</option>
-                        {programs.map((program) => (
-                          <option key={program.id} value={program.id}>
-                            {program.name}
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        value={filterOptions.yearLevel}
-                        onChange={(e) =>
-                          setFilterOptions((prev) => ({ ...prev, yearLevel: e.target.value }))
+                        className="h-4 w-4 text-teal-600"
+                      />
+                      Sort A-Z
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={filterOptions.showWithTeachers}
+                        onChange={() =>
+                          setFilterOptions((prev) => ({
+                            ...prev,
+                            showWithTeachers: !prev.showWithTeachers,
+                          }))
                         }
-                        className="w-full p-2 border border-gray-300 rounded-md"
-                      >
-                        <option value="">All Year Levels</option>
-                        {["1st Year", "2nd Year", "3rd Year", "4th Year", "5th Year"].map((year) => (
-                          <option key={year} value={year}>
-                            {year}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        onClick={() => setShowFilterDropdown(false)}
-                        className="w-full px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700"
-                      >
-                        Apply
-                      </button>
-                    </div>
+                        className="h-4 w-4 text-teal-600"
+                      />
+                      Show subjects with teachers
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={filterOptions.showWithoutTeachers}
+                        onChange={() =>
+                          setFilterOptions((prev) => ({
+                            ...prev,
+                            showWithoutTeachers: !prev.showWithoutTeachers,
+                          }))
+                        }
+                        className="h-4 w-4 text-teal-600"
+                      />
+                      Show subjects without teachers
+                    </label>
+                    <select
+                      value={filterOptions.programId}
+                      onChange={(e) =>
+                        setFilterOptions((prev) => ({ ...prev, programId: e.target.value }))
+                      }
+                      className="w-full p-2 border border-gray-300 rounded-md"
+                    >
+                      <option value="">All Programs</option>
+                      {programs.map((program) => (
+                        <option key={program.id} value={program.id}>
+                          {program.name}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={filterOptions.yearLevel}
+                      onChange={(e) =>
+                        setFilterOptions((prev) => ({ ...prev, yearLevel: e.target.value }))
+                      }
+                      className="w-full p-2 border border-gray-300 rounded-md"
+                    >
+                      <option value="">All Year Levels</option>
+                      {["1st Year", "2nd Year", "3rd Year", "4th Year", "5th Year", "6th Year"].map((year) => (
+                        <option key={year} value={year}>
+                          {year}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => setShowFilterDropdown(false)}
+                      className="w-full px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700"
+                    >
+                      Apply
+                    </button>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
-            <div className="space-y-2 max-h-96 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto">
               {getFilteredSubjects().map((subject) => (
                 <div
                   key={subject.id}
-                  className="flex justify-between items-center p-2 hover:bg-gray-50 rounded-md"
+                  className="p-2 flex justify-between items-center hover:bg-gray-50 rounded-md"
                 >
                   <span>{subject.name}</span>
                   <button
@@ -793,12 +798,18 @@ export default function Assigning() {
                       setFormData({ subjectId: subject.id, teacherId: selectedTeacherId || "" });
                       setShowModal(true);
                     }}
-                    className="text-teal-600 hover:text-teal-700"
+                    className="p-2 text-teal-600 hover:text-teal-700"
+                    aria-label="Assign subject"
                   >
-                    <FiPlus />
+                    <FiPlus size={16} />
                   </button>
                 </div>
               ))}
+              {getFilteredSubjects().length === 0 && (
+                <div className="text-center py-8">
+                  <p className="text-gray-500">No subjects found</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -806,7 +817,7 @@ export default function Assigning() {
 
       {activeTab === "Time & Date Assign" && (
         <div className="grid grid-cols-1 lg:grid-cols-[350px_1fr] gap-6 h-[calc(100vh-14rem)]">
-          <div className="bg-white rounded-lg p-6 shadow-sm border flex flex-col h-[calc(100vh-14rem)] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:#cfcfcf_transparent]">
+          <div className="bg-white rounded-lg p-6 shadow-sm border flex flex-col h-[calc(100vh-8rem)] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:#cfcfcf_transparent]">
             <h2 className="text-lg font-semibold mb-4">Teachers</h2>
             <div className="flex gap-2 mb-4">
               <input
@@ -822,7 +833,7 @@ export default function Assigning() {
                 className="p-2 rounded-md hover:bg-gray-100 transition-colors"
                 title={`Sort ${teacherSortOrder === "A-Z" ? "Z-A" : "A-Z"}`}
               >
-                <MdOutlineSort className="w-5 h-5" />
+                <MdOutlineSort className="w-5 h-5 text-[#031844]" />
               </button>
             </div>
             <div className="flex-1 overflow-y-auto">
@@ -848,7 +859,7 @@ export default function Assigning() {
               ))}
             </div>
           </div>
-          <div className="bg-white rounded-lg p-6 shadow-sm border flex flex-col h-[calc(100vh-14rem)] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:#cfcfcf_transparent]">
+          <div className="bg-white rounded-lg p-6 shadow-sm border flex flex-col h-[calc(100vh-8rem)] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:#cfcfcf_transparent]">
             <h2 className="text-lg font-semibold mb-4">
               Schedule {selectedTeacherId && `for ${teachers.find((t) => t.id === selectedTeacherId)?.fullName}`}
             </h2>
@@ -864,35 +875,38 @@ export default function Assigning() {
                 <table className="w-full border-collapse table-fixed">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr className="bg-gray-50">
-                      <th className="w-[120px] px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="w-[150px] px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Time
                       </th>
-                      {days.map(day => (
+                      {days.map((day) => (
                         <th
                           key={day}
-                          className="w-[150px] px-4 py-2 text-left text-xs font-medium text-gray-800 uppercase tracking-wider"
+                          className="w-[180px] px-4 py-2 text-left text-xs font-medium text-gray-800 uppercase tracking-wider"
                         >
                           {day}
                         </th>
                       ))}
                     </tr>
                   </thead>
-
                   <tbody>
                     {timeSlots.map((slot, rowIndex) => (
                       <tr key={slot} className="text-xs text-gray-700">
                         <td className="border p-2">{slot}</td>
-                        {days.map(day => {
-                          const dayAss = getDayAssignments(selectedTeacherId)[day] || []
+                        {days.map((day) => {
+                          const dayAss = getDayAssignments(selectedTeacherId)[day] || [];
                           for (let ass of dayAss) {
                             if (ass.start === rowIndex) {
-                              const subject = subjects.find(s => s.id === ass.assignment.subjectId)?.name || "Unknown"
+                              const subject = subjects.find((s) => s.id === ass.assignment.subjectId)?.name || "Unknown";
+                              // Find the teacher's color
+                              const teacher = teachers.find((t) => t.id === ass.assignment.teacherId);
+                              const cellBgColor = teacher?.color ? `${teacher.color}20` : "#f5f5f5";
+                              const borderColor = teacher?.color ? `${teacher.color}` : "#f5f5f5";
                               return (
                                 <td
                                   key={day}
                                   rowSpan={ass.span}
-                                  className="border p-2 align-top whitespace-normal break-words text-sm leading-snug"
-                                  style={{ wordBreak: "break-word" }}
+                                  className="border-2 p-2 text-center align-middle whitespace-normal break-words text-sm leading-snug"
+                                  style={{ wordBreak: "break-word", backgroundColor: cellBgColor, borderColor: borderColor, }}
                                 >
                                   <div className="p-2 flex flex-col h-full">
                                     <span className="text-sm text-gray-900 text-center break-words">
@@ -916,12 +930,12 @@ export default function Assigning() {
                                     </div>
                                   </div>
                                 </td>
-                              )
+                              );
                             } else if (ass.start < rowIndex && ass.start + ass.span > rowIndex) {
-                              return null
+                              return null;
                             }
                           }
-                          return <td key={day} className="border p-2"></td>
+                          return <td key={day} className="border p-2"></td>;
                         })}
                       </tr>
                     ))}
@@ -937,7 +951,7 @@ export default function Assigning() {
 
       {activeTab === "Room Assign" && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-14rem)]">
-          <div className="bg-white rounded-lg p-6 shadow-sm border flex flex-col h-[calc(100vh-14rem)] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:#cfcfcf_transparent]">
+          <div className="bg-white rounded-lg p-6 shadow-sm border flex flex-col h-[calc(100vh-8rem)] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:#cfcfcf_transparent]">
             <h2 className="text-lg font-semibold mb-4">Programs & Classes</h2>
             <div className="flex-1 overflow-y-auto">
               {programs.map((program) => (
@@ -951,35 +965,32 @@ export default function Assigning() {
                   </div>
                   {expandedPrograms[program.id] && (
                     <div className="ml-4 space-y-2">
-                      {(() => {
-                        const ordinals = ['1st', '2nd', '3rd', '4th', '5th', '6th'];
-                        return Array.from({ length: program.years }, (_, i) => `${ordinals[i]} Year`).map((year) => (
-                          <div key={year}>
-                            <div
-                              className="flex justify-between items-center p-2 cursor-pointer hover:bg-gray-100 rounded-md"
-                              onClick={() => toggleYear(program.id, year)}
-                            >
-                              <span>{year}</span>
-                              {expandedYears[`${program.id}-${year}`] ? <FiChevronUp /> : <FiChevronDown />}
-                            </div>
-                            {expandedYears[`${program.id}-${year}`] && (
-                              <div className="ml-4 space-y-2">
-                                {classes
-                                  .filter((c) => c.programId === program.id && c.yearLevel === year)
-                                  .map((cls) => (
-                                    <div
-                                      key={cls.id}
-                                      onClick={() => setSelectedClassId(cls.id)}
-                                      className={`p-2 rounded-md cursor-pointer ${selectedClassId === cls.id ? "bg-teal-100" : "hover:bg-gray-100"}`}
-                                    >
-                                      {cls.name}
-                                    </div>
-                                  ))}
-                              </div>
-                            )}
+                      {generateYearLevels(program.years).map((year) => (
+                        <div key={year}>
+                          <div
+                            className="flex justify-between items-center p-2 cursor-pointer hover:bg-gray-100 rounded-md"
+                            onClick={() => toggleYear(program.id, year)}
+                          >
+                            <span>{year}</span>
+                            {expandedYears[`${program.id}-${year}`] ? <FiChevronUp /> : <FiChevronDown />}
                           </div>
-                        ));
-                      })()}
+                          {expandedYears[`${program.id}-${year}`] && (
+                            <div className="ml-4 space-y-2">
+                              {classes
+                                .filter((c) => String(c.programId) === String(program.id) && c.yearLevel === year)
+                                .map((cls) => (
+                                  <div
+                                    key={cls.id}
+                                    onClick={() => setSelectedClassId(cls.id)}
+                                    className={`p-2 rounded-md cursor-pointer ${selectedClassId === cls.id ? "bg-teal-100" : "hover:bg-gray-100"}`}
+                                  >
+                                    {cls.name}
+                                  </div>
+                                ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -987,7 +998,7 @@ export default function Assigning() {
             </div>
           </div>
 
-          <div className="bg-white rounded-lg p-6 shadow-sm border flex flex-col h-[calc(100vh-14rem)] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:#cfcfcf_transparent]">
+          <div className="bg-white rounded-lg p-6 shadow-sm border flex flex-col h-[calc(100vh-8rem)] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:#cfcfcf_transparent]">
             <h2 className="text-lg font-semibold mb-4">Class Room Assignments</h2>
             {selectedClassId ? (
               <>
@@ -1061,7 +1072,6 @@ export default function Assigning() {
                           <div className="space-y-1 mt-2 pt-2 border-t border-gray-200">
                             {timeAssignment && (
                               <div className="items-center gap-1.5 text-xs text-gray-600">
-
                                 <span className="font-medium mr-5">{timeAssignment.day}</span>
                                 <span className="font-medium mr-5">{timeAssignment.timeSlot}</span>
                                 <span className="text-gray-400"></span>
@@ -1070,7 +1080,6 @@ export default function Assigning() {
                             )}
                             {assignment.roomId && (
                               <div className="items-center gap-1.5 text-xs text-gray-600">
-
                                 <span>{rooms.find((r) => r.id === assignment.roomId)?.name || "No room"}</span>
                               </div>
                             )}
@@ -1102,7 +1111,7 @@ export default function Assigning() {
             )}
           </div>
 
-          <div className="bg-white rounded-lg p-6 shadow-sm border flex flex-col h-[calc(100vh-14rem)] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:#cfcfcf_transparent]">
+          <div className="bg-white rounded-lg p-6 shadow-sm border flex flex-col h-[calc(100vh-8rem)] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:#cfcfcf_transparent]">
             <h2 className="text-lg font-semibold mb-4">Rooms</h2>
             <div className="flex-1 overflow-y-auto">
               {rooms.map((room) => (
@@ -1249,9 +1258,9 @@ export default function Assigning() {
                     className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500"
                   >
                     <option value="">Select class</option>
-                    {classes.map((cls) => (
+                    {getSortedClasses().map((cls) => (
                       <option key={cls.id} value={cls.id}>
-                        {cls.name}
+                        {cls.name} - {programs.find((p) => p.id === cls.programId)?.name || "Unknown"}
                       </option>
                     ))}
                   </select>
@@ -1285,24 +1294,6 @@ export default function Assigning() {
                       {slot}
                     </option>
                   ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Duration</label>
-                <select
-                  value={formData.duration || ""}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, duration: e.target.value }))}
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500"
-                >
-                  <option value="">Select duration</option>
-                  <option value="30">30 minutes</option>
-                  <option value="60">1 hour</option>
-                  <option value="90">1.5 hours</option>
-                  <option value="120">2 hours</option>
-                  <option value="150">2.5 hours</option>
-                  <option value="180">3 hours</option>
-                  <option value="210">3.5 hours</option>
-                  <option value="240">4 hours</option>
                 </select>
               </div>
             </>
@@ -1388,9 +1379,9 @@ export default function Assigning() {
                   className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500"
                 >
                   <option value="">Select class</option>
-                  {classes.map((cls) => (
+                  {getSortedClasses().map((cls) => (
                     <option key={cls.id} value={cls.id}>
-                      {cls.name}
+                      {cls.name} - {programs.find((p) => p.id === cls.programId)?.name || "Unknown"}
                     </option>
                   ))}
                 </select>
