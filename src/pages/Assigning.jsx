@@ -83,52 +83,57 @@ export default function Assigning() {
       setIsLoading(true);
       window.api.getAssignments(currentFile.id)
         .then((assignmentsData) => {
-          setAssignments(assignmentsData || []);
+          // Ensure assignmentsData is always an array
+          setAssignments(Array.isArray(assignmentsData) ? assignmentsData : []);
         })
         .catch((error) => {
           console.error("Error loading assignments:", error);
+          setAssignments([]); // Set to empty array on error
         })
         .finally(() => setIsLoading(false));
     }
   }, [currentFile]);
 
   useEffect(() => {
-    const checkCurrentFile = async () => {
-      setIsLoading(true);
-      try {
-        const fileResponse = await window.api.getCurrentFile();
-        if (!fileResponse.files || fileResponse.files.length === 0) {
-          setAlertModal({
-            show: true,
-            message: "No active file selected. Please select a file first.",
-            onConfirm: () => navigate("/file"),
-          });
-        } else {
-          setCurrentFile(fileResponse.files[0]);
-          const [teachersData, subjectsData, roomsData, classesData, programsData, assignmentsData] = await Promise.all([
-            window.api.getTeachers(),
-            window.api.getSubjects(),
-            window.api.getRooms(),
-            window.api.getClasses(),
-            window.api.getPrograms(),
-            window.api.getAssignments(fileResponse.files[0].id),
-          ]);
-          setTeachers(teachersData || []);
-          setSubjects(subjectsData || []);
-          setRooms(roomsData || []);
-          setClasses(classesData || []);
-          setPrograms(programsData || []);
-          setAssignments(assignmentsData || []);
-        }
-      } catch (error) {
-        console.error("Error checking current file:", error);
-        setAlertModal({ show: true, message: `Error loading data: ${error.message}` });
-      } finally {
-        setIsLoading(false);
+  const checkCurrentFile = async () => {
+    setIsLoading(true);
+    try {
+      const fileResponse = await window.api.getCurrentFile();
+      if (!fileResponse.files || fileResponse.files.length === 0) {
+        setAlertModal({
+          show: true,
+          message: "No active file selected. Please select a file first.",
+          onConfirm: () => navigate("/file"),
+        });
+      } else {
+        setCurrentFile(fileResponse.files[0]);
+        const [teachersData, subjectsData, roomsData, classesData, programsData, assignmentsData] = await Promise.all([
+          window.api.getTeachers(),
+          window.api.getSubjects(),
+          window.api.getRooms(),
+          window.api.getClasses(),
+          window.api.getPrograms(),
+          window.api.getAssignments(fileResponse.files[0].id),
+        ]);
+        
+        setTeachers(teachersData || []);
+        setSubjects(subjectsData || []);
+        setRooms(roomsData || []);
+        setClasses(classesData || []);
+        setPrograms(programsData || []);
+        // Ensure assignments is always an array
+        setAssignments(Array.isArray(assignmentsData) ? assignmentsData : []);
       }
-    };
-    checkCurrentFile();
-  }, [navigate]);
+    } catch (error) {
+      console.error("Error checking current file:", error);
+      setAlertModal({ show: true, message: `Error loading data: ${error.message}` });
+      setAssignments([]); // Set to empty array on error
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  checkCurrentFile();
+}, [navigate]);
 
   const handleAssign = (type) => {
     setModalType(type);
@@ -292,6 +297,24 @@ export default function Assigning() {
     return timeSlot;
   };
 
+  // Add this function right after your state declarations or before handleSave
+  const checkRoomCapacity = (roomId, classId) => {
+    const room = rooms.find(r => r.id === Number(roomId));
+    const classData = classes.find(c => c.id === Number(classId));
+
+    if (!room || !classData) return { isValid: false, message: "Room or class not found" };
+
+    if (room.capacity < classData.students) {
+      return {
+        isValid: false,
+        message: `Room "${room.name}" (capacity: ${room.capacity}) cannot accommodate class "${classData.name}" (students: ${classData.students})`
+      };
+    }
+
+    return { isValid: true };
+  };
+
+  // Replace your entire handleSave function with this:
   const handleSave = async () => {
     setIsSaving(true);
     try {
@@ -318,6 +341,20 @@ export default function Assigning() {
         setAlertModal({ show: true, message: "Please select a teacher, subject, room, and class." });
         return;
       }
+
+      // ROOM CAPACITY VALIDATION - ADD THIS BLOCK
+      if (modalType === "Room Assign") {
+        const capacityCheck = checkRoomCapacity(formData.roomId, formData.classId);
+        if (!capacityCheck.isValid) {
+          setAlertModal({
+            show: true,
+            message: capacityCheck.message
+          });
+          setIsSaving(false);
+          return;
+        }
+      }
+
       if (!currentFile?.id) {
         setAlertModal({ show: true, message: "No active schedule file selected." });
         return;
@@ -432,7 +469,10 @@ export default function Assigning() {
     }
   };
   const getTeacherSubjectCount = (teacherId) => {
-    if (!assignments || !Array.isArray(assignments)) return 0;
+    if (!assignments || !Array.isArray(assignments)) {
+      console.warn('Assignments is not an array:', assignments);
+      return 0;
+    }
     return assignments.filter((a) => a.type === "subject" && a.teacherId === teacherId).length;
   };
 

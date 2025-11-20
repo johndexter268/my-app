@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { FiPlus, FiEdit, FiSearch } from "react-icons/fi"
+import { FiPlus, FiEdit, FiSearch, FiFilter } from "react-icons/fi"
 import { MdOutlineSort } from "react-icons/md"
 import { FaTrash } from "react-icons/fa"
 import Modal from "../components/Modal"
@@ -27,6 +27,39 @@ export default function ManageData() {
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [confirmMessage, setConfirmMessage] = useState("")
   const [confirmCallback, setConfirmCallback] = useState(null)
+
+  // Merge functionality states
+  const [isMergeMode, setIsMergeMode] = useState(false)
+  const [selectedClassesToMerge, setSelectedClassesToMerge] = useState([])
+  const [showMergeModal, setShowMergeModal] = useState(false)
+  const [mergeFormData, setMergeFormData] = useState({
+    name: "",
+    programId: "",
+    yearLevel: ""
+  })
+
+  // Filter states for each tab
+  const [showSubjectFilter, setShowSubjectFilter] = useState(false)
+  const [showRoomFilter, setShowRoomFilter] = useState(false)
+  const [showClassFilter, setShowClassFilter] = useState(false)
+
+  // Filter options for each tab
+  const [subjectFilter, setSubjectFilter] = useState({
+    semester: "",
+    programId: "",
+    yearLevel: "",
+    code: ""
+  })
+
+  const [roomFilter, setRoomFilter] = useState({
+    minCapacity: "",
+    maxCapacity: ""
+  })
+
+  const [classFilter, setClassFilter] = useState({
+    programId: "",
+    yearLevel: ""
+  })
 
   const presetColors = [
     "#EF4444", // Red
@@ -93,12 +126,116 @@ export default function ManageData() {
     fetchData()
   }, [])
 
+  // Merge functionality functions
+  const toggleMergeMode = () => {
+    setIsMergeMode(!isMergeMode)
+    if (isMergeMode) {
+      setSelectedClassesToMerge([])
+    }
+  }
+
+  const handleClassSelectForMerge = (classId) => {
+    setSelectedClassesToMerge(prev => {
+      if (prev.includes(classId)) {
+        return prev.filter(id => id !== classId)
+      } else {
+        return [...prev, classId]
+      }
+    })
+  }
+
+  const handleCreateMerge = () => {
+    if (selectedClassesToMerge.length < 2) {
+      customAlert("Please select at least 2 classes to merge.")
+      return
+    }
+
+    const selectedClassesData = classes.filter(cls => selectedClassesToMerge.includes(cls.id))
+
+    // Auto-fill merge form data
+    const totalStudents = selectedClassesData.reduce((sum, cls) => sum + (cls.students || 0), 0)
+    const programs = [...new Set(selectedClassesData.map(cls => cls.programId))]
+    const yearLevels = [...new Set(selectedClassesData.map(cls => cls.yearLevel))]
+
+    setMergeFormData({
+      name: `Merged Class ${Date.now()}`,
+      students: totalStudents,
+      programId: programs.length === 1 ? programs[0] : "",
+      yearLevel: yearLevels.length === 1 ? yearLevels[0] : ""
+    })
+
+    setShowMergeModal(true)
+  }
+
+  const handleSaveMerge = async () => {
+    if (!mergeFormData.name || !mergeFormData.programId || !mergeFormData.yearLevel) {
+      customAlert("Please fill in all required fields for the merged class.")
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const selectedClassesData = classes.filter(cls => selectedClassesToMerge.includes(cls.id))
+      const totalStudents = selectedClassesData.reduce((sum, cls) => sum + (cls.students || 0), 0)
+
+      const mergeData = {
+        ...mergeFormData,
+        students: totalStudents,
+        isMerged: true,
+        mergedFrom: selectedClassesToMerge,
+        originalClasses: selectedClassesData.map(cls => cls.name)
+      }
+
+      const result = await window.api.saveClass(mergeData)
+      if (result.success) {
+        const newMergedClass = {
+          ...mergeData,
+          id: result.id,
+          isMerged: true,
+          mergedFrom: selectedClassesToMerge,
+          originalClasses: selectedClassesData.map(cls => cls.name)
+        }
+
+        setClasses(prev => [...prev, newMergedClass])
+        customAlert("Merged class created successfully!")
+
+        // Reset merge state
+        setShowMergeModal(false)
+        setIsMergeMode(false)
+        setSelectedClassesToMerge([])
+        setMergeFormData({
+          name: "",
+          programId: "",
+          yearLevel: ""
+        })
+
+        const currentFile = await window.api.getCurrentFile()
+        if (currentFile) {
+          const updatedFile = { ...currentFile, updatedAt: new Date().toISOString(), hasUnsavedChanges: true }
+          await window.api.setCurrentFile(updatedFile)
+        }
+      } else {
+        customAlert(result.message || "Failed to create merged class.")
+      }
+    } catch (error) {
+      console.error("Error creating merged class:", error)
+      customAlert(`Error creating merged class: ${error.message || "Unknown error"}`)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   const handleAdd = () => {
     setFormData({})
     setShowAddModal(true)
   }
 
   const selectItem = (item) => {
+    // Don't allow editing merged classes
+    if (activeTab === "Classes" && item.isMerged) {
+      customAlert("Merged classes cannot be edited.")
+      return
+    }
     setFormData({ ...item })
     setSelectedItem(item)
   }
@@ -237,9 +374,47 @@ export default function ManageData() {
 
   const filterAndSortData = (data, nameKey) => {
     let filteredData = data
+
+    // Text search
     if (searchQuery) {
       filteredData = data.filter((item) => item[nameKey]?.toLowerCase().includes(searchQuery.toLowerCase()))
     }
+
+    // Apply tab-specific filters
+    if (activeTab === "Subjects") {
+      if (subjectFilter.semester) {
+        filteredData = filteredData.filter(item => item.semester === subjectFilter.semester)
+      }
+      if (subjectFilter.programId) {
+        filteredData = filteredData.filter(item => String(item.programId) === String(subjectFilter.programId))
+      }
+      if (subjectFilter.yearLevel) {
+        filteredData = filteredData.filter(item => item.yearLevel === subjectFilter.yearLevel)
+      }
+      if (subjectFilter.code) {
+        filteredData = filteredData.filter(item => item.code?.toLowerCase().includes(subjectFilter.code.toLowerCase()))
+      }
+    }
+
+    if (activeTab === "Rooms") {
+      if (roomFilter.minCapacity) {
+        filteredData = filteredData.filter(item => item.capacity >= parseInt(roomFilter.minCapacity))
+      }
+      if (roomFilter.maxCapacity) {
+        filteredData = filteredData.filter(item => item.capacity <= parseInt(roomFilter.maxCapacity))
+      }
+    }
+
+    if (activeTab === "Classes") {
+      if (classFilter.programId) {
+        filteredData = filteredData.filter(item => String(item.programId) === String(classFilter.programId))
+      }
+      if (classFilter.yearLevel) {
+        filteredData = filteredData.filter(item => item.yearLevel === classFilter.yearLevel)
+      }
+    }
+
+    // Sort
     return filteredData.sort((a, b) => {
       const nameA = a[nameKey]?.toLowerCase() || ""
       const nameB = b[nameKey]?.toLowerCase() || ""
@@ -290,9 +465,8 @@ export default function ManageData() {
                 {presetColors.map((color) => (
                   <button
                     key={color}
-                    className={`w-7 h-7 rounded-full border-2 transition-all ${
-                      formData.color === color ? "border-teal-500 scale-110" : "border-gray-300"
-                    }`}
+                    className={`w-7 h-7 rounded-full border-2 transition-all ${formData.color === color ? "border-teal-500 scale-110" : "border-gray-300"
+                      }`}
                     style={{ backgroundColor: color }}
                     onClick={() => setFormData((prev) => ({ ...prev, color }))}
                     title={`Select ${color}`}
@@ -382,6 +556,8 @@ export default function ManageData() {
                 <option value="2nd Year">2nd Year</option>
                 <option value="3rd Year">3rd Year</option>
                 <option value="4th Year">4th Year</option>
+                <option value="5th Year">5th Year</option>
+                <option value="6th Year">6th Year</option>
               </select>
             </div>
           </>
@@ -459,6 +635,8 @@ export default function ManageData() {
                 <option value="2nd Year">2nd Year</option>
                 <option value="3rd Year">3rd Year</option>
                 <option value="4th Year">4th Year</option>
+                <option value="5th Year">5th Year</option>
+                <option value="6th Year">6th Year</option>
               </select>
             </div>
           </>
@@ -511,6 +689,11 @@ export default function ManageData() {
                 setActiveTab(tab)
                 setSearchQuery("")
                 setSortOrder("A-Z")
+                setIsMergeMode(false)
+                setSelectedClassesToMerge([])
+                setShowSubjectFilter(false)
+                setShowRoomFilter(false)
+                setShowClassFilter(false)
               }}
               className={`pb-2 px-1 text-sm font-medium transition-colors
                 ${activeTab === tab ? "text-[#031844] border-b-2 border-[#031844]" : "text-gray-500 hover:text-gray-700"}`}
@@ -523,36 +706,336 @@ export default function ManageData() {
       <button
         onClick={handleAdd}
         disabled={isSaving || isDeleting}
-        className={`flex items-center gap-2 px-4 py-2 rounded-md text-zinc-900 hover:bg-[#e5e5e5] transition-colors mb-4 ${
-          isSaving || isDeleting ? "opacity-50 cursor-not-allowed" : ""
-        }`}
+        className={`flex items-center gap-2 px-4 py-2 rounded-md text-zinc-900 hover:bg-[#e5e5e5] transition-colors mb-4 ${isSaving || isDeleting ? "opacity-50 cursor-not-allowed" : ""
+          }`}
       >
         <FiPlus /> Add New
       </button>
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-6 h-[calc(100vh-18rem)]">
         <div className="bg-white rounded-lg p-6 flex flex-col overflow-y-auto [scrollbar-width:thin] [scrollbar-color:#cfcfcf_transparent] h-[calc(100vh-12rem)]">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold">{activeTab} List</h2>
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder={`Search ${activeTab.toLowerCase()}...`}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500"
-                />
-                <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+          {/* Teachers Tab */}
+          {activeTab === "Teachers" && (
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold">{activeTab} List</h2>
+              <div className="flex items-center gap-4">
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search teachers..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 w-64"
+                  />
+                  <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                </div>
+                <button
+                  onClick={toggleSortOrder}
+                  className="p-2 rounded-md hover:bg-gray-100 transition-colors"
+                  title={`Sort ${sortOrder === "A-Z" ? "Z-A" : "A-Z"}`}
+                >
+                  <MdOutlineSort className="w-5 h-5" />
+                </button>
               </div>
-              <button
-                onClick={toggleSortOrder}
-                className="p-2 rounded-md hover:bg-gray-100 transition-colors"
-                title={`Sort ${sortOrder === "A-Z" ? "Z-A" : "A-Z"}`}
-              >
-                <MdOutlineSort className="w-5 h-5" />
-              </button>
             </div>
-          </div>
+          )}
+
+          {/* Subjects Tab */}
+          {activeTab === "Subjects" && (
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold">{activeTab} List</h2>
+              <div className="flex items-center gap-4">
+                <div className="relative flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Search subjects..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 w-64"
+                  />
+                  <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                  <button
+                    onClick={() => setShowSubjectFilter(!showSubjectFilter)}
+                    className="p-2 rounded-md hover:bg-gray-100 transition-colors"
+                    title="Filter subjects"
+                  >
+                    <FiFilter className="w-5 h-5 text-[#031844]" />
+                  </button>
+                  {showSubjectFilter && (
+                    <div className="absolute right-0 top-12 mt-2 w-64 bg-white border rounded-lg shadow-lg p-4 z-10">
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Semester</label>
+                          <select
+                            value={subjectFilter.semester}
+                            onChange={(e) => setSubjectFilter(prev => ({ ...prev, semester: e.target.value }))}
+                            className="w-full p-2 border border-gray-300 rounded-md text-sm"
+                          >
+                            <option value="">All Semesters</option>
+                            <option value="1st Semester">1st Semester</option>
+                            <option value="2nd Semester">2nd Semester</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Course/Program</label>
+                          <select
+                            value={subjectFilter.programId}
+                            onChange={(e) => setSubjectFilter(prev => ({ ...prev, programId: e.target.value }))}
+                            className="w-full p-2 border border-gray-300 rounded-md text-sm"
+                          >
+                            <option value="">All Programs</option>
+                            {programs.map((program) => (
+                              <option key={program.id} value={program.id}>
+                                {program.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Year Level</label>
+                          <select
+                            value={subjectFilter.yearLevel}
+                            onChange={(e) => setSubjectFilter(prev => ({ ...prev, yearLevel: e.target.value }))}
+                            className="w-full p-2 border border-gray-300 rounded-md text-sm"
+                          >
+                            <option value="">All Year Levels</option>
+                            <option value="1st Year">1st Year</option>
+                            <option value="2nd Year">2nd Year</option>
+                            <option value="3rd Year">3rd Year</option>
+                            <option value="4th Year">4th Year</option>
+                            <option value="5th Year">5th Year</option>
+                            <option value="6th Year">6th Year</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Subject Code</label>
+                          <input
+                            type="text"
+                            value={subjectFilter.code}
+                            onChange={(e) => setSubjectFilter(prev => ({ ...prev, code: e.target.value }))}
+                            placeholder="Enter code..."
+                            className="w-full p-2 border border-gray-300 rounded-md text-sm"
+                          />
+                        </div>
+
+                        <button
+                          onClick={() => setShowSubjectFilter(false)}
+                          className="w-full px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700 text-sm"
+                        >
+                          Apply Filters
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={toggleSortOrder}
+                  className="p-2 rounded-md hover:bg-gray-100 transition-colors"
+                  title={`Sort ${sortOrder === "A-Z" ? "Z-A" : "A-Z"}`}
+                >
+                  <MdOutlineSort className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Rooms Tab */}
+          {activeTab === "Rooms" && (
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold">{activeTab} List</h2>
+              <div className="flex items-center gap-4">
+                <div className="relative flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Search rooms..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 w-64"
+                  />
+                  <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                  <button
+                    onClick={() => setShowRoomFilter(!showRoomFilter)}
+                    className="p-2 rounded-md hover:bg-gray-100 transition-colors"
+                    title="Filter rooms"
+                  >
+                    <FiFilter className="w-5 h-5 text-[#031844]" />
+                  </button>
+                  {showRoomFilter && (
+                    <div className="absolute right-0 top-12 mt-2 w-64 bg-white border rounded-lg shadow-lg p-4 z-10">
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Min Capacity</label>
+                          <input
+                            type="number"
+                            value={roomFilter.minCapacity}
+                            onChange={(e) => setRoomFilter(prev => ({ ...prev, minCapacity: e.target.value }))}
+                            placeholder="Minimum capacity"
+                            className="w-full p-2 border border-gray-300 rounded-md text-sm"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Max Capacity</label>
+                          <input
+                            type="number"
+                            value={roomFilter.maxCapacity}
+                            onChange={(e) => setRoomFilter(prev => ({ ...prev, maxCapacity: e.target.value }))}
+                            placeholder="Maximum capacity"
+                            className="w-full p-2 border border-gray-300 rounded-md text-sm"
+                          />
+                        </div>
+
+                        <button
+                          onClick={() => setShowRoomFilter(false)}
+                          className="w-full px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700 text-sm"
+                        >
+                          Apply Filters
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={toggleSortOrder}
+                  className="p-2 rounded-md hover:bg-gray-100 transition-colors"
+                  title={`Sort ${sortOrder === "A-Z" ? "Z-A" : "A-Z"}`}
+                >
+                  <MdOutlineSort className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Classes Tab */}
+          {activeTab === "Classes" && (
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold">{activeTab} List</h2>
+              <div className="flex items-center gap-4">
+                <div className="relative flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Search classes..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 w-64"
+                  />
+                  <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                  <button
+                    onClick={() => setShowClassFilter(!showClassFilter)}
+                    className="p-2 rounded-md hover:bg-gray-100 transition-colors"
+                    title="Filter classes"
+                  >
+                    <FiFilter className="w-5 h-5 text-[#031844]" />
+                  </button>
+                  {showClassFilter && (
+                    <div className="absolute right-0 top-12 mt-2 w-64 bg-white border rounded-lg shadow-lg p-4 z-10">
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Course/Program</label>
+                          <select
+                            value={classFilter.programId}
+                            onChange={(e) => setClassFilter(prev => ({ ...prev, programId: e.target.value }))}
+                            className="w-full p-2 border border-gray-300 rounded-md text-sm"
+                          >
+                            <option value="">All Programs</option>
+                            {programs.map((program) => (
+                              <option key={program.id} value={program.id}>
+                                {program.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Year Level</label>
+                          <select
+                            value={classFilter.yearLevel}
+                            onChange={(e) => setClassFilter(prev => ({ ...prev, yearLevel: e.target.value }))}
+                            className="w-full p-2 border border-gray-300 rounded-md text-sm"
+                          >
+                            <option value="">All Year Levels</option>
+                            <option value="1st Year">1st Year</option>
+                            <option value="2nd Year">2nd Year</option>
+                            <option value="3rd Year">3rd Year</option>
+                            <option value="4th Year">4th Year</option>
+                            <option value="5th Year">5th Year</option>
+                            <option value="6th Year">6th Year</option>
+                          </select>
+                        </div>
+
+                        <button
+                          onClick={() => setShowClassFilter(false)}
+                          className="w-full px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700 text-sm"
+                        >
+                          Apply Filters
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={toggleSortOrder}
+                  className="p-2 rounded-md hover:bg-gray-100 transition-colors"
+                  title={`Sort ${sortOrder === "A-Z" ? "Z-A" : "A-Z"}`}
+                >
+                  <MdOutlineSort className="w-5 h-5" />
+                </button>
+
+                {/* Merge buttons */}
+                <button
+                  onClick={toggleMergeMode}
+                  className={`px-4 py-2 rounded-md transition-colors ${isMergeMode
+                    ? "bg-teal-600 text-white hover:bg-teal-700"
+                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                    }`}
+                >
+                  {isMergeMode ? "Cancel Merge" : "Merge"}
+                </button>
+
+                {isMergeMode && (
+                  <button
+                    onClick={handleCreateMerge}
+                    disabled={selectedClassesToMerge.length < 2}
+                    className={`px-4 py-2 rounded-md transition-colors ${selectedClassesToMerge.length >= 2
+                      ? "bg-blue-600 text-white hover:bg-blue-700"
+                      : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                      }`}
+                  >
+                    Create ({selectedClassesToMerge.length})
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Programs Tab */}
+          {activeTab === "Programs" && (
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold">{activeTab} List</h2>
+              <div className="flex items-center gap-4">
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search programs..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 w-64"
+                  />
+                  <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                </div>
+                <button
+                  onClick={toggleSortOrder}
+                  className="p-2 rounded-md hover:bg-gray-100 transition-colors"
+                  title={`Sort ${sortOrder === "A-Z" ? "Z-A" : "A-Z"}`}
+                >
+                  <MdOutlineSort className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="flex-1 overflow-y-auto">
             {activeTab === "Teachers" && (
               <table className="w-full border-collapse">
@@ -686,6 +1169,9 @@ export default function ManageData() {
                 <thead className="bg-[#4c4c4c] rounded-md sticky top-0">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase rounded-tl-md rounded-bl-md">
+                      {isMergeMode && "Select"}
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase">
                       Class Name
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase">No. of Students</th>
@@ -696,9 +1182,38 @@ export default function ManageData() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filterAndSortData(classes, "name").map((cls, index) => (
-                    <tr key={cls.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => selectItem(cls)}>
+                    <tr
+                      key={cls.id}
+                      className={`hover:bg-gray-50 cursor-pointer ${cls.isMerged ? 'bg-blue-50' : ''}`}
+                      onClick={() => !isMergeMode && selectItem(cls)}
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
+                        {isMergeMode ? (
+                          <input
+                            type="checkbox"
+                            checked={selectedClassesToMerge.includes(cls.id)}
+                            onChange={(e) => {
+                              e.stopPropagation()
+                              handleClassSelectForMerge(cls.id)
+                            }}
+                            className="h-4 w-4 text-teal-600"
+                          />
+                        ) : (
+                          index + 1
+                        )}
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm flex gap-6 text-gray-800">
-                        {index + 1}. <div>{cls.name}</div>
+                        {!isMergeMode && <div>{cls.name}</div>}
+                        {isMergeMode && (
+                          <div className="flex items-center gap-2">
+                            <div>{cls.name}</div>
+                            {cls.isMerged && (
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                Merged
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">{cls.students}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-800">
@@ -780,10 +1295,11 @@ export default function ManageData() {
                   </button>
                   <button
                     onClick={() => handleSave(false)}
-                    disabled={isSaving || isDeleting}
-                    className="px-4 py-1 text-[#4c4c4c] bg-white border border-[#4c4c4c] rounded-md hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={isSaving || isDeleting || (activeTab === "Classes" && selectedItem.isMerged)}
+                    className={`px-4 py-1 text-[#4c4c4c] bg-white border border-[#4c4c4c] rounded-md hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${activeTab === "Classes" && selectedItem.isMerged ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : ''
+                      }`}
                   >
-                    {isSaving ? "Saving..." : "Save"}
+                    {isSaving ? "Saving..." : (activeTab === "Classes" && selectedItem.isMerged) ? "Cannot Edit Merged" : "Save"}
                   </button>
                 </div>
               </div>
@@ -825,6 +1341,99 @@ export default function ManageData() {
                 className="px-4 py-2 text-white bg-[#4c4c4c] rounded-md hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSaving ? "Saving..." : "Add"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Merge Modal */}
+      {showMergeModal && (
+        <div className="fixed inset-0 z-[99999] bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto z-[100000]">
+            <h2 className="text-lg font-semibold mb-4">Create Merged Class</h2>
+
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Merged Class Name</label>
+                <input
+                  type="text"
+                  value={mergeFormData.name}
+                  onChange={(e) => setMergeFormData(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500"
+                  placeholder="Enter merged class name"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Program</label>
+                <select
+                  value={mergeFormData.programId}
+                  onChange={(e) => setMergeFormData(prev => ({ ...prev, programId: e.target.value }))}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500"
+                >
+                  <option value="">Select program</option>
+                  {programs.map((program) => (
+                    <option key={program.id} value={program.id}>
+                      {program.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Year Level</label>
+                <select
+                  value={mergeFormData.yearLevel}
+                  onChange={(e) => setMergeFormData(prev => ({ ...prev, yearLevel: e.target.value }))}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500"
+                >
+                  <option value="">Select year level</option>
+                  <option value="1st Year">1st Year</option>
+                  <option value="2nd Year">2nd Year</option>
+                  <option value="3rd Year">3rd Year</option>
+                  <option value="4th Year">4th Year</option>
+                  <option value="5th Year">5th Year</option>
+                  <option value="6th Year">6th Year</option>
+                </select>
+              </div>
+
+              <div className="border-t pt-4">
+                <h3 className="text-md font-medium text-gray-900 mb-2">Summary</h3>
+                <div className="bg-gray-50 p-3 rounded-md">
+                  <p className="text-sm text-gray-700">
+                    <strong>Total Students:</strong> {
+                      classes
+                        .filter(cls => selectedClassesToMerge.includes(cls.id))
+                        .reduce((sum, cls) => sum + (cls.students || 0), 0)
+                    }
+                  </p>
+                  <p className="text-sm text-gray-700 mt-1">
+                    <strong>Classes to merge:</strong> {
+                      classes
+                        .filter(cls => selectedClassesToMerge.includes(cls.id))
+                        .map(cls => cls.name)
+                        .join(", ")
+                    }
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowMergeModal(false)}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
+                disabled={isSaving}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveMerge}
+                disabled={isSaving}
+                className="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSaving ? "Creating..." : "Create Merged Class"}
               </button>
             </div>
           </div>

@@ -31,10 +31,15 @@ export default function Home() {
     showWithSchedule: false,
     showWithoutSchedule: true,
   });
+  const handleZoomChange = (e) => {
+    const zoomValue = parseInt(e.target.value) / 100;
+    setZoomLevel(zoomValue);
+  };
   const [editingAssignment, setEditingAssignment] = useState(null);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [selectedProgramId, setSelectedProgramId] = useState(null);
   const [selectedClassId, setSelectedClassId] = useState(null);
+  const [selectedMergeClassId, setSelectedMergeClassId] = useState(null);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [fullScheduleActive, setFullScheduleActive] = useState(false);
   const [panX, setPanX] = useState(0);
@@ -245,6 +250,35 @@ export default function Home() {
       window.removeEventListener('toggleAssignmentList', handleToggleAssignmentList);
     };
   }, []);
+  useEffect(() => {
+    const handleViewByCourse = (event) => {
+      setSelectedProgramId(event.detail.programId);
+      setSelectedClassId(null);
+      setSelectedMergeClassId(null);
+    };
+
+    const handleViewByClass = (event) => {
+      setSelectedClassId(event.detail.classId);
+      setSelectedProgramId(null);
+      setSelectedMergeClassId(null);
+    };
+
+    const handleViewByMergeClass = (event) => {
+      setSelectedMergeClassId(event.detail.mergeClassId);
+      setSelectedProgramId(null);
+      setSelectedClassId(null);
+    };
+
+    window.addEventListener("viewByCourse", handleViewByCourse);
+    window.addEventListener("viewByClass", handleViewByClass);
+    window.addEventListener("viewByMergeClass", handleViewByMergeClass);
+
+    return () => {
+      window.removeEventListener("viewByCourse", handleViewByCourse);
+      window.removeEventListener("viewByClass", handleViewByClass);
+      window.removeEventListener("viewByMergeClass", handleViewByMergeClass);
+    };
+  }, []);
   const timeSlots = [
     '7:00 AM - 7:30 AM', '7:30 AM - 8:00 AM', '8:00 AM - 8:30 AM', '8:30 AM - 9:00 AM',
     '9:00 AM - 9:30 AM', '9:30 AM - 10:00 AM', '10:00 AM - 10:30 AM', '10:30 AM - 11:00 AM',
@@ -347,9 +381,27 @@ export default function Home() {
       return total + (classData?.numStudents || 0); // Fixed to use numStudents
     }, 0);
   };
-  const createScheduleGrid = (programId = null, classId = null) => {
-    const progClasses = classes.filter((c) => !programId || c.programId === programId);
-    const targetClasses = classId ? progClasses.filter((c) => c.id === classId) : progClasses;
+  const createScheduleGrid = (programId = null, classId = null, mergeClassId = null) => {
+    let targetClasses = [];
+
+    if (mergeClassId) {
+      // Handle merged class - get all classes that are part of this merge
+      const mergedClass = classes.find(cls => cls.id === mergeClassId);
+      if (mergedClass && mergedClass.isMerged && mergedClass.mergedFrom) {
+        targetClasses = classes.filter(cls => mergedClass.mergedFrom.includes(cls.id));
+      } else {
+        targetClasses = [mergedClass].filter(Boolean);
+      }
+    } else if (classId) {
+      // Single class
+      targetClasses = classes.filter((c) => c.id === classId);
+    } else if (programId) {
+      // All classes in program
+      targetClasses = classes.filter((c) => c.programId === programId);
+    } else {
+      // All classes (for full schedule)
+      targetClasses = classes;
+    }
 
     if (targetClasses.length === 0) return null;
 
@@ -387,6 +439,7 @@ export default function Home() {
 
     return { grid, classes: targetClasses };
   };
+
   // Create merged schedule grid for full schedule
   const createMergedScheduleGrid = () => {
     const mergedGrid = {};
@@ -457,23 +510,27 @@ export default function Home() {
     const endTime = formatTime(endMinutes);
     return `${startTime}-${endTime}`;
   };
-  const handleDrop = async (event, day, timeIndex, yearLevel, programId = null) => {
+  const handleDrop = async (event, day, timeIndex, classId, programId = null) => {
     event.preventDefault();
     const assignmentId = event.dataTransfer.getData("text/plain");
     const assignment = assignments.find((a) => a.id === assignmentId);
+
     if (!assignment) {
       console.error("Assignment not found for ID:", assignmentId);
       return;
     }
+
     let updatedAssignment;
     let newRoomId;
-    // Determine the target class based on programId and yearLevel
+
+    // Determine the target class
     let targetClass = null;
-    if (programId && selectedClassId) {
-      targetClass = classes.find((c) => c.id === selectedClassId);
+    if (classId) {
+      targetClass = classes.find((c) => c.id === classId);
     } else if (programId) {
       targetClass = classes.find((c) => c.programId === programId);
     }
+
     if (!targetClass && (assignment.type === "subject" || assignment.type === "room")) {
       setConflictModal({
         open: true,
@@ -481,10 +538,10 @@ export default function Home() {
       });
       return;
     }
+
     const startTime = timeSlots[timeIndex].split('-')[0].trim();
+
     if (assignment.type === "time") {
-      const assYearLevel = getClassName(assignment.classId);
-      // Removed unnecessary year level check as filtering ensures match
       const timeSlot = getTimeSlotRange(startTime, assignment.duration);
       updatedAssignment = {
         ...assignment,
@@ -501,13 +558,6 @@ export default function Home() {
         )?.roomId
         : null;
     } else if (assignment.type === "room") {
-      if (getClassName(assignment.classId) !== yearLevel) {
-        setConflictModal({
-          open: true,
-          conflicts: ["Class year level does not match the drop column."],
-        });
-        return;
-      }
       const timeSlot = getTimeSlotRange(startTime, 30);
       updatedAssignment = {
         id: crypto.randomUUID(),
@@ -518,18 +568,11 @@ export default function Home() {
         timeSlot,
         duration: 30,
         type: "time",
-        scheduleFileId: currentFile.id,
+        scheduleFileId: currentFile?.id || assignment.scheduleFileId,
       };
       newRoomId = assignment.roomId;
     } else if (assignment.type === "subject") {
       const subject = subjects.find((s) => s.id === assignment.subjectId);
-      if (subject && subject.yearLevel !== yearLevel) {
-        setConflictModal({
-          open: true,
-          conflicts: ["Subject year level does not match the drop column."],
-        });
-        return;
-      }
       const timeSlot = getTimeSlotRange(startTime, 30);
       updatedAssignment = {
         id: crypto.randomUUID(),
@@ -540,17 +583,13 @@ export default function Home() {
         timeSlot,
         duration: 30,
         type: "time",
-        scheduleFileId: currentFile.id,
+        scheduleFileId: currentFile?.id || assignment.scheduleFileId,
       };
       newRoomId = null;
     }
-    let dayAssignments = getDayAssignments(day, null);
-    if (assignment.type === "time") {
-      dayAssignments = dayAssignments.filter(({ assignment: ass }) => ass.id !== assignment.id);
-    }
-    // === FIXED CONFLICT DETECTION WITH YEAR LEVEL SUPPORT ===
-    const conflictSet = new Set();
 
+    // IMPROVED CONFLICT DETECTION
+    const conflictSet = new Set();
     const startSlot = timeSlots.findIndex((slot) =>
       slot.split('-')[0].trim() === updatedAssignment.timeSlot.split('-')[0].trim()
     );
@@ -563,10 +602,7 @@ export default function Home() {
       );
 
     for (const { assignment: existing } of overlappingAssignments) {
-      const existingYearLevel = getYearLevel(existing.classId);
-      const newYearLevel = getYearLevel(updatedAssignment.classId);
-
-      // 1. Teacher Conflict (same teacher, different subject)
+      // 1. Teacher Conflict
       if (
         existing.teacherId === updatedAssignment.teacherId &&
         existing.subjectId !== updatedAssignment.subjectId
@@ -576,72 +612,35 @@ export default function Home() {
         );
       }
 
-      // 2. Class Conflict (same class scheduled twice)
+      // 2. Class Conflict
       if (existing.classId === updatedAssignment.classId) {
         conflictSet.add(`Class ${getClassName(existing.classId)} already has a class at this time.`);
       }
 
-      // 3. Subject-Teacher Conflict (same subject, different teacher at same time/day)
-      if (
-        existing.subjectId === updatedAssignment.subjectId &&
-        existing.teacherId !== updatedAssignment.teacherId &&
-        existing.day === updatedAssignment.day
-      ) {
-        conflictSet.add(
-          `Subject ${getSubjectName(existing.subjectId)} is already assigned to ${getTeacherName(existing.teacherId)} at this time.`
-        );
-      }
-
-      // 4. Room Conflict — only if same room AND different year levels (unless merged)
+      // 3. Room Conflict
       if (newRoomId) {
-        const existingRoomId = getAssignmentRoom(existing) !== "N/A"
-          ? roomAssignments.find(ra =>
-            ra.scheduleFileId === existing.scheduleFileId &&
-            ra.subjectId === existing.subjectId &&
-            ra.teacherId === existing.teacherId &&
-            ra.classId === existing.classId
-          )?.roomId
-          : null;
+        const existingRoomId = getAssignmentRoom(existing);
+        if (existingRoomId !== "N/A" && existingRoomId === getRoomName(newRoomId)) {
+          // Check if this is a merged class scenario
+          const isSameSubjectTeacher =
+            existing.subjectId === updatedAssignment.subjectId &&
+            existing.teacherId === updatedAssignment.teacherId;
 
-        if (existingRoomId === newRoomId) {
-          const isMerged = timeAssignments.some(a =>
-            a.subjectId === existing.subjectId &&
-            a.teacherId === existing.teacherId &&
-            a.day === day &&
-            a.timeSlot === updatedAssignment.timeSlot &&
-            a.classId !== existing.classId &&
-            a.classId !== updatedAssignment.classId
-          );
-
-          // Allow room sharing only if classes are explicitly merged (same subject+teacher+time)
-          if (!isMerged && existingYearLevel !== newYearLevel) {
-            conflictSet.add(
-              `Room ${getRoomName(newRoomId)} is already used by ${getClassName(existing.classId)} (${existingYearLevel}) at this time. ` +
-              `Different year levels cannot share rooms unless merged.`
-            );
+          if (!isSameSubjectTeacher) {
+            conflictSet.add(`Room ${getRoomName(newRoomId)} is already occupied by ${getSubjectName(existing.subjectId)}.`);
           }
         }
       }
-
-      // 5. Subject Year Level Mismatch
-      const subjectYearLevel = getSubjectYearLevel(updatedAssignment.subjectId);
-      if (subjectYearLevel && newYearLevel && subjectYearLevel !== newYearLevel) {
-        conflictSet.add(
-          `Subject "${getSubjectName(updatedAssignment.subjectId)}" is for ${subjectYearLevel}, ` +
-          `but assigned to ${newYearLevel} class (${getClassName(updatedAssignment.classId)}).`
-        );
-      }
     }
 
-    // 6. Room Capacity Check (supports merged classes)
+    // 4. Room Capacity Check
     if (newRoomId) {
       const room = rooms.find(r => r.id === newRoomId);
       if (room) {
-        const totalStudents = getTotalStudentsForMergedClasses(updatedAssignment, day, updatedAssignment.timeSlot);
-        if (totalStudents > room.capacity) {
+        const classData = classes.find(c => c.id === updatedAssignment.classId);
+        if (classData && classData.students > room.capacity) {
           conflictSet.add(
-            `Room ${room.name} capacity (${room.capacity}) exceeded. ` +
-            `Total students: ${totalStudents} (includes merged classes)`
+            `Room ${room.name} capacity (${room.capacity}) exceeded. Class has ${classData.students} students.`
           );
         }
       }
@@ -654,11 +653,15 @@ export default function Home() {
       });
       return;
     }
+
+    // Save the assignment
     try {
       const result = assignment.type === "time"
         ? await window.api.updateTimeSlotAssignment(updatedAssignment)
         : await window.api.assignTimeSlot(updatedAssignment);
+
       if (result.success) {
+        // Handle room assignment and refresh data
         if (newRoomId) {
           const existingRoomAssignment = roomAssignments.find(
             (ra) =>
@@ -686,51 +689,9 @@ export default function Home() {
             });
           }
         }
-        // Update state to ensure visibility
-        setTimeAssignments((prev) => {
-          if (assignment.type === "time") {
-            return prev.map((a) => (a.id === updatedAssignment.id ? updatedAssignment : a));
-          }
-          return [...prev, updatedAssignment];
-        });
-        setRoomAssignments((prev) => {
-          const existing = prev.find(
-            (ra) =>
-              ra.scheduleFileId === updatedAssignment.scheduleFileId &&
-              ra.subjectId === updatedAssignment.subjectId &&
-              ra.teacherId === updatedAssignment.teacherId &&
-              ra.classId === updatedAssignment.classId
-          );
-          if (existing && newRoomId) {
-            return prev.map((ra) =>
-              ra.id === existing.id ? { ...ra, roomId: newRoomId } : ra
-            );
-          }
-          if (newRoomId) {
-            return [
-              ...prev,
-              {
-                id: crypto.randomUUID(),
-                scheduleFileId: updatedAssignment.scheduleFileId,
-                subjectId: updatedAssignment.subjectId,
-                teacherId: updatedAssignment.teacherId,
-                classId: updatedAssignment.classId,
-                roomId: newRoomId,
-              },
-            ];
-          }
-          return prev;
-        });
-        setAssignments((prev) => {
-          if (assignment.type === "time") {
-            return prev.map((a) => (a.id === updatedAssignment.id ? updatedAssignment : a));
-          }
-          // Remove the original subject/room assignment and add the new time assignment
-          const filtered = prev.filter((a) => a.id !== assignment.id);
-          return [...filtered, updatedAssignment];
-        });
-        // Refresh assignments to ensure consistency
-        const data = await window.api.getAssignments(currentFile.id);
+
+        // Refresh assignments
+        const data = await window.api.getAssignments(currentFile?.id || updatedAssignment.scheduleFileId);
         setTimeAssignments(data.filter((a) => a.type === "time") || []);
         setRoomAssignments(data.filter((a) => a.type === "room") || []);
         setSubjectAssignments(data.filter((a) => a.type === "subject") || []);
@@ -1009,19 +970,53 @@ export default function Home() {
   // Check if we should use day-column layout (specific program AND year level selected)
   const useDayColumnLayout = selectedProgramId && selectedClassId;
 
-  const grids = useDayColumnLayout
-    ? [{
-      program: programs.find(p => p.id === selectedProgramId),
-      grid: createScheduleGrid(selectedProgramId, selectedClassId),
-      classes: classes.filter(c => c.id === selectedClassId),
-      isDayColumn: true,
-    }]
-    : programsToShow
-      .map(program => {
-        const gridData = createScheduleGrid(program.id);
-        return gridData ? { program, ...gridData, classes: gridData.classes, isDayColumn: false } : null;
-      })
-      .filter(Boolean);
+  const grids = (() => {
+    if (selectedMergeClassId) {
+      // Show merged class schedule
+      const gridData = createScheduleGrid(null, null, selectedMergeClassId);
+      const mergedClass = classes.find(cls => cls.id === selectedMergeClassId);
+      return gridData ? [{
+        program: { id: 'merged', name: `${mergedClass?.name || 'Merged Class'} Schedule` },
+        ...gridData,
+        isDayColumn: true
+      }] : [];
+    } else if (selectedClassId) {
+      // Show specific class schedule
+      const classData = classes.find(cls => cls.id === selectedClassId);
+      const program = classData ? programs.find(p => p.id === classData.programId) : null;
+      const gridData = createScheduleGrid(null, selectedClassId);
+      return gridData ? [{
+        program: program || { id: 'class', name: 'Class Schedule' },
+        ...gridData,
+        isDayColumn: true
+      }] : [];
+    } else if (selectedProgramId) {
+      // Show program schedule
+      const program = programs.find(p => p.id === selectedProgramId);
+      const gridData = createScheduleGrid(selectedProgramId);
+      return gridData ? [{ program, ...gridData, isDayColumn: false }] : [];
+    } else if (fullScheduleActive) {
+      // Show all programs
+      return programs
+        .map(program => {
+          const gridData = createScheduleGrid(program.id);
+          return gridData ? { program, ...gridData, classes: gridData.classes, isDayColumn: false } : null;
+        })
+        .filter(Boolean);
+    } else {
+      // Show current file's schedule
+      const currentPrograms = [...new Set(classes.map(c => c.programId))].map(programId =>
+        programs.find(p => p.id === programId)
+      ).filter(Boolean);
+
+      return currentPrograms
+        .map(program => {
+          const gridData = createScheduleGrid(program.id);
+          return gridData ? { program, ...gridData, classes: gridData.classes, isDayColumn: false } : null;
+        })
+        .filter(Boolean);
+    }
+  })();
 
   const availableSlots = selectedTeacherId ? getAvailableSlotsForTeacher(selectedTeacherId) : {};
   const mergedGrid = fullScheduleActive ? createMergedScheduleGrid() : null;
@@ -1067,7 +1062,7 @@ export default function Home() {
                       ref={contentRef}
                       className="relative"
                       style={{
-                        transform: `translate(${panX}px, ${panY}px) scale(${zoomLevel})`,
+                        transform: `scale(${zoomLevel})`,
                         transformOrigin: "top left",
                         cursor: zoomLevel > 1 ? "grab" : "default",
                       }}
@@ -1288,13 +1283,29 @@ export default function Home() {
       {!isFullScreen && (
         <div className={`pr-6 pl-6 flex flex-col lg:flex-row gap-6`}>
           <div className="flex-1 space-y-0">
-            <div className="fixed bottom-0 bg-white rounded-t-lg shadow-sm p-2 border z-[1000]">
-              <div className="text-sm font-semibold text-gray-700">
-                {fullScheduleActive
-                  ? "All Programs Schedule"
-                  : `${currentFile?.semester || ""} | School Year: ${currentFile?.academic_year || ""}`}
+            <div className="fixed bottom-0 right-0 bg-white rounded-t-lg shadow-sm p-3 border z-[20]">
+              <div className="flex items-center justify-between">
+
+                <div className="text-sm font-semibold text-gray-700">
+                  {fullScheduleActive
+                    ? "All Programs Schedule"
+                    : `${currentFile?.semester || ""} | School Year: ${currentFile?.academic_year || ""}`}
+                </div>
+
+                <div className="flex items-center gap-2 w-40">
+                  <input
+                    type="range"
+                    min="50"
+                    max="150"
+                    value={zoomLevel * 100}
+                    onChange={handleZoomChange}
+                    className="w-full accent-blue-500 cursor-pointer"
+                  />
+                  <span className="text-xs text-gray-600">Zoom</span>
+                </div>
               </div>
             </div>
+
             <div className="p-4 rounded-2xl bg-white">
               {grids.map(({ program, grid, classes: classList, isDayColumn }, progIndex) => (
                 <div key={program.id || progIndex}>

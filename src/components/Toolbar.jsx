@@ -54,6 +54,10 @@ export default function Toolbar({
   const userRole = localStorage.getItem('userRole') || 'user';
   const isFilePage = location.pathname === '/file';
 
+  const [selectedProgramId, setSelectedProgramId] = useState(null);
+  const [selectedClassId, setSelectedClassId] = useState(null);
+  const [selectedMergeClass, setSelectedMergeClass] = useState(null);
+
   // Refs for focusing inputs
   const newModalInputRef = useRef(null);
   const saveAsModalInputRef = useRef(null);
@@ -535,6 +539,9 @@ export default function Toolbar({
   };
 
   const handleClassSchedule = (classId) => {
+    const classIdNum = classId ? parseInt(classId) : null;
+    setSelectedClassId(classIdNum);
+
     if (fullScheduleActive) {
       setFullScheduleActive(false);
       setActiveFileId(lastActiveFileId);
@@ -547,7 +554,62 @@ export default function Toolbar({
       }
       window.dispatchEvent(new CustomEvent('viewFullSchedule', { detail: { fullScheduleActive: false } }));
     }
-    window.dispatchEvent(new CustomEvent('viewByClass', { detail: { classId: parseInt(classId) } }));
+
+    window.dispatchEvent(new CustomEvent('viewByClass', {
+      detail: { classId: classIdNum }
+    }));
+  };
+
+  const handleAllSchedule = () => {
+    const newFullScheduleActive = !fullScheduleActive;
+    setFullScheduleActive(newFullScheduleActive);
+    setSelectedProgramId(null);
+    setSelectedClassId(null);
+    setSelectedMergeClass(null);
+
+    if (newFullScheduleActive) {
+      setLastActiveFileId(activeFileId);
+      setActiveFileId(null);
+      window.activeFileId = null;
+    } else {
+      setActiveFileId(lastActiveFileId);
+      window.activeFileId = lastActiveFileId;
+      if (lastActiveFileId) {
+        const file = openFiles.find((f) => f.id === lastActiveFileId);
+        if (file) {
+          window.dispatchEvent(new CustomEvent('fileSelected', { detail: file }));
+        }
+      }
+    }
+
+    window.dispatchEvent(new CustomEvent('viewFullSchedule', {
+      detail: { fullScheduleActive: newFullScheduleActive }
+    }));
+  };
+
+  // Add handler for Merge Class
+  const handleMergeClass = (mergeClassId) => {
+    const mergeClassIdNum = mergeClassId ? parseInt(mergeClassId) : null;
+    setSelectedMergeClass(mergeClassIdNum);
+    setSelectedProgramId(null);
+    setSelectedClassId(null);
+
+    if (fullScheduleActive) {
+      setFullScheduleActive(false);
+      setActiveFileId(lastActiveFileId);
+      window.activeFileId = lastActiveFileId;
+      if (lastActiveFileId) {
+        const file = openFiles.find((f) => f.id === lastActiveFileId);
+        if (file) {
+          window.dispatchEvent(new CustomEvent('fileSelected', { detail: file }));
+        }
+      }
+      window.dispatchEvent(new CustomEvent('viewFullSchedule', { detail: { fullScheduleActive: false } }));
+    }
+
+    window.dispatchEvent(new CustomEvent('viewByMergeClass', {
+      detail: { mergeClassId: mergeClassIdNum }
+    }));
   };
 
   const handleExportChange = (field, value) => {
@@ -595,6 +657,10 @@ export default function Toolbar({
   };
 
   const handleScheduleByCourse = (programId) => {
+    const programIdNum = programId ? parseInt(programId) : null;
+    setSelectedProgramId(programIdNum);
+    setSelectedClassId(null); // Reset class when program changes
+
     if (fullScheduleActive) {
       setFullScheduleActive(false);
       setActiveFileId(lastActiveFileId);
@@ -607,8 +673,13 @@ export default function Toolbar({
       }
       window.dispatchEvent(new CustomEvent('viewFullSchedule', { detail: { fullScheduleActive: false } }));
     }
-    window.dispatchEvent(new CustomEvent('viewByCourse', { detail: { programId } }));
+
+    // Dispatch event with the selected program
+    window.dispatchEvent(new CustomEvent('viewByCourse', {
+      detail: { programId: programIdNum }
+    }));
   };
+
 
   const handleYearLevelSchedule = (yearLevel) => {
     if (fullScheduleActive) {
@@ -630,12 +701,6 @@ export default function Toolbar({
     window.dispatchEvent(new CustomEvent('viewFullScreen'));
   };
 
-  const handleMergeClass = () => {
-    // Placeholder: Dispatch a custom event to trigger merging class schedules
-    window.dispatchEvent(new CustomEvent('mergeClass', { detail: { fileId: activeFileId } }));
-    // TODO: Implement actual merge logic, e.g., open a modal to select classes to merge
-    console.log('Merge Class triggered for file:', activeFileId);
-  };
 
   const toggleAssignmentList = () => {
     // Placeholder: Dispatch a custom event to toggle the assignment list sidebar
@@ -1132,10 +1197,10 @@ export default function Toolbar({
                 <div className="flex items-center gap-3">
                   {/* All Schedule Button */}
                   <button
-                    onClick={handleFullSchedule}
+                    onClick={handleAllSchedule}
                     className={`flex items-center gap-2 px-4 py-1 rounded-lg text-sm font-medium transition-colors ${fullScheduleActive
-                      ? 'bg-[#be90fc] text-white'
-                      : 'bg-white text-gray-700 hover:bg-gray-50'
+                        ? 'bg-[#be90fc] text-white'
+                        : 'bg-white text-gray-700 hover:bg-gray-50'
                       }`}
                     title="All Schedules"
                   >
@@ -1144,9 +1209,11 @@ export default function Toolbar({
                   </button>
 
                   <p className="text-gray-200">|</p>
+
                   {/* Select programs dropdown */}
                   <select
-                    onChange={(e) => handleScheduleByCourse(e.target.value ? parseInt(e.target.value) : null)}
+                    value={selectedProgramId || ""}
+                    onChange={(e) => handleScheduleByCourse(e.target.value)}
                     className="px-4 py-1 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-colors outline-none"
                     title="Select programs"
                   >
@@ -1160,7 +1227,8 @@ export default function Toolbar({
 
                   {/* Select Class dropdown */}
                   <select
-                    onChange={(e) => e.target.value && handleClassSchedule(e.target.value)}
+                    value={selectedClassId || ""}
+                    onChange={(e) => handleClassSchedule(e.target.value)}
                     className="px-4 py-1 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-colors outline-none"
                     title="Select Class"
                   >
@@ -1175,16 +1243,28 @@ export default function Toolbar({
                       <option disabled>Loading classes...</option>
                     )}
                   </select>
+
                   <p className="text-gray-200">|</p>
+
+                  {/* Merge Class dropdown */}
                   <select
-                    onChange={handleMergeClass}
+                    value={selectedMergeClass || ""}
+                    onChange={(e) => handleMergeClass(e.target.value)}
                     className="px-4 py-1 bg-white text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
                     title="Merge Class"
                   >
                     <option value="">Merge Class</option>
+                    {classes
+                      .filter(cls => cls.isMerged) // Only show merged classes
+                      .map((cls) => (
+                        <option key={cls.id} value={cls.id}>
+                          {cls.name} (Merged)
+                        </option>
+                      ))
+                    }
                   </select>
-
                 </div>
+
                 <button
                   onClick={toggleAssignmentList}
                   className="w-8 h-8 flex items-center justify-center bg-white text-gray-700 rounded hover:bg-gray-100 transition-colors"

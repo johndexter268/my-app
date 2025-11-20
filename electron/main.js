@@ -52,7 +52,8 @@ function initializeDatabase() {
     )`);
 
     db.get(`SELECT * FROM users WHERE username=?`, ["admin"], (err, row) => {
-      if (!row) {``
+      if (!row) {
+        ``
         db.run(`INSERT INTO users (username, password, role) VALUES (?, ?, ?)`, ["admin", "admin123", "admin"]);
         console.log("Default admin user created");
       }
@@ -65,7 +66,7 @@ function initializeDatabase() {
       }
     });
 
-        db.get(`SELECT * FROM users WHERE username=?`, ["user"], (err, row) => {
+    db.get(`SELECT * FROM users WHERE username=?`, ["user"], (err, row) => {
       if (!row) {
         db.run(`INSERT INTO users (username, password, role) VALUES (?, ?, ?)`, ["userview", "view123", "view"]);
         console.log("Viewer account created");
@@ -117,6 +118,8 @@ function initializeDatabase() {
       students INTEGER NOT NULL,
       programId INTEGER NOT NULL,
       yearLevel TEXT NOT NULL,
+      isMerged BOOLEAN DEFAULT 0,
+      mergedFrom TEXT,
       FOREIGN KEY (programId) REFERENCES programs(id)
     )`);
 
@@ -1600,7 +1603,7 @@ ipcMain.handle("print-file", async (event, args = {}) => {
       console.log("Print window loaded HTML content");
       await new Promise(resolve => setTimeout(resolve, 2000));
       console.log("Sending to printer...");
-       return await new Promise((resolve, reject) => {
+      return await new Promise((resolve, reject) => {
         printWindow.webContents.print({
           landscape: true,
           marginsType: 1,
