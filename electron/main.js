@@ -299,7 +299,7 @@ ipcMain.handle("set-current-file", (event, file) => {
 
 ipcMain.handle("get-current-file", () => {
   const result = currentFile ? { files: [currentFile] } : { files: [] };
-  console.log("Main: get-current-file returning:", result);
+  // console.log("Main: get-current-file returning:", result);
   return result;
 });
 

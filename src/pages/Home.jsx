@@ -348,17 +348,19 @@ export default function Home() {
     );
     return roomAssignment ? getRoomName(roomAssignment.roomId) : "N/A";
   };
-  const getDayAssignments = (day, teacherId = null, programId = null) => {
-    let filtered = timeAssignments.filter(a => a.day === day);
-    if (teacherId) filtered = filtered.filter(a => a.teacherId === teacherId);
-    if (programId) filtered = filtered.filter(a => getProgramId(a.classId) === programId);
-    return filtered.map(a => {
-      const start = a.timeSlot.split('-')[0].trim();
-      const idx = timeSlots.findIndex(s => s.startsWith(start));
-      const span = Math.round(a.duration / 30);
-      return { start: idx, span, assignment: a };
-    }).filter(x => x.start !== -1).sort((a, b) => a.start - b.start);
-  };
+  const getDayAssignments = (day, teacherId = null, programId = null, classId = null) => {
+  let filtered = timeAssignments.filter(a => a.day === day);
+  if (teacherId) filtered = filtered.filter(a => a.teacherId === teacherId);
+  if (programId) filtered = filtered.filter(a => getProgramId(a.classId) === programId);
+  if (classId) filtered = filtered.filter(a => a.classId === classId); // Add class filtering
+  
+  return filtered.map(a => {
+    const start = a.timeSlot.split('-')[0].trim();
+    const idx = timeSlots.findIndex(s => s.startsWith(start));
+    const span = Math.round(a.duration / 30);
+    return { start: idx, span, assignment: a };
+  }).filter(x => x.start !== -1).sort((a, b) => a.start - b.start);
+};
   const getSubjectName = (subjectId) => {
     return subjects.find((s) => s.id === subjectId)?.name || "Unknown";
   };
@@ -382,29 +384,76 @@ export default function Home() {
     }, 0);
   };
   const createScheduleGrid = (programId = null, classId = null, mergeClassId = null) => {
-    let targetClasses = [];
+  let targetClasses = [];
 
-    if (mergeClassId) {
-      // Handle merged class - get all classes that are part of this merge
-      const mergedClass = classes.find(cls => cls.id === mergeClassId);
-      if (mergedClass && mergedClass.isMerged && mergedClass.mergedFrom) {
-        targetClasses = classes.filter(cls => mergedClass.mergedFrom.includes(cls.id));
-      } else {
-        targetClasses = [mergedClass].filter(Boolean);
-      }
-    } else if (classId) {
-      // Single class
-      targetClasses = classes.filter((c) => c.id === classId);
-    } else if (programId) {
-      // All classes in program
-      targetClasses = classes.filter((c) => c.programId === programId);
+  if (mergeClassId) {
+    // Handle merged class - get all classes that are part of this merge
+    const mergedClass = classes.find(cls => cls.id === mergeClassId);
+    if (mergedClass && mergedClass.isMerged && mergedClass.mergedFrom) {
+      targetClasses = classes.filter(cls => mergedClass.mergedFrom.includes(cls.id));
     } else {
-      // All classes (for full schedule)
-      targetClasses = classes;
+      targetClasses = [mergedClass].filter(Boolean);
     }
+  } else if (classId) {
+    // Single class
+    targetClasses = classes.filter((c) => c.id === classId);
+  } else if (programId) {
+    // All classes in program
+    targetClasses = classes.filter((c) => c.programId === programId);
+  } else {
+    // All classes (for full schedule)
+    targetClasses = classes;
+  }
 
-    if (targetClasses.length === 0) return null;
+  if (targetClasses.length === 0) return null;
 
+  // For day-column layout (class view), we need a different grid structure
+  if (classId || mergeClassId) {
+    const grid = {};
+    
+    // Initialize grid with time slots as rows and days as columns
+    timeSlots.forEach((_, timeIndex) => {
+      grid[timeIndex] = {};
+      days.forEach(day => {
+        grid[timeIndex][day] = { 
+          occupied: false, 
+          assignment: null, 
+          span: 1 
+        };
+      });
+    });
+
+    // Populate with assignments for the target classes
+    days.forEach(day => {
+      const dayAssignments = getDayAssignments(day, null, programId, classId || (mergeClassId ? null : undefined));
+      dayAssignments.forEach(({ start, span, assignment }) => {
+        if (targetClasses.some(c => c.id === assignment.classId)) {
+          const slotSpan = Math.round(assignment.duration / 30);
+          if (grid[start] && grid[start][day]) {
+            grid[start][day] = {
+              occupied: true,
+              assignment,
+              span: slotSpan,
+            };
+            
+            // Mark subsequent slots as occupied (for rowSpan)
+            for (let i = 1; i < slotSpan; i++) {
+              if (grid[start + i] && grid[start + i][day]) {
+                grid[start + i][day] = {
+                  occupied: true,
+                  assignment: null,
+                  span: 0,
+                };
+              }
+            }
+          }
+        }
+      });
+    });
+
+    return { grid, classes: targetClasses, isDayColumn: true };
+  } else {
+    // Original grid structure for program view
     const grid = {};
     days.forEach((day) => {
       grid[day] = {};
@@ -437,8 +486,9 @@ export default function Home() {
       });
     });
 
-    return { grid, classes: targetClasses };
-  };
+    return { grid, classes: targetClasses, isDayColumn: false };
+  }
+};
 
   // Create merged schedule grid for full schedule
   const createMergedScheduleGrid = () => {
