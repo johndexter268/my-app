@@ -107,8 +107,11 @@ export default function File() {
     try {
       setOperatingFileId(file.id); // Mark only this file as operating
       await window.api.setCurrentFile(file);
-      const fileSelectedEvent = new CustomEvent('fileSelected', { detail: file });
-      window.dispatchEvent(fileSelectedEvent);
+
+      // Dispatch event for any listeners
+      window.dispatchEvent(new CustomEvent('fileSelected', { detail: file }));
+
+      // Navigate immediately — don't wait for event
       navigate(userRole === 'user' ? "/home" : "/assign");
     } catch (error) {
       console.error("Error selecting file:", error);

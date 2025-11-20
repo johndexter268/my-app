@@ -44,6 +44,7 @@ export default function Toolbar({
   const [loadingFiles, setLoadingFiles] = useState(new Set());
   const [teachers, setTeachers] = useState([]);
   const [programs, setPrograms] = useState([]);
+  const [classes, setClasses] = useState([]);
   const [rooms, setRooms] = useState([]);
   const navigate = useNavigate();
   const location = useLocation();
@@ -182,14 +183,16 @@ export default function Toolbar({
           setLastActiveFileId(currentFile.id);
           window.dispatchEvent(new CustomEvent('fileSelected', { detail: currentFile }));
         }
-        const [teachersData, programsData, roomsData] = await Promise.all([
+        const [teachersData, programsData, roomsData, classesData] = await Promise.all([
           window.api.getTeachers(),
           window.api.getPrograms(),
           window.api.getRooms(),
+          window.api.getClasses(),
         ]);
         setTeachers(teachersData || []);
         setPrograms(programsData || []);
         setRooms(roomsData || []);
+        setClasses(classesData || []);
       } catch (error) {
         console.error("Error fetching data:", error);
         alert("Error fetching data: " + error.message);
@@ -531,6 +534,22 @@ export default function Toolbar({
     }
   };
 
+  const handleClassSchedule = (classId) => {
+    if (fullScheduleActive) {
+      setFullScheduleActive(false);
+      setActiveFileId(lastActiveFileId);
+      window.activeFileId = lastActiveFileId;
+      if (lastActiveFileId) {
+        const file = openFiles.find((f) => f.id === lastActiveFileId);
+        if (file) {
+          window.dispatchEvent(new CustomEvent('fileSelected', { detail: file }));
+        }
+      }
+      window.dispatchEvent(new CustomEvent('viewFullSchedule', { detail: { fullScheduleActive: false } }));
+    }
+    window.dispatchEvent(new CustomEvent('viewByClass', { detail: { classId: parseInt(classId) } }));
+  };
+
   const handleExportChange = (field, value) => {
     setExportData((prev) => {
       const newData = { ...prev, [field]: value };
@@ -733,7 +752,7 @@ export default function Toolbar({
               <div className="flex items-center justify-center space-x-3 mt-3 pt-3">
                 <button
                   onClick={handleNew}
-                  className="flex items-center gap-2 px-4 py-1 bg-[#336785] text-white rounded-lg hover:bg-teal-700 transition-colors text-sm font-medium"
+                  className="flex items-center gap-2 px-4 py-2 bg-[#336785] text-white rounded-lg hover:bg-teal-700 transition-colors text-sm font-medium"
                 >
                   <FiPlus className="w-4 h-4" />
                   <span>New</span>
@@ -741,7 +760,7 @@ export default function Toolbar({
                 <button
                   onClick={handleExport}
                   disabled={isExporting}
-                  className="flex items-center gap-2 px-4 py-1 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center gap-2 px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isExporting ? (
                     <FaSpinner className="w-4 h-4 animate-spin" />
@@ -753,7 +772,7 @@ export default function Toolbar({
                 <button
                   onClick={handlePrint}
                   disabled={isPrinting}
-                  className="flex items-center gap-2 px-4 py-1 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center gap-2 px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isPrinting ? (
                     <FaSpinner className="w-4 h-4 animate-spin" />
@@ -1084,7 +1103,7 @@ export default function Toolbar({
                 {isExporting ? (
                   <FaSpinner className="w-4 h-4 animate-spin" />
                 ) : (
-                  <FiDownload className="w-4 h-4" />
+                  <RiExportFill className="w-4 h-4" />
                 )}
                 <span>Export</span>
               </button>
@@ -1097,7 +1116,7 @@ export default function Toolbar({
                 {isPrinting ? (
                   <FaSpinner className="w-4 h-4 animate-spin" />
                 ) : (
-                  <FiPrinter className="w-4 h-4" />
+                  <MdPrint className="w-4 h-4" />
                 )}
                 <span>Print</span>
               </button>
@@ -1141,16 +1160,20 @@ export default function Toolbar({
 
                   {/* Select Class dropdown */}
                   <select
-                    onChange={(e) => handleYearLevelSchedule(e.target.value)}
+                    onChange={(e) => e.target.value && handleClassSchedule(e.target.value)}
                     className="px-4 py-1 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-colors outline-none"
                     title="Select Class"
                   >
                     <option value="">Select Class</option>
-                    {['1st Year', '2nd Year', '3rd Year', '4th Year', '5th Year'].map((level) => (
-                      <option key={level} value={level}>
-                        {level}
-                      </option>
-                    ))}
+                    {classes.length > 0 ? (
+                      classes.map((cls) => (
+                        <option key={cls.id} value={cls.id}>
+                          {cls.name}
+                        </option>
+                      ))
+                    ) : (
+                      <option disabled>Loading classes...</option>
+                    )}
                   </select>
                   <p className="text-gray-200">|</p>
                   <select
@@ -1162,16 +1185,13 @@ export default function Toolbar({
                   </select>
 
                 </div>
-                <div className="flex items-center gap-20 px-4 bg-white  rounded-lg transition-colors">
-                  <span className="text-sm font-medium text-gray-700">Assignment List</span>
-                  <button
-                    onClick={toggleAssignmentList}
-                    className="w-8 h-8 flex items-center justify-center bg-white text-gray-700 rounded hover:bg-gray-100 transition-colors"
-                    title="Toggle Assignment List"
-                  >
-                    <TbLayoutSidebarRightFilled className="w-5 h-5" />
-                  </button>
-                </div>
+                <button
+                  onClick={toggleAssignmentList}
+                  className="w-8 h-8 flex items-center justify-center bg-white text-gray-700 rounded hover:bg-gray-100 transition-colors"
+                  title="Toggle Assignment List"
+                >
+                  <TbLayoutSidebarRightFilled className="w-5 h-5 transition-transform group-hover:scale-110" />
+                </button>
               </div>
             </div>
           )}

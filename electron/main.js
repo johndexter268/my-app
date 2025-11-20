@@ -11,7 +11,7 @@ const { v4: uuidv4 } = require("uuid");
 
 let mainWindow;
 let db;
-
+let currentFile = null;
 const openFiles = new Map();
 
 function parseClockToMinutes(clock) {
@@ -289,15 +289,15 @@ ipcMain.handle("new-schedule-file", (event, { name, academic_year, semester }) =
 });
 
 ipcMain.handle("set-current-file", (event, file) => {
-  if (!file || !file.id) {
-    return { success: false, message: "Invalid file data" };
-  }
-  openFiles.set(file.id, { ...file, updatedAt: file.updatedAt || new Date().toISOString() });
-  return { success: true, message: "Current file set", file };
+  currentFile = file || null;
+  console.log("Main: Current file is now:", currentFile?.name || "none");
+  return { success: true };
 });
 
 ipcMain.handle("get-current-file", () => {
-  return { success: true, files: Array.from(openFiles.values()) };
+  const result = currentFile ? { files: [currentFile] } : { files: [] };
+  console.log("Main: get-current-file returning:", result);
+  return result;
 });
 
 ipcMain.handle("close-current-file", (event, fileId) => {

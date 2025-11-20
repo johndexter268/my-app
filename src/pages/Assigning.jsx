@@ -156,13 +156,17 @@ export default function Assigning() {
         .map((id) => classes.find((c) => c.id === id)?.name || "Unknown")
         .join(", ");
       const startTime = assignment.timeSlot.split('-')[0].trim();
+
+      // Get the subject to calculate duration from units (1 unit = 1 hour = 60 minutes)
       const subject = subjects.find((s) => s.id === assignment.subjectId);
+      const duration = subject ? subject.units * 60 : 60;
+
       setFormData({
         ...assignment,
         timeSlot: startTime,
         classIds,
         classNames,
-        duration: subject ? String(subject.units * 60) : "60",
+        duration: String(duration) // Set duration based on subject units
       });
     } else {
       setFormData(assignment);
@@ -325,12 +329,22 @@ export default function Assigning() {
         classId: Number(formData.classId),
         scheduleFileId: Number(currentFile.id),
       };
+
       if (modalType === "Room Assign") {
         assignmentData.roomId = Number(formData.roomId);
       } else if (modalType === "Time & Date Assign") {
+        // Calculate duration from subject units (1 unit = 1 hour = 60 minutes)
+        const subject = subjects.find(s => s.id === Number(formData.subjectId));
+        const duration = subject ? subject.units * 60 : 60;
+
         assignmentData.day = formData.day;
         assignmentData.timeSlot = formData.timeSlot;
+        assignmentData.duration = duration; // Add duration field
+
+        console.log("handleSave: assignmentData =", JSON.stringify(assignmentData, null, 2));
+        console.log("Duration calculated:", duration, "minutes for", subject?.units, "units");
       }
+
       console.log("handleSave: assignmentData =", JSON.stringify(assignmentData, null, 2));
 
       let updatedAssignment;
@@ -344,6 +358,11 @@ export default function Assigning() {
             updatedAssignment = { ...assignmentData, id: editingId, type: "subject" };
           }
         } else if (modalType === "Time & Date Assign") {
+          // For updates, also calculate duration from subject units
+          const subject = subjects.find(s => s.id === Number(formData.subjectId));
+          const duration = subject ? subject.units * 60 : 60;
+          assignmentData.duration = duration;
+
           console.log(`Updating assignment:`, JSON.stringify(assignmentData, null, 2));
           result = await window.api.updateTimeSlotAssignment(assignmentData);
           console.log(`Update result:`, JSON.stringify(result, null, 2));
@@ -508,12 +527,16 @@ export default function Assigning() {
     timeAssignments.forEach((a) => {
       const key = `${a.subjectId}-${a.teacherId}-${a.day}-${a.timeSlot}`;
       if (!groupedAssignments[key]) {
+        // Calculate duration from subject units
+        const subject = subjects.find(s => s.id === a.subjectId);
+        const duration = subject ? subject.units * 60 : 60;
+
         groupedAssignments[key] = {
           subjectId: a.subjectId,
           teacherId: a.teacherId,
           day: a.day,
           timeSlot: a.timeSlot,
-          duration: parseInt(a.duration) || 60,
+          duration: duration, // Use calculated duration
           classIds: [a.classId],
           ids: [a.id]
         };
