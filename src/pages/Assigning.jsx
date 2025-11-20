@@ -148,20 +148,10 @@ export default function Assigning() {
   const handleEdit = (assignment, type) => {
     setModalType(type);
     if (type === "Time & Date Assign") {
-      const mergedAssignments = assignments.filter(
-        (a) =>
-          a.type === "time" &&
-          a.subjectId === assignment.subjectId &&
-          a.teacherId === assignment.teacherId &&
-          a.day === assignment.day &&
-          a.timeSlot === assignment.timeSlot
-      );
-      const classIds = mergedAssignments.map((a) => a.classId);
-      const classNames = classIds
-        .map((id) => classes.find((c) => c.id === id)?.name || "Unknown")
-        .join(", ");
+      // For merged assignments, we'll edit the specific class that was clicked
+      // rather than showing all merged classes
       const startTime = assignment.timeSlot.split('-')[0].trim();
-
+      
       // Get the subject to calculate duration from units (1 unit = 1 hour = 60 minutes)
       const subject = subjects.find((s) => s.id === assignment.subjectId);
       const duration = subject ? subject.units * 60 : 60;
@@ -169,9 +159,8 @@ export default function Assigning() {
       setFormData({
         ...assignment,
         timeSlot: startTime,
-        classIds,
-        classNames,
-        duration: String(duration) // Set duration based on subject units
+        classId: assignment.classId, // Use the specific class ID, not all merged ones
+        duration: String(duration)
       });
     } else {
       setFormData(assignment);
@@ -182,17 +171,31 @@ export default function Assigning() {
 
   const handleDelete = (assignment, type) => {
     if (type === "Time & Date Assign") {
-      const mergedAssignments = assignments.filter(
-        (a) =>
-          a.type === "time" &&
-          a.subjectId === assignment.subjectId &&
-          a.teacherId === assignment.teacherId &&
-          a.day === assignment.day &&
-          a.timeSlot === assignment.timeSlot
-      );
-      setDeleteModalData({ assignment, type, mergedAssignments });
-      setSelectedClassesToDelete(mergedAssignments.map((a) => a.classId));
-      setShowDeleteModal(true);
+      // For individual deletion, show confirmation for the specific class
+      setConfirmModal({
+        show: true,
+        message: `Are you sure you want to delete this time assignment for ${classes.find((c) => c.id === assignment.classId)?.name || "Unknown"} class?`,
+        onConfirm: async () => {
+          setIsDeleting(true);
+          try {
+            const result = await window.api.deleteAssignment(assignment.id);
+            if (result.success) {
+              setAssignments((prev) => prev.filter((a) => a.id !== assignment.id));
+              setAlertModal({ show: true, message: `Time assignment deleted successfully!` });
+              const updatedFile = { ...currentFile, updatedAt: new Date().toISOString(), hasUnsavedChanges: true };
+              await window.api.setCurrentFile(updatedFile);
+              setCurrentFile(updatedFile);
+            } else {
+              setAlertModal({ show: true, message: result.message });
+            }
+          } catch (error) {
+            console.error(`Error deleting ${type} assignment:`, error);
+            setAlertModal({ show: true, message: `Error deleting ${type} assignment: ${error.message}` });
+          } finally {
+            setIsDeleting(false);
+          }
+        },
+      });
     } else {
       setConfirmModal({
         show: true,
@@ -563,55 +566,33 @@ export default function Assigning() {
       (a) => a.type === "time" && a.teacherId === selectedTeacherId
     );
 
-    const groupedAssignments = {};
-    timeAssignments.forEach((a) => {
-      const key = `${a.subjectId}-${a.teacherId}-${a.day}-${a.timeSlot}`;
-      if (!groupedAssignments[key]) {
-        // Calculate duration from subject units
-        const subject = subjects.find(s => s.id === a.subjectId);
-        const duration = subject ? subject.units * 60 : 60;
-
-        groupedAssignments[key] = {
-          subjectId: a.subjectId,
-          teacherId: a.teacherId,
-          day: a.day,
-          timeSlot: a.timeSlot,
-          duration: duration, // Use calculated duration
-          classIds: [a.classId],
-          ids: [a.id]
-        };
-      } else {
-        groupedAssignments[key].classIds.push(a.classId);
-        groupedAssignments[key].ids.push(a.id);
-      }
-    });
-
+    // Instead of merging, return individual assignments
+    // but group them visually in the table
     const dayAssignments = {};
     days.forEach((day) => {
-      dayAssignments[day] = Object.values(groupedAssignments)
+      dayAssignments[day] = timeAssignments
         .filter((a) => a.day === day)
         .map((a) => {
           const startTime = a.timeSlot.split('-')[0].trim();
           const slotIndex = timeSlots.findIndex((slot) => slot.split('-')[0].trim() === startTime);
-          const classNames = a.classIds
-            .map((classId) => classes.find((c) => c.id === classId)?.name || "Unknown")
-            .join(", ");
-          const span = Math.round(a.duration / 30) || 2;
-          console.log(`getDayAssignments: subjectId=${a.subjectId}, day=${a.day}, timeSlot=${a.timeSlot}, duration=${a.duration}, span=${span}`);
+          
+          // Calculate duration from subject units
+          const subject = subjects.find(s => s.id === a.subjectId);
+          const duration = subject ? subject.units * 60 : 60;
+          const span = Math.round(duration / 30) || 2;
+          
           return {
             start: slotIndex,
             span: span,
             assignment: {
-              id: a.ids[0],
+              id: a.id,
               subjectId: a.subjectId,
               teacherId: a.teacherId,
-              classId: a.classIds[0],
+              classId: a.classId,
               day: a.day,
               timeSlot: a.timeSlot,
-              duration: a.duration,
-              classNames,
-              classIds: a.classIds,
-              ids: a.ids
+              duration: duration,
+              className: classes.find((c) => c.id === a.classId)?.name || "Unknown"
             }
           };
         })
@@ -966,14 +947,14 @@ export default function Assigning() {
                               const borderColor = teacher?.color ? `${teacher.color}` : "#f5f5f5";
                               return (
                                 <td
-                                  key={day}
+                                  key={`${day}-${ass.assignment.id}`}
                                   rowSpan={ass.span}
                                   className="border-2 p-2 text-center align-middle whitespace-normal break-words text-sm leading-snug"
                                   style={{ wordBreak: "break-word", backgroundColor: cellBgColor, borderColor: borderColor, }}
                                 >
                                   <div className="p-2 flex flex-col h-full">
                                     <span className="text-sm text-gray-900 text-center break-words">
-                                      {subject} ({ass.assignment.classNames})
+                                      {subject} ({ass.assignment.className})
                                     </span>
                                     <span className="text-xs text-gray-900 text-center">{ass.assignment.timeSlot}</span>
                                     <div className="flex gap-1 mt-2 justify-center">
@@ -998,7 +979,7 @@ export default function Assigning() {
                               return null;
                             }
                           }
-                          return <td key={day} className="border p-2"></td>;
+                          return <td key={`${day}-empty`} className="border p-2"></td>;
                         })}
                       </tr>
                     ))}
@@ -1301,33 +1282,18 @@ export default function Assigning() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Select Class</label>
-                {editingId && formData.classIds && formData.classIds.length > 1 ? (
-                  <select
-                    value={formData.classId || ""}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, classId: e.target.value }))}
-                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500"
-                  >
-                    <option value="">Select class to edit</option>
-                    {formData.classIds.map((classId) => (
-                      <option key={classId} value={classId}>
-                        {classes.find((c) => c.id === classId)?.name || "Unknown"}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <select
-                    value={formData.classId || ""}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, classId: e.target.value }))}
-                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500"
-                  >
-                    <option value="">Select class</option>
-                    {getSortedClasses().map((cls) => (
-                      <option key={cls.id} value={cls.id}>
-                        {cls.name} - {programs.find((p) => p.id === cls.programId)?.name || "Unknown"}
-                      </option>
-                    ))}
-                  </select>
-                )}
+                <select
+                  value={formData.classId || ""}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, classId: e.target.value }))}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500"
+                >
+                  <option value="">Select class</option>
+                  {getSortedClasses().map((cls) => (
+                    <option key={cls.id} value={cls.id}>
+                      {cls.name} - {programs.find((p) => p.id === cls.programId)?.name || "Unknown"}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Day</label>

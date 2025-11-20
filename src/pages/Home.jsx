@@ -8,6 +8,173 @@ import Toolbar from '../components/Toolbar';
 import Modal from "../components/Modal"
 import AssignmentList from "../components/AssignmentList";
 
+// Schedule Cell Tooltip Component
+const ScheduleCellTooltip = ({ assignment, rooms, onRemove, onEdit, onClose, getSubjectName, getTeacherName, getAssignmentRoom, getTeacherColor, getSubjectUnits, getTimeSlotRange, days, timeSlots }) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({
+    day: assignment.day,
+    startTime: assignment.timeSlot.split('-')[0].trim(),
+    duration: assignment.duration
+  });
+
+  if (!assignment) return null;
+
+  const subjectName = getSubjectName(assignment.subjectId);
+  const teacherName = getTeacherName(assignment.teacherId);
+  const roomName = getAssignmentRoom(assignment);
+  const color = getTeacherColor(assignment.teacherId);
+
+  const getDarkerColor = (hexColor) => {
+    if (!hexColor || hexColor === "#e5e7eb") return "#9ca3af";
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hexColor);
+    if (!result) return "#9ca3af";
+    let r = parseInt(result[1], 16);
+    let g = parseInt(result[2], 16);
+    let b = parseInt(result[3], 16);
+    r = Math.max(0, r - 40);
+    g = Math.max(0, g - 40);
+    b = Math.max(0, b - 40);
+    return `rgb(${r}, ${g}, ${b})`;
+  };
+
+  const handleSaveEdit = () => {
+    const updatedAssignment = {
+      ...assignment,
+      day: editForm.day,
+      timeSlot: getTimeSlotRange(editForm.startTime, editForm.duration),
+      duration: parseInt(editForm.duration)
+    };
+    onEdit(updatedAssignment);
+    setIsEditing(false);
+  };
+
+  const handleRemove = () => {
+    onRemove(assignment.id);
+    onClose();
+  };
+
+  return (
+    <div className="absolute z-50 bg-zinc-800 border border-gray-300 shadow-xl p-4 min-w-80 max-w-sm">
+      <div className="flex justify-between items-start mb-3">
+        <h3 className="font-semibold text-white">Schedule Details</h3>
+        <button
+          onClick={onClose}
+          className="text-gray-400 hover:text-gray-600 text-lg"
+        >
+          ×
+        </button>
+      </div>
+
+      {!isEditing ? (
+        <>
+          <div className="space-y-2 mb-4">
+            <div className="flex items-center gap-2">
+              <div
+                className="w-3 h-3 rounded-full"
+                style={{ backgroundColor: getDarkerColor(color) }}
+              ></div>
+              <span className="font-medium text-gray-900" style={{ color: getDarkerColor(color) }}>{subjectName}</span>
+            </div>
+            <div className="text-sm text-white">
+              <div><strong></strong> {teacherName}</div>
+              <div><strong></strong> Date: {assignment.day}, {assignment.timeSlot}</div>
+              <div><strong></strong> Room: {roomName}</div>
+              {/* <div><strong>Duration:</strong> {assignment.duration / 60} hour(s)</div> */}
+              {/* <div><strong>Units:</strong> {getSubjectUnits(assignment.subjectId)}</div> */}
+            </div>
+          </div>
+
+          <div className="flex gap-2 pt-3">
+            <button
+              onClick={handleRemove}
+              className="flex-1 px-3 py-2 text-red-500 text-sm transition-colors border-r-2 border-gray-300"
+            >
+              Remove
+            </button>
+            <button
+              onClick={() => setIsEditing(true)}
+              className="flex-1 px-3 py-2 text-white text-sm transition-colors"
+            >
+              Edit
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Day</label>
+            <select
+              value={editForm.day}
+              onChange={(e) => setEditForm(prev => ({ ...prev, day: e.target.value }))}
+              className="w-full p-2 border border-gray-300 rounded-md text-sm"
+            >
+              {days.map(day => (
+                <option key={day} value={day}>{day}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Room</label>
+            <select
+              value={editForm.roomId || ""}
+              onChange={(e) => setEditForm(prev => ({ ...prev, roomId: e.target.value }))}
+              className="w-full p-2 border border-gray-300 rounded-md text-sm"
+            >
+              <option value="">No Room</option>
+              {rooms.map(room => (
+                <option key={room.id} value={room.id}>{room.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+            <select
+              value={editForm.startTime}
+              onChange={(e) => setEditForm(prev => ({ ...prev, startTime: e.target.value }))}
+              className="w-full p-2 border border-gray-300 rounded-md text-sm"
+            >
+              {timeSlots.map(slot => {
+                const startTime = slot.split('-')[0].trim();
+                return (
+                  <option key={startTime} value={startTime}>{startTime}</option>
+                );
+              })}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Duration (hours)</label>
+            <select
+              value={editForm.duration / 60}
+              onChange={(e) => setEditForm(prev => ({ ...prev, duration: parseInt(e.target.value) * 60 }))}
+              className="w-full p-2 border border-gray-300 rounded-md text-sm"
+            >
+              {[1, 2, 3, 4, 5].map(hours => (
+                <option key={hours} value={hours}>{hours} hour(s)</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex gap-2 pt-3">
+            <button
+              onClick={() => setIsEditing(false)}
+              className="flex-1 px-3 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 text-sm transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSaveEdit}
+              className="flex-1 px-3 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 text-sm transition-colors"
+            >
+              Save
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function Home() {
   const [showArchived, setShowArchived] = useState(false);
   const [currentFile, setCurrentFile] = useState(null);
@@ -31,10 +198,6 @@ export default function Home() {
     showWithSchedule: false,
     showWithoutSchedule: true,
   });
-  const handleZoomChange = (e) => {
-    const zoomValue = parseInt(e.target.value) / 100;
-    setZoomLevel(zoomValue);
-  };
   const [editingAssignment, setEditingAssignment] = useState(null);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [selectedProgramId, setSelectedProgramId] = useState(null);
@@ -47,6 +210,12 @@ export default function Home() {
   const [isDragging, setIsDragging] = useState(false);
   const [startX, setStartX] = useState(0);
   const [startY, setStartY] = useState(0);
+
+  // Tooltip states
+  const [clickedCell, setClickedCell] = useState(null);
+  const [showTooltip, setShowTooltip] = useState(false);
+  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
+
   const contentRef = useRef(null);
   const getYearLevel = (classId) => classes.find(c => c.id === classId)?.yearLevel || null;
   const getSubjectYearLevel = (subjectId) => subjects.find(s => s.id === subjectId)?.yearLevel || null;
@@ -54,6 +223,37 @@ export default function Home() {
   const location = useLocation();
   const userRole = localStorage.getItem('userRole') || 'view';
   const [isAssignmentListOpen, setIsAssignmentListOpen] = useState(false);
+
+  const handleZoomChange = (e) => {
+    const zoomValue = parseInt(e.target.value) / 100;
+    setZoomLevel(zoomValue);
+  };
+
+  // Add helper function for darker color
+  const getDarkerColor = (hexColor) => {
+    if (!hexColor || hexColor === "#e5e7eb") return "#9ca3af";
+
+    // Convert hex to RGB and darken by 40%
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hexColor);
+    if (!result) return "#9ca3af";
+
+    let r = parseInt(result[1], 16);
+    let g = parseInt(result[2], 16);
+    let b = parseInt(result[3], 16);
+
+    r = Math.max(0, r - 40);
+    g = Math.max(0, g - 40);
+    b = Math.max(0, b - 40);
+
+    return `rgb(${r}, ${g}, ${b})`;
+  };
+
+  // Add helper function to get subject units
+  const getSubjectUnits = (subjectId) => {
+    const subject = subjects.find((s) => s.id === subjectId);
+    return subject ? parseInt(subject.units) || 1 : 1; // Default to 1 unit if not found
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -166,6 +366,7 @@ export default function Home() {
       window.removeEventListener("viewFullScreen", handleFullScreen);
     };
   }, [navigate, fullScheduleActive, openFiles]);
+
   useEffect(() => {
     const listAssignments = [...timeAssignments];
     const unscheduledRooms = roomAssignments.filter(
@@ -206,6 +407,7 @@ export default function Home() {
     );
     setAssignments(listAssignments);
   }, [timeAssignments, roomAssignments, subjectAssignments, subjects, currentFile?.id]);
+
   useEffect(() => {
     if (!contentRef.current) return;
     const handleMouseDown = (e) => {
@@ -239,6 +441,7 @@ export default function Home() {
       document.removeEventListener('mouseup', handleMouseUp);
     };
   }, [isDragging, panX, panY, startX, startY, zoomLevel]);
+
   useEffect(() => {
     const handleToggleAssignmentList = () => {
       setIsAssignmentListOpen(prev => !prev);
@@ -250,6 +453,7 @@ export default function Home() {
       window.removeEventListener('toggleAssignmentList', handleToggleAssignmentList);
     };
   }, []);
+
   useEffect(() => {
     const handleViewByCourse = (event) => {
       setSelectedProgramId(event.detail.programId);
@@ -279,6 +483,7 @@ export default function Home() {
       window.removeEventListener("viewByMergeClass", handleViewByMergeClass);
     };
   }, []);
+
   const timeSlots = [
     '7:00 AM - 7:30 AM', '7:30 AM - 8:00 AM', '8:00 AM - 8:30 AM', '8:30 AM - 9:00 AM',
     '9:00 AM - 9:30 AM', '9:30 AM - 10:00 AM', '10:00 AM - 10:30 AM', '10:30 AM - 11:00 AM',
@@ -289,6 +494,7 @@ export default function Home() {
     '7:00 PM - 7:30 PM', '7:30 PM - 8:00 PM', '8:00 PM - 8:30 PM', '8:30 PM - 9:00 PM',
     '9:30 PM - 10:00 PM',
   ];
+
   const parseTime = (timeStr) => {
     const [time, period] = timeStr.split(' ');
     let [hours, minutes] = time.split(':').map(Number);
@@ -296,6 +502,7 @@ export default function Home() {
     if (period === 'AM' && hours === 12) hours = 0;
     return hours * 60 + minutes;
   };
+
   const formatTime = (minutes) => {
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
@@ -303,17 +510,13 @@ export default function Home() {
     const displayHours = hours % 12 === 0 ? 12 : hours % 12;
     return `${displayHours}:${mins.toString().padStart(2, '0')} ${period}`;
   };
-  // const startTimeArray = [
-  // "7:00 AM", "8:00 AM", "9:00 AM", "10:00 AM", "11:00 AM",
-  // "12:00 PM", "1:00 PM", "2:00 PM", "3:00 PM", "4:00 PM",
-  // "5:00 PM", "6:00 PM"
-  // ];
 
   const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  // const yearLevels = ["1st Year", "2nd Year", "3rd Year", "4th Year"];
+
   const getTeacherColor = (teacherId) => {
     return teachers.find((t) => t.id === teacherId)?.color || "#e5e7eb"
   }
+
   const getLightBackgroundColor = (hexColor) => {
     if (!hexColor || hexColor === "#e5e7eb") return "rgba(229, 231, 235, 0.5)" // light gray
     // Convert hex to RGB
@@ -329,15 +532,19 @@ export default function Home() {
   const getClassName = (classId) => {
     return classes.find((c) => c.id === classId)?.name || "Unknown";
   };
+
   const getRoomName = (roomId) => {
     return rooms.find((r) => r.id === roomId)?.name || "N/A";
   };
+
   const getProgramId = (classId) => {
     return classes.find((c) => c.id === classId)?.programId || null;
   };
+
   const getProgramName = (programId) => {
     return programs.find((p) => p.id === programId)?.name || "Unknown";
   };
+
   const getAssignmentRoom = (assignment) => {
     const roomAssignment = roomAssignments.find(
       (ra) =>
@@ -348,26 +555,30 @@ export default function Home() {
     );
     return roomAssignment ? getRoomName(roomAssignment.roomId) : "N/A";
   };
+
   const getDayAssignments = (day, teacherId = null, programId = null, classId = null) => {
-  let filtered = timeAssignments.filter(a => a.day === day);
-  if (teacherId) filtered = filtered.filter(a => a.teacherId === teacherId);
-  if (programId) filtered = filtered.filter(a => getProgramId(a.classId) === programId);
-  if (classId) filtered = filtered.filter(a => a.classId === classId); // Add class filtering
-  
-  return filtered.map(a => {
-    const start = a.timeSlot.split('-')[0].trim();
-    const idx = timeSlots.findIndex(s => s.startsWith(start));
-    const span = Math.round(a.duration / 30);
-    return { start: idx, span, assignment: a };
-  }).filter(x => x.start !== -1).sort((a, b) => a.start - b.start);
-};
+    let filtered = timeAssignments.filter(a => a.day === day);
+    if (teacherId) filtered = filtered.filter(a => a.teacherId === teacherId);
+    if (programId) filtered = filtered.filter(a => getProgramId(a.classId) === programId);
+    if (classId) filtered = filtered.filter(a => a.classId === classId); // Add class filtering
+
+    return filtered.map(a => {
+      const start = a.timeSlot.split('-')[0].trim();
+      const idx = timeSlots.findIndex(s => s.startsWith(start));
+      const span = Math.round(a.duration / 30);
+      return { start: idx, span, assignment: a };
+    }).filter(x => x.start !== -1).sort((a, b) => a.start - b.start);
+  };
+
   const getSubjectName = (subjectId) => {
     return subjects.find((s) => s.id === subjectId)?.name || "Unknown";
   };
+
   const getTeacherName = (teacherId) => {
     const teacher = teachers.find((t) => t.id === teacherId);
     return teacher ? (teacher.honorifics ? `${teacher.honorifics} ${teacher.fullName}` : teacher.fullName) : "No Teacher";
   };
+
   const getTotalStudentsForMergedClasses = (assignment, day, timeSlot) => {
     const matchingAssignments = timeAssignments.filter(
       (a) =>
@@ -383,176 +594,7 @@ export default function Home() {
       return total + (classData?.numStudents || 0); // Fixed to use numStudents
     }, 0);
   };
-  const createScheduleGrid = (programId = null, classId = null, mergeClassId = null) => {
-  let targetClasses = [];
 
-  if (mergeClassId) {
-    // Handle merged class - get all classes that are part of this merge
-    const mergedClass = classes.find(cls => cls.id === mergeClassId);
-    if (mergedClass && mergedClass.isMerged && mergedClass.mergedFrom) {
-      targetClasses = classes.filter(cls => mergedClass.mergedFrom.includes(cls.id));
-    } else {
-      targetClasses = [mergedClass].filter(Boolean);
-    }
-  } else if (classId) {
-    // Single class
-    targetClasses = classes.filter((c) => c.id === classId);
-  } else if (programId) {
-    // All classes in program
-    targetClasses = classes.filter((c) => c.programId === programId);
-  } else {
-    // All classes (for full schedule)
-    targetClasses = classes;
-  }
-
-  if (targetClasses.length === 0) return null;
-
-  // For day-column layout (class view), we need a different grid structure
-  if (classId || mergeClassId) {
-    const grid = {};
-    
-    // Initialize grid with time slots as rows and days as columns
-    timeSlots.forEach((_, timeIndex) => {
-      grid[timeIndex] = {};
-      days.forEach(day => {
-        grid[timeIndex][day] = { 
-          occupied: false, 
-          assignment: null, 
-          span: 1 
-        };
-      });
-    });
-
-    // Populate with assignments for the target classes
-    days.forEach(day => {
-      const dayAssignments = getDayAssignments(day, null, programId, classId || (mergeClassId ? null : undefined));
-      dayAssignments.forEach(({ start, span, assignment }) => {
-        if (targetClasses.some(c => c.id === assignment.classId)) {
-          const slotSpan = Math.round(assignment.duration / 30);
-          if (grid[start] && grid[start][day]) {
-            grid[start][day] = {
-              occupied: true,
-              assignment,
-              span: slotSpan,
-            };
-            
-            // Mark subsequent slots as occupied (for rowSpan)
-            for (let i = 1; i < slotSpan; i++) {
-              if (grid[start + i] && grid[start + i][day]) {
-                grid[start + i][day] = {
-                  occupied: true,
-                  assignment: null,
-                  span: 0,
-                };
-              }
-            }
-          }
-        }
-      });
-    });
-
-    return { grid, classes: targetClasses, isDayColumn: true };
-  } else {
-    // Original grid structure for program view
-    const grid = {};
-    days.forEach((day) => {
-      grid[day] = {};
-      timeSlots.forEach((_, index) => {
-        grid[day][index] = { classes: {} };
-        targetClasses.forEach((cls) => {
-          grid[day][index].classes[cls.id] = { occupied: false, assignment: null, span: 1 };
-        });
-      });
-
-      const dayAssignments = getDayAssignments(day, selectedTeacherId, programId);
-      dayAssignments.forEach(({ start, span, assignment }) => {
-        if (targetClasses.some((c) => c.id === assignment.classId)) {
-          const slotSpan = Math.round(assignment.duration / 30);
-          grid[day][start].classes[assignment.classId] = {
-            occupied: true,
-            assignment,
-            span: slotSpan,
-          };
-          for (let i = 1; i < slotSpan; i++) {
-            if (grid[day][start + i]) {
-              grid[day][start + i].classes[assignment.classId] = {
-                occupied: true,
-                assignment: null,
-                span: 0,
-              };
-            }
-          }
-        }
-      });
-    });
-
-    return { grid, classes: targetClasses, isDayColumn: false };
-  }
-};
-
-  // Create merged schedule grid for full schedule
-  const createMergedScheduleGrid = () => {
-    const mergedGrid = {};
-    days.forEach((day) => {
-      mergedGrid[day] = {};
-      timeSlots.forEach((_, timeIndex) => {
-        mergedGrid[day][timeIndex] = { programs: {} };
-        programs.forEach((program) => {
-          mergedGrid[day][timeIndex].programs[program.id] = { classes: {} };
-          classes
-            .filter((c) => c.programId === program.id)
-            .forEach((cls) => {
-              mergedGrid[day][timeIndex].programs[program.id].classes[cls.id] = {
-                occupied: false,
-                assignment: null,
-                span: 1,
-              };
-            });
-        });
-      });
-
-      const dayAssignments = getDayAssignments(day, selectedTeacherId);
-      dayAssignments.forEach(({ start, span, assignment }) => {
-        const programId = getProgramId(assignment.classId);
-        if (programId && mergedGrid[day][start]?.programs[programId]?.classes[assignment.classId]) {
-          const slotSpan = Math.round(assignment.duration / 30);
-          mergedGrid[day][start].programs[programId].classes[assignment.classId] = {
-            occupied: true,
-            assignment,
-            span: slotSpan,
-          };
-          for (let i = 1; i < slotSpan; i++) {
-            if (mergedGrid[day][start + i]) {
-              mergedGrid[day][start + i].programs[programId].classes[assignment.classId] = {
-                occupied: true,
-                assignment: null,
-                span: 0,
-              };
-            }
-          }
-        }
-      });
-    });
-    return mergedGrid;
-  };
-
-  const getAvailableSlotsForTeacher = (teacherId) => {
-    if (!teacherId) return {};
-    const available = {};
-    days.forEach((day) => {
-      available[day] = timeSlots.map((_, index) => {
-        const dayAssignments = getDayAssignments(day);
-        const isOccupied = dayAssignments.some(
-          (ass) =>
-            ass.start <= index &&
-            ass.start + ass.span > index &&
-            ass.assignment.teacherId === teacherId
-        );
-        return !isOccupied;
-      });
-    });
-    return available;
-  };
   const getTimeSlotRange = (startTime, duration) => {
     const startMinutes = parseTime(startTime);
     if (startMinutes === null) return "";
@@ -560,6 +602,20 @@ export default function Home() {
     const endTime = formatTime(endMinutes);
     return `${startTime}-${endTime}`;
   };
+
+  // Tooltip handlers
+  const handleRemoveAssignment = async (assignmentId) => {
+    await handleDelete(assignmentId);
+    setShowTooltip(false);
+    setClickedCell(null);
+  };
+
+  const handleEditAssignment = async (updatedAssignment) => {
+    await handleSaveEdit(updatedAssignment.id, updatedAssignment);
+    setShowTooltip(false);
+    setClickedCell(null);
+  };
+
   const handleDrop = async (event, day, timeIndex, classId, programId = null) => {
     event.preventDefault();
     const assignmentId = event.dataTransfer.getData("text/plain");
@@ -591,12 +647,17 @@ export default function Home() {
 
     const startTime = timeSlots[timeIndex].split('-')[0].trim();
 
+    // Calculate duration based on subject units (1 unit = 1 hour = 60 minutes)
+    const subjectUnits = getSubjectUnits(assignment.subjectId);
+    const duration = subjectUnits * 60; // Convert hours to minutes
+
     if (assignment.type === "time") {
-      const timeSlot = getTimeSlotRange(startTime, assignment.duration);
+      const timeSlot = getTimeSlotRange(startTime, duration);
       updatedAssignment = {
         ...assignment,
         day,
         timeSlot,
+        duration: duration, // Use calculated duration
       };
       newRoomId = getAssignmentRoom(assignment) !== "N/A"
         ? roomAssignments.find(
@@ -608,7 +669,7 @@ export default function Home() {
         )?.roomId
         : null;
     } else if (assignment.type === "room") {
-      const timeSlot = getTimeSlotRange(startTime, 30);
+      const timeSlot = getTimeSlotRange(startTime, duration);
       updatedAssignment = {
         id: crypto.randomUUID(),
         subjectId: assignment.subjectId,
@@ -616,14 +677,14 @@ export default function Home() {
         classId: assignment.classId,
         day,
         timeSlot,
-        duration: 30,
+        duration: duration, // Use calculated duration
         type: "time",
         scheduleFileId: currentFile?.id || assignment.scheduleFileId,
       };
       newRoomId = assignment.roomId;
     } else if (assignment.type === "subject") {
       const subject = subjects.find((s) => s.id === assignment.subjectId);
-      const timeSlot = getTimeSlotRange(startTime, 30);
+      const timeSlot = getTimeSlotRange(startTime, duration);
       updatedAssignment = {
         id: crypto.randomUUID(),
         subjectId: assignment.subjectId,
@@ -631,7 +692,7 @@ export default function Home() {
         classId: targetClass?.id || "",
         day,
         timeSlot,
-        duration: 30,
+        duration: duration, // Use calculated duration
         type: "time",
         scheduleFileId: currentFile?.id || assignment.scheduleFileId,
       };
@@ -759,6 +820,7 @@ export default function Home() {
       });
     }
   };
+
   const handleSaveEdit = async (assignmentId, updatedData) => {
     const newTimeSlot = getTimeSlotRange(updatedData.startTime, updatedData.duration);
     if (!newTimeSlot) {
@@ -926,9 +988,11 @@ export default function Home() {
       });
     }
   };
+
   const handleDelete = async (assignmentId) => {
     setDeleteModal({ open: true, assignmentId }); // Show modal instead of confirm
   };
+
   const confirmDelete = async () => {
     const assignmentId = deleteModal.assignmentId;
     try {
@@ -985,6 +1049,178 @@ export default function Home() {
     }
     setDeleteModal({ open: false, assignmentId: null });
   };
+
+  const createScheduleGrid = (programId = null, classId = null, mergeClassId = null) => {
+    let targetClasses = [];
+
+    if (mergeClassId) {
+      // Handle merged class - get all classes that are part of this merge
+      const mergedClass = classes.find(cls => cls.id === mergeClassId);
+      if (mergedClass && mergedClass.isMerged && mergedClass.mergedFrom) {
+        targetClasses = classes.filter(cls => mergedClass.mergedFrom.includes(cls.id));
+      } else {
+        targetClasses = [mergedClass].filter(Boolean);
+      }
+    } else if (classId) {
+      // Single class
+      targetClasses = classes.filter((c) => c.id === classId);
+    } else if (programId) {
+      // All classes in program
+      targetClasses = classes.filter((c) => c.programId === programId);
+    } else {
+      // All classes (for full schedule)
+      targetClasses = classes;
+    }
+
+    if (targetClasses.length === 0) return null;
+
+    // For day-column layout (class view), we need a different grid structure
+    if (classId || mergeClassId) {
+      const grid = {};
+
+      // Initialize grid with time slots as rows and days as columns
+      timeSlots.forEach((_, timeIndex) => {
+        grid[timeIndex] = {};
+        days.forEach(day => {
+          grid[timeIndex][day] = {
+            occupied: false,
+            assignment: null,
+            span: 1
+          };
+        });
+      });
+
+      // Populate with assignments for the target classes
+      days.forEach(day => {
+        const dayAssignments = getDayAssignments(day, null, programId, classId || (mergeClassId ? null : undefined));
+        dayAssignments.forEach(({ start, span, assignment }) => {
+          if (targetClasses.some(c => c.id === assignment.classId)) {
+            const slotSpan = Math.round(assignment.duration / 30);
+            if (grid[start] && grid[start][day]) {
+              grid[start][day] = {
+                occupied: true,
+                assignment,
+                span: slotSpan,
+              };
+
+              // Mark subsequent slots as occupied (for rowSpan)
+              for (let i = 1; i < slotSpan; i++) {
+                if (grid[start + i] && grid[start + i][day]) {
+                  grid[start + i][day] = {
+                    occupied: true,
+                    assignment: null,
+                    span: 0,
+                  };
+                }
+              }
+            }
+          }
+        });
+      });
+
+      return { grid, classes: targetClasses, isDayColumn: true };
+    } else {
+      // Original grid structure for program view
+      const grid = {};
+      days.forEach((day) => {
+        grid[day] = {};
+        timeSlots.forEach((_, index) => {
+          grid[day][index] = { classes: {} };
+          targetClasses.forEach((cls) => {
+            grid[day][index].classes[cls.id] = { occupied: false, assignment: null, span: 1 };
+          });
+        });
+
+        const dayAssignments = getDayAssignments(day, selectedTeacherId, programId);
+        dayAssignments.forEach(({ start, span, assignment }) => {
+          if (targetClasses.some((c) => c.id === assignment.classId)) {
+            const slotSpan = Math.round(assignment.duration / 30);
+            grid[day][start].classes[assignment.classId] = {
+              occupied: true,
+              assignment,
+              span: slotSpan,
+            };
+            for (let i = 1; i < slotSpan; i++) {
+              if (grid[day][start + i]) {
+                grid[day][start + i].classes[assignment.classId] = {
+                  occupied: true,
+                  assignment: null,
+                  span: 0,
+                };
+              }
+            }
+          }
+        });
+      });
+
+      return { grid, classes: targetClasses, isDayColumn: false };
+    }
+  };
+
+  // Create merged schedule grid for full schedule
+  const createMergedScheduleGrid = () => {
+    const mergedGrid = {};
+    days.forEach((day) => {
+      mergedGrid[day] = {};
+      timeSlots.forEach((_, timeIndex) => {
+        mergedGrid[day][timeIndex] = { programs: {} };
+        programs.forEach((program) => {
+          mergedGrid[day][timeIndex].programs[program.id] = { classes: {} };
+          classes
+            .filter((c) => c.programId === program.id)
+            .forEach((cls) => {
+              mergedGrid[day][timeIndex].programs[program.id].classes[cls.id] = {
+                occupied: false,
+                assignment: null,
+                span: 1,
+              };
+            });
+        });
+      });
+
+      const dayAssignments = getDayAssignments(day, selectedTeacherId);
+      dayAssignments.forEach(({ start, span, assignment }) => {
+        const programId = getProgramId(assignment.classId);
+        if (programId && mergedGrid[day][start]?.programs[programId]?.classes[assignment.classId]) {
+          const slotSpan = Math.round(assignment.duration / 30);
+          mergedGrid[day][start].programs[programId].classes[assignment.classId] = {
+            occupied: true,
+            assignment,
+            span: slotSpan,
+          };
+          for (let i = 1; i < slotSpan; i++) {
+            if (mergedGrid[day][start + i]) {
+              mergedGrid[day][start + i].programs[programId].classes[assignment.classId] = {
+                occupied: true,
+                assignment: null,
+                span: 0,
+              };
+            }
+          }
+        }
+      });
+    });
+    return mergedGrid;
+  };
+
+  const getAvailableSlotsForTeacher = (teacherId) => {
+    if (!teacherId) return {};
+    const available = {};
+    days.forEach((day) => {
+      available[day] = timeSlots.map((_, index) => {
+        const dayAssignments = getDayAssignments(day);
+        const isOccupied = dayAssignments.some(
+          (ass) =>
+            ass.start <= index &&
+            ass.start + ass.span > index &&
+            ass.assignment.teacherId === teacherId
+        );
+        return !isOccupied;
+      });
+    });
+    return available;
+  };
+
   const filteredAssignments = assignments.filter((assignment) => {
     const subjectName = getSubjectName(assignment.subjectId).toLowerCase();
     const teacherName = getTeacherName(assignment.teacherId).toLowerCase();
@@ -1008,12 +1244,14 @@ export default function Home() {
       matchesClass
     );
   });
+
   if (isLoading) {
     return <div className="p-4">Loading...</div>;
   }
   if (!currentFile && !fullScheduleActive) {
     return <div className="p-4">No file selected.</div>;
   }
+
   const programsToShow = selectedProgramId
     ? programs.filter((p) => p.id === selectedProgramId)
     : programs;
@@ -1070,6 +1308,7 @@ export default function Home() {
 
   const availableSlots = selectedTeacherId ? getAvailableSlotsForTeacher(selectedTeacherId) : {};
   const mergedGrid = fullScheduleActive ? createMergedScheduleGrid() : null;
+
   return (
     <>
       <div className="sticky top-0 z-30 pb-4 bg-[#f8f8f8]">
@@ -1198,7 +1437,32 @@ export default function Home() {
                                             }
                                             : {})}
                                         >
+
+
                                           <div className="text-xs leading-tight">
+                                            {/* Small circle marker - Click to toggle tooltip */}
+                                            <button
+                                              className="w-3 h-3 rounded-full cursor-pointer hover:scale-110 transition-transform"
+                                              style={{ backgroundColor: getDarkerColor(color) }}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                const rect = e.currentTarget.getBoundingClientRect();
+                                                setTooltipPosition({
+                                                  x: rect.left + window.scrollX,
+                                                  y: rect.top + window.scrollY
+                                                });
+
+                                                // Toggle tooltip
+                                                if (showTooltip && clickedCell?.id === assignment.id) {
+                                                  setShowTooltip(false);
+                                                  setClickedCell(null);
+                                                } else {
+                                                  setClickedCell(assignment);
+                                                  setShowTooltip(true);
+                                                }
+                                              }}
+                                              title="Click for details"
+                                            ></button>
                                             <div className="font-bold text-gray-900">{subjectName}</div>
                                             <div className="text-gray-600">{teacherName}</div>
                                             {room !== "N/A" && <div className="text-gray-500 text-xs">{room}</div>}
@@ -1286,7 +1550,32 @@ export default function Home() {
                                           }
                                           : {})}
                                       >
+
+
                                         <div className="text-xs leading-tight">
+                                          {/* Small circle marker - Click to toggle tooltip */}
+                                          <button
+                                            className="w-3 h-3 rounded-full cursor-pointer hover:scale-110 transition-transform"
+                                            style={{ backgroundColor: getDarkerColor(color) }}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              const rect = e.currentTarget.getBoundingClientRect();
+                                              setTooltipPosition({
+                                                x: rect.left + window.scrollX,
+                                                y: rect.top + window.scrollY
+                                              });
+
+                                              // Toggle tooltip
+                                              if (showTooltip && clickedCell?.id === assignment.id) {
+                                                setShowTooltip(false);
+                                                setClickedCell(null);
+                                              } else {
+                                                setClickedCell(assignment);
+                                                setShowTooltip(true);
+                                              }
+                                            }}
+                                            title="Click for details"
+                                          ></button>
                                           <div className="font-bold text-gray-900">{subjectName}</div>
                                           <div className="text-gray-600">{teacherName}</div>
                                           {room !== "N/A" && <div className="text-gray-500 text-xs">{room}</div>}
@@ -1333,7 +1622,9 @@ export default function Home() {
       {!isFullScreen && (
         <div className={`pr-6 pl-6 flex flex-col lg:flex-row gap-6`}>
           <div className="flex-1 space-y-0">
-            <div className="fixed bottom-0 right-0 bg-white rounded-t-lg shadow-sm p-3 border z-[20]">
+            <div className="fixed bottom-0 left-1/2 -translate-x-1/2 
+                bg-white rounded-t-lg shadow-lg p-4 border z-[20] 
+                w-[800px]">
               <div className="flex items-center justify-between">
 
                 <div className="text-sm font-semibold text-gray-700">
@@ -1342,7 +1633,7 @@ export default function Home() {
                     : `${currentFile?.semester || ""} | School Year: ${currentFile?.academic_year || ""}`}
                 </div>
 
-                <div className="flex items-center gap-2 w-40">
+                <div className="flex items-center gap-2 w-48">
                   <input
                     type="range"
                     min="50"
@@ -1353,6 +1644,7 @@ export default function Home() {
                   />
                   <span className="text-xs text-gray-600">Zoom</span>
                 </div>
+
               </div>
             </div>
 
@@ -1455,7 +1747,32 @@ export default function Home() {
                                             }
                                             : {})}
                                         >
+
+
                                           <div className="text-xs leading-tight">
+                                            {/* Small circle marker - Click to toggle tooltip */}
+                                            <button
+                                              className="w-3 h-3 rounded-full cursor-pointer hover:scale-110 transition-transform"
+                                              style={{ backgroundColor: getDarkerColor(color) }}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                const rect = e.currentTarget.getBoundingClientRect();
+                                                setTooltipPosition({
+                                                  x: rect.left + window.scrollX,
+                                                  y: rect.top + window.scrollY
+                                                });
+
+                                                // Toggle tooltip
+                                                if (showTooltip && clickedCell?.id === assignment.id) {
+                                                  setShowTooltip(false);
+                                                  setClickedCell(null);
+                                                } else {
+                                                  setClickedCell(assignment);
+                                                  setShowTooltip(true);
+                                                }
+                                              }}
+                                              title="Click for details"
+                                            ></button>
                                             <div className="font-bold text-gray-900">{subjectName}</div>
                                             <div className="text-gray-600">{teacherName}</div>
                                             {room !== "N/A" && <div className="text-gray-500 text-xs">{room}</div>}
@@ -1547,7 +1864,32 @@ export default function Home() {
                                           }
                                           : {})}
                                       >
+
+
                                         <div className="text-xs leading-tight">
+                                          {/* Small circle marker - Click to toggle tooltip */}
+                                          <button
+                                            className="w-3 h-3 rounded-full cursor-pointer hover:scale-110 transition-transform"
+                                            style={{ backgroundColor: getDarkerColor(color) }}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              const rect = e.currentTarget.getBoundingClientRect();
+                                              setTooltipPosition({
+                                                x: rect.left + window.scrollX,
+                                                y: rect.top + window.scrollY
+                                              });
+
+                                              // Toggle tooltip
+                                              if (showTooltip && clickedCell?.id === assignment.id) {
+                                                setShowTooltip(false);
+                                                setClickedCell(null);
+                                              } else {
+                                                setClickedCell(assignment);
+                                                setShowTooltip(true);
+                                              }
+                                            }}
+                                            title="Click for details"
+                                          ></button>
                                           <div className="font-bold text-gray-900">{subjectName}</div>
                                           <div className="text-gray-600">{teacherName}</div>
                                           {room !== "N/A" && <div className="text-gray-500 text-xs">{room}</div>}
@@ -1610,6 +1952,37 @@ export default function Home() {
               userRole={userRole}
             />
           )}
+        </div>
+      )}
+
+      {/* Tooltip */}
+      {showTooltip && clickedCell && (
+        <div
+          className="fixed z-[100]"
+          style={{
+            left: tooltipPosition.x,
+            top: tooltipPosition.y,
+          }}
+        >
+          <ScheduleCellTooltip
+            assignment={clickedCell}
+            onRemove={handleRemoveAssignment}
+            onEdit={handleEditAssignment}
+            onClose={() => {
+              setShowTooltip(false);
+              setClickedCell(null);
+            }}
+            getSubjectName={getSubjectName}
+            getTeacherName={getTeacherName}
+            getAssignmentRoom={getAssignmentRoom}
+            getTeacherColor={getTeacherColor}
+            getSubjectUnits={getSubjectUnits}
+            getTimeSlotRange={getTimeSlotRange}
+            days={days}
+            timeSlots={timeSlots}
+            rooms={rooms} // Add this
+            roomAssignments={roomAssignments} // Add this
+          />
         </div>
       )}
 

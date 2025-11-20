@@ -1247,7 +1247,7 @@ export default function Toolbar({
                   <p className="text-gray-200">|</p>
 
                   {/* Merge Class dropdown */}
-                  <select
+                  {/* <select
                     value={selectedMergeClass || ""}
                     onChange={(e) => handleMergeClass(e.target.value)}
                     className="px-4 py-1 bg-white text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
@@ -1262,9 +1262,9 @@ export default function Toolbar({
                         </option>
                       ))
                     }
-                  </select>
+                  </select> */}
                 </div>
-
+                <div className="text-sm text-gray-600"><h3>Assignment List</h3></div>
                 <button
                   onClick={toggleAssignmentList}
                   className="w-8 h-8 flex items-center justify-center bg-white text-gray-700 rounded hover:bg-gray-100 transition-colors"

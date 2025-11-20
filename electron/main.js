@@ -118,8 +118,10 @@ function initializeDatabase() {
       students INTEGER NOT NULL,
       programId INTEGER NOT NULL,
       yearLevel TEXT NOT NULL,
-      isMerged BOOLEAN DEFAULT 0,
-      mergedFrom TEXT,
+      is_merged BOOLEAN DEFAULT 0,
+      merged_from TEXT,
+      mergedInto INTEGER REFERENCES classes(id),
+      original_classes TEXT,
       FOREIGN KEY (programId) REFERENCES programs(id)
     )`);
 
@@ -1841,14 +1843,14 @@ ipcMain.handle("delete-program", (event, id) => {
   });
 });
 
-ipcMain.handle("get-classes", () => {
-  return new Promise((resolve, reject) => {
-    db.all(`SELECT * FROM classes`, (err, rows) => {
-      if (err) reject(err.message);
-      else resolve(rows || []);
-    });
-  });
-});
+// ipcMain.handle("get-classes", () => {
+//   return new Promise((resolve, reject) => {
+//     db.all(`SELECT * FROM classes`, (err, rows) => {
+//       if (err) reject(err.message);
+//       else resolve(rows || []);
+//     });
+//   });
+// });
 
 ipcMain.handle("save-class", (event, data) => {
   return new Promise((resolve, reject) => {
@@ -2145,6 +2147,234 @@ ipcMain.handle("update-room-assignment", (event, data) => {
         }
       }
     );
+  });
+});
+
+// Updated get-classes handler (returns only classes not part of merges)
+ipcMain.handle("get-classes", () => {
+  return new Promise((resolve, reject) => {
+    db.all(`SELECT * FROM classes WHERE mergedInto IS NULL ORDER BY name`, (err, rows) => {
+      if (err) reject(err.message);
+      else resolve(rows || []);
+    });
+  });
+});
+
+// Get all classes including merge status
+ipcMain.handle("get-all-classes-with-merge-status", () => {
+  return new Promise((resolve, reject) => {
+    db.all(`
+      SELECT c.*, 
+             CASE 
+               WHEN c.isMerged = 1 THEN 'merged'
+               WHEN c.mergedInto IS NOT NULL THEN 'part_of_merge'
+               ELSE 'normal'
+             END as merge_status,
+             m.name as merged_into_name
+      FROM classes c
+      LEFT JOIN classes m ON c.mergedInto = m.id
+      ORDER BY c.isMerged DESC, c.name ASC
+    `, (err, rows) => {
+      if (err) reject(err.message);
+      else resolve(rows || []);
+    });
+  });
+});
+
+// Get classes available for merging
+ipcMain.handle("get-available-classes-for-merge", () => {
+  return new Promise((resolve, reject) => {
+    db.all(`
+      SELECT * FROM classes 
+      WHERE isMerged = 0 AND mergedInto IS NULL 
+      ORDER BY programId, yearLevel, name
+    `, (err, rows) => {
+      if (err) reject(err.message);
+      else resolve(rows || []);
+    });
+  });
+});
+
+// Create merged class
+ipcMain.handle("create-merged-class", (event, data) => {
+  return new Promise((resolve, reject) => {
+    if (!data.name || !data.classIds || !data.classIds.length) {
+      resolve({ success: false, message: "Class name and at least one class are required" });
+      return;
+    }
+
+    const getTotalStudents = (classIds) => {
+      return new Promise((res, rej) => {
+        const placeholders = classIds.map(() => '?').join(',');
+        db.all(`SELECT students FROM classes WHERE id IN (${placeholders})`, classIds, (err, rows) => {
+          if (err) rej(err.message);
+          else {
+            const total = rows.reduce((sum, row) => sum + (parseInt(row.students) || 0), 0);
+            res(total);
+          }
+        });
+      });
+    };
+
+    getTotalStudents(data.classIds).then(totalStudents => {
+      const mergedFrom = JSON.stringify(data.classIds);
+      
+      db.run(
+        `INSERT INTO classes (name, students, programId, yearLevel, isMerged, mergedFrom) VALUES (?, ?, ?, ?, ?, ?)`,
+        [data.name, totalStudents, data.programId, data.yearLevel, 1, mergedFrom],
+        function (err) {
+          if (err) reject(err.message);
+          else {
+            const mergedClassId = this.lastID;
+            
+            const updatePromises = data.classIds.map(classId => {
+              return new Promise((res, rej) => {
+                db.run(
+                  `UPDATE classes SET mergedInto = ? WHERE id = ?`,
+                  [mergedClassId, classId],
+                  (err) => err ? rej(err.message) : res()
+                );
+              });
+            });
+            
+            Promise.all(updatePromises).then(() => {
+              resolve({ success: true, id: mergedClassId, totalStudents });
+            }).catch(reject);
+          }
+        }
+      );
+    }).catch(reject);
+  });
+});
+
+// Get merged class details
+ipcMain.handle("get-merged-class-details", (event, classId) => {
+  return new Promise((resolve, reject) => {
+    db.get(`SELECT * FROM classes WHERE id = ?`, [classId], (err, row) => {
+      if (err) {
+        reject(err.message);
+        return;
+      }
+      
+      if (!row || !row.isMerged) {
+        resolve({ success: false, message: "Class not found or not a merged class" });
+        return;
+      }
+      
+      let mergedClassIds = [];
+      try {
+        mergedClassIds = JSON.parse(row.mergedFrom || '[]');
+      } catch (e) {
+        console.error("Error parsing mergedFrom:", e);
+      }
+      
+      if (mergedClassIds.length === 0) {
+        resolve({ 
+          success: true, 
+          mergedClass: row, 
+          originalClasses: [] 
+        });
+        return;
+      }
+      
+      const placeholders = mergedClassIds.map(() => '?').join(',');
+      db.all(
+        `SELECT * FROM classes WHERE id IN (${placeholders})`, 
+        mergedClassIds,
+        (err, originalClasses) => {
+          if (err) {
+            reject(err.message);
+            return;
+          }
+          
+          resolve({ 
+            success: true, 
+            mergedClass: row, 
+            originalClasses: originalClasses || [] 
+          });
+        }
+      );
+    });
+  });
+});
+
+// Update merged class
+ipcMain.handle("update-merged-class", (event, data) => {
+  return new Promise((resolve, reject) => {
+    if (!data.id || !data.name || !data.classIds || !data.classIds.length) {
+      resolve({ success: false, message: "All fields are required" });
+      return;
+    }
+
+    const getTotalStudents = (classIds) => {
+      return new Promise((res, rej) => {
+        const placeholders = classIds.map(() => '?').join(',');
+        db.all(`SELECT students FROM classes WHERE id IN (${placeholders})`, classIds, (err, rows) => {
+          if (err) rej(err.message);
+          else {
+            const total = rows.reduce((sum, row) => sum + (parseInt(row.students) || 0), 0);
+            res(total);
+          }
+        });
+      });
+    };
+
+    db.run(`UPDATE classes SET mergedInto = NULL WHERE mergedInto = ?`, [data.id], (err) => {
+      if (err) {
+        reject(err.message);
+        return;
+      }
+
+      getTotalStudents(data.classIds).then(totalStudents => {
+        const mergedFrom = JSON.stringify(data.classIds);
+        
+        db.run(
+          `UPDATE classes SET name = ?, students = ?, programId = ?, yearLevel = ?, mergedFrom = ? WHERE id = ?`,
+          [data.name, totalStudents, data.programId, data.yearLevel, mergedFrom, data.id],
+          (err) => {
+            if (err) {
+              reject(err.message);
+              return;
+            }
+            
+            const updatePromises = data.classIds.map(classId => {
+              return new Promise((res, rej) => {
+                db.run(
+                  `UPDATE classes SET mergedInto = ? WHERE id = ?`,
+                  [data.id, classId],
+                  (err) => err ? rej(err.message) : res()
+                );
+              });
+            });
+            
+            Promise.all(updatePromises).then(() => {
+              resolve({ success: true, totalStudents });
+            }).catch(reject);
+          }
+        );
+      }).catch(reject);
+    });
+  });
+});
+
+// Unmerge class
+ipcMain.handle("unmerge-class", (event, classId) => {
+  return new Promise((resolve, reject) => {
+    db.run(`UPDATE classes SET mergedInto = NULL WHERE mergedInto = ?`, [classId], (err) => {
+      if (err) {
+        reject(err.message);
+        return;
+      }
+      
+      db.run(`DELETE FROM classes WHERE id = ?`, [classId], (err) => {
+        if (err) {
+          reject(err.message);
+          return;
+        }
+        
+        resolve({ success: true });
+      });
+    });
   });
 });
 

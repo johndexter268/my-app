@@ -50,6 +50,13 @@ contextBridge.exposeInMainWorld("api", {
   deleteUser: (id) => ipcRenderer.invoke("delete-user", id),
 
   reloadWindow: () => ipcRenderer.invoke("reload-window"),
+  
+   getAllClassesWithMergeStatus: () => ipcRenderer.invoke("get-all-classes-with-merge-status"),
+  getAvailableClassesForMerge: () => ipcRenderer.invoke("get-available-classes-for-merge"),
+  createMergedClass: (data) => ipcRenderer.invoke("create-merged-class", data),
+  getMergedClassDetails: (classId) => ipcRenderer.invoke("get-merged-class-details", classId),
+  updateMergedClass: (data) => ipcRenderer.invoke("update-merged-class", data),
+  unmergeClass: (classId) => ipcRenderer.invoke("unmerge-class", classId),
 
   // Expose utility functions
   parseClockToMinutes: (clock) => parseClockToMinutes(clock),

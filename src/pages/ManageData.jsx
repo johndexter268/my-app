@@ -1,7 +1,9 @@
+/* eslint-disable no-unused-vars */
 "use client"
 
 import { useState, useEffect } from "react"
 import { FiPlus, FiEdit, FiSearch, FiFilter } from "react-icons/fi"
+import { PiSplitHorizontalBold } from "react-icons/pi";
 import { MdOutlineSort } from "react-icons/md"
 import { FaTrash } from "react-icons/fa"
 import Modal from "../components/Modal"
@@ -37,6 +39,10 @@ export default function ManageData() {
     programId: "",
     yearLevel: ""
   })
+
+  const [showEditMergeModal, setShowEditMergeModal] = useState(false)
+  const [editingMergedClass, setEditingMergedClass] = useState(null)
+  const [originalClasses, setOriginalClasses] = useState([])
 
   // Filter states for each tab
   const [showSubjectFilter, setShowSubjectFilter] = useState(false)
@@ -111,10 +117,28 @@ export default function ManageData() {
           window.api.getClasses(),
           window.api.getPrograms(),
         ])
+
+        // Parse merged class data
+        const parsedClasses = classesData.map(cls => {
+          if (cls.isMerged) {
+            try {
+              return {
+                ...cls,
+                mergedFrom: typeof cls.mergedFrom === 'string' ? JSON.parse(cls.mergedFrom) : cls.mergedFrom,
+                originalClasses: typeof cls.originalClasses === 'string' ? JSON.parse(cls.originalClasses) : cls.originalClasses
+              };
+            } catch (e) {
+              console.error('Error parsing merged class data:', e);
+              return cls;
+            }
+          }
+          return cls;
+        });
+
         setTeachers(teachersData)
         setSubjects(subjectsData)
         setRooms(roomsData)
-        setClasses(classesData)
+        setClasses(parsedClasses) // Use parsed classes instead of raw data
         setPrograms(programsData)
       } catch (error) {
         console.error("Error fetching data:", error)
@@ -125,6 +149,28 @@ export default function ManageData() {
     }
     fetchData()
   }, [])
+
+  useEffect(() => {
+    // Parse merged class data when classes are loaded
+    if (classes.length > 0) {
+      const parsedClasses = classes.map(cls => {
+        if (cls.isMerged) {
+          try {
+            return {
+              ...cls,
+              mergedFrom: typeof cls.mergedFrom === 'string' ? JSON.parse(cls.mergedFrom) : cls.mergedFrom,
+              originalClasses: typeof cls.originalClasses === 'string' ? JSON.parse(cls.originalClasses) : cls.originalClasses
+            };
+          } catch (e) {
+            console.error('Error parsing merged class data:', e);
+            return cls;
+          }
+        }
+        return cls;
+      });
+      setClasses(parsedClasses);
+    }
+  }, [classes.length]); // This will run when classes are initially loaded
 
   // Merge functionality functions
   const toggleMergeMode = () => {
@@ -143,87 +189,214 @@ export default function ManageData() {
       }
     })
   }
-
   const handleCreateMerge = () => {
-    if (selectedClassesToMerge.length < 2) {
-      customAlert("Please select at least 2 classes to merge.")
-      return
-    }
-
-    const selectedClassesData = classes.filter(cls => selectedClassesToMerge.includes(cls.id))
-
-    // Auto-fill merge form data
-    const totalStudents = selectedClassesData.reduce((sum, cls) => sum + (cls.students || 0), 0)
-    const programs = [...new Set(selectedClassesData.map(cls => cls.programId))]
-    const yearLevels = [...new Set(selectedClassesData.map(cls => cls.yearLevel))]
-
-    setMergeFormData({
-      name: `Merged Class ${Date.now()}`,
-      students: totalStudents,
-      programId: programs.length === 1 ? programs[0] : "",
-      yearLevel: yearLevels.length === 1 ? yearLevels[0] : ""
-    })
-
-    setShowMergeModal(true)
+  if (selectedClassesToMerge.length < 2) {
+    customAlert("Please select at least 2 classes to merge.");
+    return;
   }
+
+  const selectedClassesData = classes.filter(cls =>
+    selectedClassesToMerge.includes(cls.id)
+  );
+
+  // Manila date (YYYY-MM-DD)
+  const datePH = new Date().toLocaleDateString("en-CA", {
+    timeZone: "Asia/Manila",
+  });
+
+  // Combine selected class names
+  const mergedName = selectedClassesData
+    .map(cls => cls.name)
+    .join(" + "); // e.g. "BSIT 3A + BSIT 3B"
+
+  // Calculate totals
+  const totalStudents = selectedClassesData.reduce(
+    (sum, cls) => sum + (cls.students || 0),
+    0
+  );
+
+  const programs = [...new Set(selectedClassesData.map(cls => cls.programId))];
+  const yearLevels = [...new Set(selectedClassesData.map(cls => cls.yearLevel))];
+
+  setMergeFormData({
+    name: `${mergedName} (${datePH})`,  // final auto-filled name
+    students: totalStudents,
+    programId: programs.length === 1 ? programs[0] : "",
+    yearLevel: yearLevels.length === 1 ? yearLevels[0] : "",
+  });
+
+  setShowMergeModal(true);
+};
+
 
   const handleSaveMerge = async () => {
     if (!mergeFormData.name || !mergeFormData.programId || !mergeFormData.yearLevel) {
-      customAlert("Please fill in all required fields for the merged class.")
-      return
+      customAlert("Please fill in all required fields for the merged class.");
+      return;
     }
 
-    setIsSaving(true)
+    setIsSaving(true);
     try {
-      const selectedClassesData = classes.filter(cls => selectedClassesToMerge.includes(cls.id))
-      const totalStudents = selectedClassesData.reduce((sum, cls) => sum + (cls.students || 0), 0)
+      const selectedClassesData = classes.filter(cls => selectedClassesToMerge.includes(cls.id));
+      const totalStudents = selectedClassesData.reduce((sum, cls) => sum + parseInt(cls.students || 0), 0);
 
       const mergeData = {
         ...mergeFormData,
         students: totalStudents,
         isMerged: true,
-        mergedFrom: selectedClassesToMerge,
-        originalClasses: selectedClassesData.map(cls => cls.name)
-      }
+        mergedFrom: JSON.stringify(selectedClassesToMerge),
+        originalClasses: JSON.stringify(selectedClassesData.map(cls => cls.name))
+      };
 
-      const result = await window.api.saveClass(mergeData)
+      const result = await window.api.saveClass(mergeData);
       if (result.success) {
-        const newMergedClass = {
-          ...mergeData,
-          id: result.id,
-          isMerged: true,
-          mergedFrom: selectedClassesToMerge,
-          originalClasses: selectedClassesData.map(cls => cls.name)
+        // Refresh classes and parse the data
+        const updatedClasses = await window.api.getClasses();
+        const parsedClasses = updatedClasses.map(cls => {
+          if (cls.isMerged) {
+            try {
+              return {
+                ...cls,
+                mergedFrom: typeof cls.mergedFrom === 'string' ? JSON.parse(cls.mergedFrom) : cls.mergedFrom,
+                originalClasses: typeof cls.originalClasses === 'string' ? JSON.parse(cls.originalClasses) : cls.originalClasses
+              };
+            } catch (e) {
+              console.error('Error parsing merged class data:', e);
+              return cls;
+            }
+          }
+          return cls;
+        });
+        setClasses(parsedClasses);
+
+        customAlert("Merged class created successfully!");
+        setShowMergeModal(false);
+        setIsMergeMode(false);
+        setSelectedClassesToMerge([]);
+        setMergeFormData({
+          name: "",
+          programId: "",
+          yearLevel: ""
+        });
+      } else {
+        customAlert(result.message || "Failed to create merged class.");
+      }
+    } catch (error) {
+      console.error("Error creating merged class:", error);
+      customAlert(`Error creating merged class: ${error.message || "Unknown error"}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleEditMergedClass = async (classId) => {
+    try {
+      const result = await window.api.getMergedClassDetails(classId)
+      if (result.success) {
+        setEditingMergedClass(result.mergedClass)
+        setOriginalClasses(result.originalClasses)
+
+        // Parse the mergedFrom JSON to get class IDs
+        let mergedClassIds = []
+        try {
+          mergedClassIds = JSON.parse(result.mergedClass.mergedFrom || '[]')
+        } catch (e) {
+          console.error("Error parsing mergedFrom:", e)
         }
 
-        setClasses(prev => [...prev, newMergedClass])
-        customAlert("Merged class created successfully!")
+        setSelectedClassesToMerge(mergedClassIds)
+        setMergeFormData({
+          name: result.mergedClass.name,
+          programId: result.mergedClass.programId,
+          yearLevel: result.mergedClass.yearLevel
+        })
+        setShowEditMergeModal(true)
+      } else {
+        customAlert(result.message || "Failed to load merged class details")
+      }
+    } catch (error) {
+      console.error("Error loading merged class details:", error)
+      customAlert("Error loading merged class details: " + error.message)
+    }
+  }
 
-        // Reset merge state
-        setShowMergeModal(false)
-        setIsMergeMode(false)
+  // Add this function to handle updating merged classes
+  const handleUpdateMerge = async () => {
+    if (!editingMergedClass || !mergeFormData.name || !mergeFormData.programId || !mergeFormData.yearLevel) {
+      customAlert("Please fill in all required fields for the merged class.")
+      return
+    }
+
+    if (selectedClassesToMerge.length < 2) {
+      customAlert("Please select at least 2 classes to merge.")
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const updateData = {
+        id: editingMergedClass.id,
+        name: mergeFormData.name,
+        programId: mergeFormData.programId,
+        yearLevel: mergeFormData.yearLevel,
+        classIds: selectedClassesToMerge
+      }
+
+      const result = await window.api.updateMergedClass(updateData)
+      if (result.success) {
+        // Update the classes list
+        const updatedClasses = await window.api.getClasses()
+        setClasses(updatedClasses)
+
+        customAlert("Merged class updated successfully!")
+
+        // Reset state
+        setShowEditMergeModal(false)
+        setEditingMergedClass(null)
         setSelectedClassesToMerge([])
         setMergeFormData({
           name: "",
           programId: "",
           yearLevel: ""
         })
-
-        const currentFile = await window.api.getCurrentFile()
-        if (currentFile) {
-          const updatedFile = { ...currentFile, updatedAt: new Date().toISOString(), hasUnsavedChanges: true }
-          await window.api.setCurrentFile(updatedFile)
-        }
       } else {
-        customAlert(result.message || "Failed to create merged class.")
+        customAlert(result.message || "Failed to update merged class.")
       }
     } catch (error) {
-      console.error("Error creating merged class:", error)
-      customAlert(`Error creating merged class: ${error.message || "Unknown error"}`)
+      console.error("Error updating merged class:", error)
+      customAlert(`Error updating merged class: ${error.message || "Unknown error"}`)
     } finally {
       setIsSaving(false)
     }
   }
+
+  // Add this function to handle unmerging
+  const handleUnmergeClass = async (classId) => {
+    customConfirm("Are you sure you want to unmerge this class? This will restore the original classes.", async () => {
+      setIsDeleting(true)
+      try {
+        const result = await window.api.unmergeClass(classId)
+        if (result.success) {
+          // Refresh the classes list
+          const updatedClasses = await window.api.getClasses()
+          setClasses(updatedClasses)
+          customAlert("Class unmerged successfully!")
+
+          if (selectedItem?.id === classId) {
+            setSelectedItem(null)
+          }
+        } else {
+          customAlert(result.message || "Failed to unmerge class.")
+        }
+      } catch (error) {
+        console.error("Error unmerging class:", error)
+        customAlert(`Error unmerging class: ${error.message || "Unknown error"}`)
+      } finally {
+        setIsDeleting(false)
+      }
+    })
+  }
+
 
   const handleAdd = () => {
     setFormData({})
@@ -231,13 +404,15 @@ export default function ManageData() {
   }
 
   const selectItem = (item) => {
-    // Don't allow editing merged classes
+    // Allow viewing (but not editing) merged classes
     if (activeTab === "Classes" && item.isMerged) {
-      customAlert("Merged classes cannot be edited.")
-      return
+      // Set form data but show it as read-only
+      setFormData({ ...item });
+      setSelectedItem(item);
+      return;
     }
-    setFormData({ ...item })
-    setSelectedItem(item)
+    setFormData({ ...item });
+    setSelectedItem(item);
   }
 
   const handleDelete = async (type, id) => {
@@ -596,6 +771,7 @@ export default function ManageData() {
                 onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
                 className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500"
                 placeholder="Enter class name"
+                disabled={selectedItem?.isMerged} // Disable editing for merged classes
               />
             </div>
             <div>
@@ -606,6 +782,7 @@ export default function ManageData() {
                 onChange={(e) => setFormData((prev) => ({ ...prev, students: e.target.value }))}
                 className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500"
                 placeholder="Enter number of students"
+                disabled={selectedItem?.isMerged} // Disable editing for merged classes
               />
             </div>
             <div>
@@ -614,6 +791,7 @@ export default function ManageData() {
                 value={formData.programId || ""}
                 onChange={(e) => setFormData((prev) => ({ ...prev, programId: e.target.value }))}
                 className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500"
+                disabled={selectedItem?.isMerged} // Disable editing for merged classes
               >
                 <option value="">Select program</option>
                 {programs.map((program) => (
@@ -629,6 +807,7 @@ export default function ManageData() {
                 value={formData.yearLevel || ""}
                 onChange={(e) => setFormData((prev) => ({ ...prev, yearLevel: e.target.value }))}
                 className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500"
+                disabled={selectedItem?.isMerged} // Disable editing for merged classes
               >
                 <option value="">Select year level</option>
                 <option value="1st Year">1st Year</option>
@@ -639,6 +818,75 @@ export default function ManageData() {
                 <option value="6th Year">6th Year</option>
               </select>
             </div>
+
+            {/* Show merged classes information - IMPROVED VERSION */}
+            {/* {selectedItem?.isMerged && (
+              <div className="border-t pt-4 mt-4">
+                <h4 className="text-sm font-medium text-gray-700 mb-2">Merged Classes Composition</h4>
+                <div className="bg-gray-50 p-3 rounded-md">
+                  <div className="mb-3">
+                    <p className="text-sm font-medium text-gray-700 mb-1">Total Students: {formData.students}</p>
+                    <p className="text-xs text-gray-500">Sum of all merged classes</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h5 className="text-sm font-medium text-gray-700">Classes included in this merge:</h5>
+                    <div className="max-h-40 overflow-y-auto border rounded-md bg-white">
+                      {(() => {
+                        // Parse the originalClasses data
+                        let classList = [];
+                        try {
+                          if (typeof selectedItem.originalClasses === 'string') {
+                            classList = JSON.parse(selectedItem.originalClasses);
+                          } else if (Array.isArray(selectedItem.originalClasses)) {
+                            classList = selectedItem.originalClasses;
+                          }
+                        } catch (e) {
+                          console.error("Error parsing originalClasses:", e);
+                          classList = [];
+                        }
+
+                        return classList.map((className, index) => (
+                          <div
+                            key={index}
+                            className="flex items-center justify-between p-2 border-b last:border-b-0 hover:bg-gray-50"
+                          >
+                            <span className="text-sm text-gray-700">{className}</span>
+                            <span className="text-xs text-gray-500 bg-blue-100 px-2 py-1 rounded">
+                              {(() => {
+                                // Find the actual class to get student count
+                                const originalClass = classes.find(cls =>
+                                  cls.name === className && !cls.isMerged
+                                );
+                                return originalClass ? `${originalClass.students} students` : 'N/A';
+                              })()}
+                            </span>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  </div>
+
+                  <div className="mt-3 pt-3 border-t">
+                    <p className="text-xs text-gray-500">
+                      This merged class contains {(() => {
+                        let classList = [];
+                        try {
+                          if (typeof selectedItem.originalClasses === 'string') {
+                            classList = JSON.parse(selectedItem.originalClasses);
+                          } else if (Array.isArray(selectedItem.originalClasses)) {
+                            classList = selectedItem.originalClasses;
+                          }
+                        } catch (e) {
+                          classList = [];
+                        }
+                        return classList.length;
+                      })()} individual classes
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )} */}
           </>
         )}
         {activeTab === "Programs" && (
@@ -987,11 +1235,11 @@ export default function ManageData() {
                 <button
                   onClick={toggleMergeMode}
                   className={`px-4 py-2 rounded-md transition-colors ${isMergeMode
-                    ? "bg-teal-600 text-white hover:bg-teal-700"
+                    ? "bg-gray-200 text-gray-700 hover:bg-gray-300"
                     : "bg-gray-200 text-gray-700 hover:bg-gray-300"
                     }`}
                 >
-                  {isMergeMode ? "Cancel Merge" : "Merge"}
+                  {isMergeMode ? "Cancel Merge" : "Merge Classes"}
                 </button>
 
                 {isMergeMode && (
@@ -999,16 +1247,17 @@ export default function ManageData() {
                     onClick={handleCreateMerge}
                     disabled={selectedClassesToMerge.length < 2}
                     className={`px-4 py-2 rounded-md transition-colors ${selectedClassesToMerge.length >= 2
-                      ? "bg-blue-600 text-white hover:bg-blue-700"
+                      ? "bg-teal-600 text-white hover:bg-teal-700"
                       : "bg-gray-200 text-gray-400 cursor-not-allowed"
                       }`}
                   >
-                    Create ({selectedClassesToMerge.length})
+                    Create Merge ({selectedClassesToMerge.length})
                   </button>
                 )}
               </div>
             </div>
           )}
+
 
           {/* Programs Tab */}
           {activeTab === "Programs" && (
@@ -1175,6 +1424,7 @@ export default function ManageData() {
                       Class Name
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase">No. of Students</th>
+                    {/* <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase">Status</th> */}
                     <th className="px-6 py-3 text-center text-xs font-medium text-white uppercase rounded-tr-md rounded-br-md">
                       Action
                     </th>
@@ -1196,6 +1446,7 @@ export default function ManageData() {
                               e.stopPropagation()
                               handleClassSelectForMerge(cls.id)
                             }}
+                            disabled={cls.isMerged || cls.mergedInto} // Don't allow selecting already merged classes
                             className="h-4 w-4 text-teal-600"
                           />
                         ) : (
@@ -1203,36 +1454,96 @@ export default function ManageData() {
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm flex gap-6 text-gray-800">
-                        {!isMergeMode && <div>{cls.name}</div>}
+                        {!isMergeMode && (
+                          <div className="flex items-center gap-2">
+                            <div>{cls.name}</div>
+                            {/* {cls.isMerged && (
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                Merged
+                              </span>
+                            )} */}
+                          </div>
+                        )}
                         {isMergeMode && (
                           <div className="flex items-center gap-2">
                             <div>{cls.name}</div>
-                            {cls.isMerged && (
+                            {/* {cls.isMerged && (
                               <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                                 Merged
                               </span>
                             )}
+                            {cls.mergedInto && (
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                Part of Merge
+                              </span>
+                            )} */}
                           </div>
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">{cls.students}</td>
+                      {/* <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
+                        {cls.isMerged ? (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            Merged Class
+                          </span>
+                        ) : cls.mergedInto ? (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                            Part of Merge
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            Normal
+                          </span>
+                        )}
+                      </td> */}
                       <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-800">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleDelete("Class", cls.id)
-                          }}
-                          disabled={isDeleting}
-                          className={`text-zinc-500 hover:text-red-700 ${isDeleting ? "opacity-50 cursor-not-allowed" : ""}`}
-                        >
-                          <FaTrash />
-                        </button>
+                        <div className="flex justify-center space-x-2">
+                          {/* {cls.isMerged && (
+                            <>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleEditMergedClass(cls.id)
+                                }}
+                                disabled={isDeleting}
+                                className="text-blue-500 hover:text-blue-700"
+                                title="Edit merged class"
+                              >
+                                <FiEdit />
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleUnmergeClass(cls.id)
+                                }}
+                                disabled={isDeleting}
+                                className="text-orange-500 hover:text-orange-700"
+                                title="Unmerge class"
+                              >
+                                <PiSplitHorizontalBold />
+                              </button>
+                            </>
+                          )} */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDelete("Class", cls.id)
+                            }}
+                            disabled={isDeleting || cls.isMerged || cls.mergedInto}
+                            className={`text-zinc-500 hover:text-red-700 ${isDeleting || cls.isMerged || cls.mergedInto ? "opacity-50 cursor-not-allowed" : ""
+                              }`}
+                            title={cls.isMerged || cls.mergedInto ? "Cannot delete merged classes" : "Delete class"}
+                          >
+                            <FaTrash />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             )}
+
             {activeTab === "Programs" && (
               <table className="w-full border-collapse">
                 <thead className="bg-[#4c4c4c] rounded-md sticky top-0">
@@ -1456,6 +1767,105 @@ export default function ManageData() {
           isSaving={isDeleting}
         />
       )}
+      {showEditMergeModal && (
+        <div className="fixed inset-0 z-[99999] bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto z-[100000]">
+            <h2 className="text-lg font-semibold mb-4">Edit Merged Class</h2>
+
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Merged Class Name</label>
+                <input
+                  type="text"
+                  value={mergeFormData.name}
+                  onChange={(e) => setMergeFormData(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500"
+                  placeholder="Enter merged class name"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Program</label>
+                <select
+                  value={mergeFormData.programId}
+                  onChange={(e) => setMergeFormData(prev => ({ ...prev, programId: e.target.value }))}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500"
+                >
+                  <option value="">Select program</option>
+                  {programs.map((program) => (
+                    <option key={program.id} value={program.id}>
+                      {program.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Year Level</label>
+                <select
+                  value={mergeFormData.yearLevel}
+                  onChange={(e) => setMergeFormData(prev => ({ ...prev, yearLevel: e.target.value }))}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500"
+                >
+                  <option value="">Select year level</option>
+                  <option value="1st Year">1st Year</option>
+                  <option value="2nd Year">2nd Year</option>
+                  <option value="3rd Year">3rd Year</option>
+                  <option value="4th Year">4th Year</option>
+                  <option value="5th Year">5th Year</option>
+                  <option value="6th Year">6th Year</option>
+                </select>
+              </div>
+
+              <div className="border-t pt-4">
+                <h3 className="text-md font-medium text-gray-900 mb-2">Selected Classes</h3>
+                <div className="bg-gray-50 p-3 rounded-md">
+                  <p className="text-sm text-gray-700 mb-2">
+                    <strong>Total Students:</strong> {
+                      classes
+                        .filter(cls => selectedClassesToMerge.includes(cls.id))
+                        .reduce((sum, cls) => sum + (cls.students || 0), 0)
+                    }
+                  </p>
+                  <div className="max-h-32 overflow-y-auto">
+                    {classes
+                      .filter(cls => selectedClassesToMerge.includes(cls.id))
+                      .map(cls => (
+                        <div key={cls.id} className="flex items-center justify-between py-1">
+                          <span className="text-sm text-gray-700">{cls.name}</span>
+                          <span className="text-sm text-gray-500">{cls.students} students</span>
+                        </div>
+                      ))
+                    }
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setShowEditMergeModal(false)
+                  setEditingMergedClass(null)
+                  setSelectedClassesToMerge([])
+                }}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
+                disabled={isSaving}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdateMerge}
+                disabled={isSaving}
+                className="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSaving ? "Updating..." : "Update Merged Class"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+
   )
 }
